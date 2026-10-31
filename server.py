@@ -49,11 +49,85 @@ def parse_color(c_str):
     except:
         return (0.0, 0.0, 0.0)
 
+# What can be opened, and what turns it into a PDF
+WORD_EXT = ('.doc', '.docx', '.docm', '.dot', '.dotx', '.dotm', '.rtf', '.odt', '.wps', '.wpd')
+EXCEL_EXT = ('.xls', '.xlsx', '.xlsm', '.xlsb', '.xlt', '.xltx', '.csv', '.tsv', '.ods')
+POWERPOINT_EXT = ('.ppt', '.pptx', '.pptm', '.pps', '.ppsx', '.pot', '.potx', '.odp')
+IMAGE_EXT = ('.jpg', '.jpeg', '.jfif', '.png', '.bmp', '.gif', '.tif', '.tiff', '.webp', '.ico', '.pnm', '.jxr')
+BOOK_EXT = ('.xps', '.oxps', '.epub', '.fb2', '.cbz', '.mobi', '.svg')   # MuPDF reads these itself
+WEB_EXT = ('.html', '.htm', '.mhtml', '.mht', '.xhtml')
+TEXT_EXT = ('.txt', '.md', '.markdown', '.log', '.json', '.xml', '.yaml', '.yml', '.ini', '.cfg', '.conf', '.py', '.js',
+            '.ts', '.css', '.java', '.c', '.cpp', '.h', '.cs', '.go', '.rs', '.rb', '.php', '.sql', '.sh', '.bat', '.ps1')
+OPENABLE_EXT = ('.pdf',) + WORD_EXT + EXCEL_EXT + POWERPOINT_EXT + IMAGE_EXT + BOOK_EXT + WEB_EXT + TEXT_EXT
+
+def _images_to_pdf(src, dst):
+    """Every picture in the file (a multi-page TIFF or animated GIF has several) becomes a page its own size."""
+    out = fitz.open()
+    try:
+        with Image.open(src) as im: frames = getattr(im, 'n_frames', 1)
+    except Exception: frames = 1
+    try:
+        if frames > 1 and src.lower().endswith(('.gif', '.webp')): raise ValueError('animated: take every frame')
+        img = fitz.open(src)            # MuPDF reads most formats directly, keeping the image as is
+        out.insert_pdf(fitz.open('pdf', img.convert_to_pdf()))
+    except Exception:
+        from PIL import ImageSequence
+        with Image.open(src) as im:
+            for frame in ImageSequence.Iterator(im):
+                buf = BytesIO(); frame.convert('RGB').save(buf, 'PNG')
+                dpi = (frame.info.get('dpi') or (96, 96))[0] or 96
+                w, h = frame.size[0] * 72 / dpi, frame.size[1] * 72 / dpi
+                pg = out.new_page(width=w, height=h)
+                pg.insert_image(pg.rect, stream=buf.getvalue())
+    out.save(dst, garbage=3, deflate=True)
+
+def _text_to_pdf(src, dst):
+    """A plain text or code file, typeset in a monospaced font on Letter pages."""
+    raw = open(src, 'rb').read()
+    for enc in ('utf-8-sig', 'utf-16', 'cp1252', 'latin-1'):
+        try: text = raw.decode(enc); break
+        except UnicodeDecodeError: continue
+    import html as _html
+    story = fitz.Story(html=f'<pre style="font-family:monospace;font-size:9pt;white-space:pre-wrap">{_html.escape(text)}</pre>')
+    writer = fitz.DocumentWriter(dst)
+    page_rect, where = fitz.paper_rect('letter'), fitz.paper_rect('letter') + (54, 54, -54, -54)
+    more = True
+    while more:
+        dev = writer.begin_page(page_rect)
+        more, _ = story.place(where)
+        story.draw(dev)
+        writer.end_page()
+    writer.close()
+
+def _find_browser():
+    for p in (r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe", r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
+              r"C:\Program Files\Google\Chrome\Application\chrome.exe", r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"):
+        if os.path.exists(p): return p
+    return None
+
+def _web_to_pdf(src, dst):
+    """A web page, printed the way the browser shows it (Edge or Chrome, run hidden)."""
+    exe = _find_browser()
+    if not exe: raise RuntimeError("Opening web pages needs Microsoft Edge or Chrome")
+    from pathlib import Path
+    prof = tempfile.mkdtemp(dir=TEMP_DIR, prefix='web_')
+    try:
+        subprocess.run([exe, '--headless', '--disable-gpu', '--no-pdf-header-footer', f'--user-data-dir={prof}',
+                        f'--print-to-pdf={dst}', Path(src).as_uri()], timeout=120, capture_output=True, creationflags=0x08000000)
+    finally: shutil.rmtree(prof, ignore_errors=True)
+    if not os.path.exists(dst): raise RuntimeError("The browser couldn't print this page")
+
 def _com_to_pdf(src, dst):
     """Convert a Word/Excel/PowerPoint file to PDF using a private Office instance
-    (DispatchEx) so we never touch documents the user already has open, and always Quit()."""
+    (DispatchEx) so we never touch documents the user already has open, and always Quit().
+    Pictures, e-books, web pages and text files have their own converters."""
     low = src.lower()
-    if low.endswith(('.docx', '.doc')):
+    if low.endswith(IMAGE_EXT): return _images_to_pdf(src, dst)
+    if low.endswith(BOOK_EXT):
+        d = fitz.open(src); fitz.open('pdf', d.convert_to_pdf()).save(dst, garbage=3, deflate=True); return
+    if low.endswith(WEB_EXT): return _web_to_pdf(src, dst)
+    if low.endswith(TEXT_EXT): return _text_to_pdf(src, dst)
+    if low.endswith(WORD_EXT):
         app_ = win32.DispatchEx('Word.Application')
         try:
             app_.DisplayAlerts = 0
@@ -61,7 +135,7 @@ def _com_to_pdf(src, dst):
             try: doc.ExportAsFixedFormat(dst, 17)
             finally: doc.Close(False)
         finally: app_.Quit()
-    elif low.endswith(('.xlsx', '.xls')):
+    elif low.endswith(EXCEL_EXT):
         app_ = win32.DispatchEx('Excel.Application')
         try:
             app_.DisplayAlerts = False
@@ -72,15 +146,14 @@ def _com_to_pdf(src, dst):
                 wb.ExportAsFixedFormat(0, dst)
             finally: wb.Close(False)   # never saved: the user's file stays as it was
         finally: app_.Quit()
-    elif low.endswith(('.pptx', '.ppt')):
+    elif low.endswith(POWERPOINT_EXT):
         app_ = win32.DispatchEx('PowerPoint.Application')
         try:
-            pres = app_.Presentations.Open(src, WithWindow=False, ReadOnly=True)
-            try: pres.ExportAsFixedFormat(dst, 2)
+            # PowerPoint takes Office's -1 / 0 for yes / no (a Python True can't be passed to it)
+            pres = app_.Presentations.Open(src, -1, 0, 0)   # read-only, keep its name, no window
+            try: pres.SaveAs(dst, 32)                       # 32 = PDF
             finally: pres.Close()
         finally: app_.Quit()
-    elif low.endswith(('.jpg', '.jpeg', '.png')):
-        Image.open(src).convert('RGB').save(dst)
     else:
         raise ValueError("Unsupported format")
 
@@ -145,7 +218,7 @@ def libreoffice_to_pdf(src, dst):
 
 def office_to_pdf(src, dst):
     """Use Microsoft Office when it is installed, otherwise LibreOffice."""
-    if src.lower().endswith(('.jpg', '.jpeg', '.png')):
+    if src.lower().endswith(IMAGE_EXT + BOOK_EXT + WEB_EXT + TEXT_EXT):
         return _com_to_pdf(src, dst)
     try:
         _com_to_pdf(src, dst)
@@ -154,7 +227,11 @@ def office_to_pdf(src, dst):
             raise RuntimeError("No Office converter found. Install Microsoft Office or the free LibreOffice, then try again.")
         libreoffice_to_pdf(src, dst)
 
-CONVERTER_VERSION = '2'   # bump when office_to_pdf output changes (2: cut-off Excel columns are widened)
+CONVERTER_VERSION = '3'   # bump when office_to_pdf output changes (2: cut-off Excel columns widened, 3: many more formats)
+
+@app.route('/formats', methods=['GET'])
+def formats():
+    return jsonify({"extensions": [e[1:] for e in OPENABLE_EXT]})
 
 @app.route('/ping', methods=['GET'])
 def ping():
@@ -249,9 +326,11 @@ def _find_system_font(name):
                 try: label, file, _ = winreg.EnumValue(k, i)
                 except OSError: break
                 i += 1
-                if not str(file).lower().endswith(('.ttf', '.otf')): continue   # .ttc collections hold several faces
+                if not str(file).lower().endswith(('.ttf', '.otf', '.ttc')): continue
                 label = re.sub(r'\s*\(.*\)$', '', label)
-                for part in label.split(' & '):
+                parts = label.split(' & ')
+                if str(file).lower().endswith('.ttc'): parts = parts[:1]   # only a collection's first font can be loaded
+                for part in parts:
                     _system_fonts.setdefault(_font_key(part), os.path.join(folder, file))
     key = _font_key(name)
     if key in _system_fonts: return _system_fonts[key]
@@ -259,10 +338,137 @@ def _find_system_font(name):
     best = max((k for k in _system_fonts if len(k) >= 4 and key.startswith(k)), key=len, default=None)
     return _system_fonts.get(best) if best else None
 
+def _font_key_raw(name):
+    """A font name squashed to letters and digits, keeping 'Regular' (for comparing names cut short)."""
+    name = (name or '').split('+')[-1]
+    name = re.sub(r'^.*[^\x00-\x7f]', '', name) or name
+    return re.sub(r'[^a-z0-9]', '', name.lower())
+
 def _same_font(a, b):
     """Do two font names (one maybe cut short or with junk in front) name the same font?"""
     ka, kb = _font_key(a), _font_key(b)
     return bool(ka and kb) and (ka == kb or (min(len(ka), len(kb)) >= 6 and (ka.startswith(kb) or kb.startswith(ka))))
+
+def _embedded_font(doc, page, span_font, cache):
+    """The PDF's own copy of a font as a fitz.Font that can type letters: an exact name match first,
+    else the font whose name the (cut short) span name starts. If the copy has no letter map (Word
+    leaves some out), one is rebuilt from the glyphs the page's text already uses."""
+    key = ('emb', span_font)
+    if key in cache: return cache[key]
+    sk = _font_key(span_font)
+    fonts = [(xref, ext, base) for xref, ext, _, base, *_ in page.get_fonts(full=True) if ext not in ('n/a', '')]
+    exact = [f for f in fonts if _font_key(f[2]) == sk]
+    rk = lambda n: _font_key_raw(n)   # name as is, for cut-short ones
+    sr = rk(span_font)
+    cut = sorted((f for f in fonts if len(sr) >= 6 and rk(f[2]).startswith(sr) and f not in exact), key=lambda f: len(rk(f[2])))
+    found = None
+    for xref, ext, base in exact + cut:
+        try:
+            buf = doc.extract_font(xref)[3]
+            if not buf: continue
+            font = fitz.Font(fontbuffer=buf)
+            used = _used_glyphs(page, base)
+            if ext == 'ttf' and (_has_private_codes(buf) or (used and not all(font.has_glyph(ord(ch)) for ch in used if not ch.isspace()))):
+                fixed = _with_letter_map(buf, used)
+                if fixed: font = fitz.Font(fontbuffer=fixed)
+            found = font; break
+        except Exception as e: print('embedded font skipped:', e, file=sys.stderr)
+    cache[key] = found
+    return found
+
+def _used_glyphs(page, base):
+    """{character: glyph id} for the text this page draws in the font named `base`."""
+    out = {}
+    try:
+        for sp in page.get_texttrace():
+            if _same_font(sp.get('font', ''), base):
+                for ch in sp['chars']:
+                    if ch[0] > 0 and ch[1] >= 0: out.setdefault(chr(ch[0]), ch[1])
+    except Exception: pass
+    return out
+
+def _has_private_codes(buf):
+    """Does the font's letter map also point at private-use codes?"""
+    try:
+        from fontTools.ttLib import TTFont
+        tt = TTFont(BytesIO(buf), lazy=True)
+        return 'cmap' in tt and any(0xE000 <= cp <= 0xF8FF for t in tt['cmap'].tables if t.isUnicode() for cp in t.cmap)
+    except Exception: return False
+
+def _with_letter_map(buf, used):
+    """The font file with a Unicode letter map added (TrueType only), so new text can be typed in it."""
+    try:
+        from fontTools.ttLib import TTFont, newTable
+        from fontTools.ttLib.tables._c_m_a_p import cmap_format_4
+        tt = TTFont(BytesIO(buf))
+        order = tt.getGlyphOrder()
+        pua = lambda cp: 0xE000 <= cp <= 0xF8FF
+        m = {ord(ch): order[g] for ch, g in used.items() if g < len(order) and ord(ch) < 0x10000 and not pua(ord(ch))}
+        if 'cmap' in tt:
+            for t in tt['cmap'].tables:
+                if t.isUnicode():
+                    # private-use codes (some makers map every glyph to one too) would make the edited
+                    # words copy and search as symbols, so they're left out
+                    for cp, name in t.cmap.items():
+                        if not pua(cp) and cp < 0x10000: m.setdefault(cp, name)
+        sub = cmap_format_4(4); sub.platformID, sub.platEncID, sub.language, sub.cmap = 3, 1, 0, m
+        cm = newTable('cmap'); cm.tableVersion = 0; cm.tables = [sub]
+        tt['cmap'] = cm
+        out = BytesIO(); tt.save(out); return out.getvalue()
+    except Exception as e:
+        print('letter map not added:', e, file=sys.stderr); return None
+
+def _font_for(doc, page, span_font, text, cache, prefer_embedded=True):
+    """A fitz.Font that draws `text` like `span_font`: the PDF's own copy when it has every letter,
+    else the installed font of that name, else the closest built-in font."""
+    need = [ch for ch in text if not ch.isspace()]
+    if prefer_embedded:
+        f = _embedded_font(doc, page, span_font, cache)
+        if f is not None and all(f.has_glyph(ord(ch)) for ch in need): return f
+    path = _find_system_font(span_font)
+    if path and os.path.exists(path):
+        try:
+            f = fitz.Font(fontfile=path)
+            if all(f.has_glyph(ord(ch)) for ch in need): return f
+        except Exception: pass
+    low = span_font.lower()
+    b, it = 'bold' in low or 'black' in low or 'heavy' in low, 'italic' in low or 'oblique' in low
+    fam = 'co' if 'cour' in low or 'mono' in low else 'ti' if 'times' in low or 'serif' in low and 'sans' not in low else 'he'
+    return fitz.Font({('co', 0, 0): 'cour', ('co', 1, 0): 'cobo', ('co', 0, 1): 'coit', ('co', 1, 1): 'cobi',
+                      ('ti', 0, 0): 'tiro', ('ti', 1, 0): 'tibo', ('ti', 0, 1): 'tiit', ('ti', 1, 1): 'tibi',
+                      ('he', 0, 0): 'helv', ('he', 1, 0): 'hebo', ('he', 0, 1): 'heit', ('he', 1, 1): 'hebi'}[(fam, int(b), int(it))])
+
+def _layout(chars, text, font, size, keep_positions):
+    """Where each letter of `text` goes. Letters that were already there stay exactly where they were (PDF
+    makers often space letters a little differently from the font's own widths, and copying those spots
+    is what keeps an edit invisible); new letters are spaced by the font, and what follows a change moves
+    along by the difference."""
+    import difflib
+    x0 = chars[0]['origin'][0]
+    sp = [c for c in chars if c['c'] == ' ']
+    def adv(ch):
+        if ch == ' ' and not font.has_glyph(32):   # fonts with no space: use the original's spacing
+            return (sum(c['bbox'][2] - c['bbox'][0] for c in sp) / len(sp)) if sp else size * 0.27
+        return font.text_length(ch, size)
+    if not keep_positions:
+        out, x = [], x0
+        for ch in text: out.append((x, ch)); x += adv(ch)
+        return out
+    old = ''.join(c['c'] for c in chars)
+    out, cur = [], x0
+    for op, i1, i2, j1, j2 in difflib.SequenceMatcher(None, old, text, autojunk=False).get_opcodes():
+        if op == 'delete' and i1 == 0 and not old[i1:i2].strip() and i2 < len(chars):
+            cur = chars[i2]['origin'][0]   # leading spaces dropped: the words stay where they were
+        elif op == 'equal':
+            shift = cur - chars[i1]['origin'][0]
+            for k in range(i2 - i1): out.append((chars[i1 + k]['origin'][0] + shift, text[j1 + k]))
+            last = chars[i2 - 1]
+            cur = (chars[i2]['origin'][0] + shift) if i2 < len(chars) else (last['origin'][0] + shift + adv(last['c']))
+        elif op in ('replace', 'insert'):
+            for ch in text[j1:j2]: out.append((cur, ch)); cur += adv(ch)
+            if op == 'replace' and i2 < len(chars):   # old letters gone; continue from where they'd have ended
+                pass
+    return out
 
 def _text_font(doc, page, span_font, text, cache):
     """A font name usable in insert_text that draws `text` like `span_font`: the copy embedded in this PDF
@@ -390,45 +596,34 @@ def _rewrite_text(doc, page, edits):
         s = hit[0]
         size, font, flags = s['size'], s['font'], s['flags']
         c = s['color']; rgb = ((c >> 16 & 255) / 255, (c >> 8 & 255) / 255, (c & 255) / 255)
+        restyled = False
         if e.get('styled'):   # the user changed the look on purpose; anything they didn't touch stays
-            if e.get('size_ratio'): size *= float(e['size_ratio'])
+            if e.get('size_ratio') and abs(float(e['size_ratio']) - 1) > 0.01: size *= float(e['size_ratio']); restyled = True
             if e.get('color'): rgb = parse_color(e['color'])
             low = font.lower()
-            bold = e['bold'] if 'bold' in e else bool(flags & 16) or 'bold' in low
-            italic = e['italic'] if 'italic' in e else bool(flags & 2) or 'italic' in low or 'oblique' in low
-            fam = e.get('font_family') or re.sub(r'^[A-Z]{6}\+', '', font).split('-')[0].split(',')[0]
-            style = ('Bold' if bold else '') + ('Italic' if italic else '')
-            font = fam + ('-' + style if style else '')
-        x, y = s['origin']
-        x += float(e.get('dx', 0)); y += float(e.get('dy', 0))
-        alias = _text_font(doc, page, font, text, cache)
-        sx, sy = s['origin']
-        k = 0 if (e.get('styled') and 'italic' in e) else _slant_at(slants, sx, sy)
+            bold0 = bool(flags & 16) or 'bold' in low
+            italic0 = bool(flags & 2) or 'italic' in low or 'oblique' in low
+            bold = e['bold'] if 'bold' in e else bold0
+            italic = e['italic'] if 'italic' in e else italic0
+            if bold != bold0 or italic != italic0 or e.get('font_family'):
+                fam = e.get('font_family') or re.sub(r'^.*[^\x00-\x7f]', '', font.split('+')[-1]).split('-')[0].split(',')[0]
+                style = ('Bold' if bold else '') + ('Italic' if italic else '')
+                font = fam + ('-' + style if style else ''); restyled = True
+        f = _font_for(doc, page, font, text, cache, prefer_embedded=not restyled)
+        chars = [ch for t in hit for ch in t['chars']]
+        dx, dy = float(e.get('dx', 0)), float(e.get('dy', 0))
+        x, y = s['origin'][0] + dx, s['origin'][1] + dy
+        k = 0 if (e.get('styled') and 'italic' in e) else _slant_at(slants, *s['origin'])
         morph = (fitz.Point(x, y), fitz.Matrix(1, 0, k, 1, 0, 0)) if abs(k) > 0.01 else None
-        f = cache.get('font:' + alias)
-        if f is not None and ' ' in text and not f.has_glyph(32):
-            # the embedded font has no space (some makers place each word on its own): do the same,
-            # spacing words like the original did
-            # the original line's width minus its words' widths, shared out over its spaces
-            chars = [c for t in hit for c in t.get('chars', [])]
-            words0 = ''.join(c['c'] for c in chars).split()
-            n_sp = max(1, len(words0) - 1)
-            ink = sum(f.text_length(w, s['size']) for w in words0)
-            span_w = (chars[-1]['bbox'][2] - chars[0]['origin'][0]) if chars else 0
-            space = (span_w - ink) / n_sp if words0 and len(words0) > 1 and span_w > ink else size * 0.27
-            space *= size / s['size']
-            cx = x
-            for w in text.split(' '):
-                if w: page.insert_text(fitz.Point(cx, y), w, fontsize=size, fontname=alias, color=rgb,
-                                       morph=(fitz.Point(x, y), morph[1]) if morph else None)
-                cx += (f.text_length(w, size) if w else 0) + space
-        else:
-            page.insert_text(fitz.Point(x, y), text, fontsize=size, fontname=alias, color=rgb, morph=morph)
-        if e.get('underline'):
-            w = fitz.get_text_length(text, fontname='helv', fontsize=size) if alias in ('helv',) else None
-            try: w = fitz.Font(fontfile=_find_system_font(font)).text_length(text, size) if w is None else w
-            except Exception: w = fitz.get_text_length(text, fontsize=size)
-            page.draw_line((x, y + size * 0.12), (x + w, y + size * 0.12), color=rgb, width=max(0.5, size / 18))
+        tw = fitz.TextWriter(page.rect)
+        placed = _layout(chars, text, f, size, keep_positions=not restyled)
+        for px, ch in placed:
+            if ch.isspace(): continue
+            tw.append((px + dx, y), ch, font=f, fontsize=size)
+        tw.write_text(page, color=rgb, morph=morph)
+        if e.get('underline') and placed:
+            end_x = placed[-1][0] + dx + f.text_length(placed[-1][1], size)
+            page.draw_line((x, y + size * 0.12), (end_x, y + size * 0.12), color=rgb, width=max(0.5, size / 18))
 
 @app.route('/fonts', methods=['GET'])
 def fonts():
@@ -1314,13 +1509,33 @@ def create_blank():
 KIND_NAMES = {'xlsx': ('tables', 'Excel'), 'docx': ('text', 'Word'), 'pptx': ('slides', 'PowerPoint')}
 
 def _page_kind(page):
-    """What a page mostly is: 'xlsx' (a ruled table or form), 'pptx' (a slide) or 'docx' (text, or a scan)."""
-    words = len(page.get_text('words'))
-    if words < 5 and page.get_images(): return 'docx'
-    hs, vs, _ = _ruling(page)
-    if len(hs) >= 4 and len(vs) >= 4: return 'xlsx'
+    """What a page mostly is: 'xlsx' (tables or a form), 'pptx' (a slide) or 'docx' (text, or a scan).
+    A page counts as a table when most of its words sit in tables: ruled ones, or borderless ones whose
+    columns line up and hold mostly numbers. A page of text with a small table stays text."""
+    words = page.get_text('words')
+    n = len(words)
+    if n < 5: return 'docx'   # a scan, a picture or an empty page
+    def share(rects):
+        return sum(1 for w in words if any(r.contains(fitz.Point((w[0] + w[2]) / 2, (w[1] + w[3]) / 2)) for r in rects)) / n
+    tables = 0
+    try:
+        ruled = [fitz.Rect(t.bbox) for t in page.find_tables().tables if t.row_count >= 2 and t.col_count >= 2]
+        tables = share(ruled)
+        if tables < 0.5:
+            def numeric(t):
+                cells = [c for row in t.extract() for c in row if c and c.strip()]
+                return cells and sum(bool(re.fullmatch(r'[-+$€£(]?[\d.,]+%?\)?', c.strip())) for c in cells) / len(cells) >= 0.3
+            loose = [fitz.Rect(t.bbox) for t in page.find_tables(strategy='text').tables
+                     if t.row_count >= 4 and t.col_count >= 3 and numeric(t)]
+            tables = max(tables, share(ruled + loose))
+    except Exception:
+        hs, vs, _ = _ruling(page)
+        tables = 1 if len(hs) >= 4 and len(vs) >= 4 else 0
+    if tables >= 0.5: return 'xlsx'
     r = page.rect
-    if r.width > r.height * 1.25 and words < 150: return 'pptx'
+    sizes = sorted(s['size'] for b in page.get_text('dict')['blocks'] if b['type'] == 0 for l in b['lines'] for s in l['spans'] if s['text'].strip())
+    big_type = sizes and sizes[len(sizes) // 2] >= 16
+    if r.width > r.height * 1.25 and n < 150 and big_type: return 'pptx'
     return 'docx'
 
 def _page_parts(doc):
@@ -1358,13 +1573,9 @@ def suggest_export(fp, orig):
         words = sum(len(p.get_text('words')) for p in pages)
         if words < 5 * len(pages) and any(p.get_images() for p in pages):
             return 'docx', "Looks like a scan; Word keeps the page images"
-        ruled = sum(1 for p in pages if (lambda hv: len(hv[0]) >= 4 and len(hv[1]) >= 4)(_ruling(p)))
-        if ruled * 2 >= len(pages):
-            return 'xlsx', "Mostly tables"
-        r = pages[0].rect
-        if r.width > r.height * 1.25 and words / len(pages) < 150:
-            return 'pptx', "Looks like slides"
-        return 'docx', "Mostly text"
+        kinds = [_page_kind(p) for p in pages]
+        best = max(('xlsx', 'pptx', 'docx'), key=kinds.count)
+        return best, {'xlsx': "Mostly tables", 'pptx': "Looks like slides", 'docx': "Mostly text"}[best]
     finally:
         doc.close()
 

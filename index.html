@@ -606,7 +606,7 @@
             <div class="drop-box">
               <svg class="ico ico-lg"><use href="#i-docup"/></svg>
               <h2>Drop files here</h2>
-              <p>PDF, Word, Excel, PowerPoint or images.<br>Office files are converted to PDF with Microsoft Office.</p>
+              <p>PDFs, Office files, pictures, web pages, e-books and text files.<br>Everything opens as a PDF you can edit.</p>
               <button id="drop-choose" class="btn primary">Choose files</button>
             </div>
           </div>
@@ -2098,7 +2098,7 @@
                     await page.render({ canvasContext: ctx, viewport: viewport }).promise;
                     
                     const imgEl = document.getElementById(`thumb-img-${i}`);
-                    if (imgEl) imgEl.src = canvas.toDataURL('image/jpeg', 0.7);
+                    if (imgEl) { imgEl.src = canvas.toDataURL('image/jpeg', 0.7); imgEl.parentElement.style.minHeight = '0'; }   // fit the page's shape (wide pages too)
                 } catch(err) { }
             }
         }, 50);
@@ -2209,6 +2209,12 @@
         if (activeThumb) activeThumb.classList.add('active');
 
         page.getTextContent().then(function(textContent) {
+          // a page with no text is probably a scan: offer OCR once per file
+          const f = fileQueue.find(x => x.originalPath === currentActiveFile);
+          if (f && !f.ocrHinted && !textContent.items.some(it => it.str.trim())) {
+            f.ocrHinted = true;
+            showToast('This page looks like a scan. Use Recognize text (OCR) in Edit to search and copy its words');
+          }
           textContent.items.forEach(function(item) {
             if (item.str.trim() === "") return; 
 

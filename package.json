@@ -1,6 +1,6 @@
 {
   "name": "my-pdf-kit",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Modern PDF Editor",
   "author": "usernam8",
   "main": "main.js",
@@ -50,15 +50,46 @@
     "fileAssociations": [
       {
         "ext": "pdf",
-        "name": "PDF Document"
+        "name": "PDF Document",
+        "role": "Editor"
       },
       {
-        "ext": "docx",
-        "name": "Word Document"
+        "ext": [
+          "docx",
+          "doc",
+          "rtf",
+          "odt"
+        ],
+        "name": "Document",
+        "role": "Viewer"
       },
       {
-        "ext": "xlsx",
-        "name": "Excel Document"
+        "ext": [
+          "xlsx",
+          "xls",
+          "csv",
+          "ods"
+        ],
+        "name": "Spreadsheet",
+        "role": "Viewer"
+      },
+      {
+        "ext": [
+          "pptx",
+          "ppt",
+          "odp"
+        ],
+        "name": "Presentation",
+        "role": "Viewer"
+      },
+      {
+        "ext": [
+          "xps",
+          "oxps",
+          "epub"
+        ],
+        "name": "Document",
+        "role": "Viewer"
       }
     ],
     "publish": [

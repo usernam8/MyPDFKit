@@ -428,6 +428,29 @@ def compare_pdfs():
                         "message": f"Found {len(changes)} text changes and {visual} other changed areas"})
     except Exception as e: return jsonify({"error": str(e)}), 500
 
+@app.route('/redact', methods=['POST'])
+def redact():
+    """Black out areas for good: the text, pictures and drawings under each box are removed from the file
+    (not just covered), then the box is filled black. boxes: [{page, rect}] in points as shown."""
+    d = request.json; fp = d['filepath']
+    try:
+        doc = fitz.open(fp)
+        n = 0
+        pages = {}
+        for b in d.get('boxes', []): pages.setdefault(int(b['page']), []).append(b['rect'])
+        for pno, rects in pages.items():
+            page = doc[pno]
+            for r in rects:
+                page.add_redact_annot(fitz.Rect(r) * page.derotation_matrix, fill=(0, 0, 0)); n += 1
+            page.apply_redactions(images=fitz.PDF_REDACT_IMAGE_PIXELS, graphics=fitz.PDF_REDACT_LINE_ART_REMOVE_IF_COVERED)   # lines just touching a box stay
+        if d.get('scrub'):   # hidden information: document details, comments, attachments, scripts, old versions
+            doc.scrub(metadata=True, xml_metadata=True, attached_files=True, embedded_files=True, javascript=True,
+                      remove_links=False, reset_fields=False, reset_responses=True, thumbnails=True, hidden_text=True)
+        new_path = os.path.join(TEMP_DIR, f"mod_{hashlib.md5((fp + str(os.path.getmtime(fp)) + json.dumps(d.get('boxes'))).encode()).hexdigest()}.pdf")
+        doc.save(new_path, garbage=4, deflate=True, clean=True); doc.close()
+        return jsonify({"success": True, "new_file": new_path, "message": f"Blacked out {n} {'area' if n == 1 else 'areas'} for good"})
+    except Exception as e: return jsonify({"error": str(e)}), 500
+
 @app.route('/formats', methods=['GET'])
 def formats():
     return jsonify({"extensions": [e[1:] for e in OPENABLE_EXT]})

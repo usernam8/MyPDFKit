@@ -214,6 +214,18 @@
     .pdf-field[disabled] { background:rgba(220,220,220,.35); border-color:transparent; }
     input.pdf-field[type=checkbox], input.pdf-field[type=radio] { appearance:auto; accent-color:#2f6fd0; padding:0; }
     body.tool-draw #form-layer, body.tool-crop #form-layer { display:none; }
+    /* boxes drawn on the page by dragging (redaction, comments) */
+    #area-glass { position:absolute; inset:0; z-index:12; display:none; cursor:crosshair; }
+    body.tool-redact #area-glass, body.tool-markup #area-glass { display:block; }
+    #area-rubber { position:absolute; display:none; border:1.5px dashed #e03c3c; background:rgba(224,60,60,.12); pointer-events:none; }
+    .redact-mark { position:absolute; border:1.5px solid #e03c3c; background:rgba(224,60,60,.18); pointer-events:auto; cursor:pointer; }
+    .redact-mark:hover::after { content:"\2715"; position:absolute; right:-8px; top:-8px; width:16px; height:16px; border-radius:50%; background:#e03c3c; color:#fff; font:700 10px/16px Segoe UI, sans-serif; text-align:center; }
+    #redact-bar { position:absolute; left:50%; bottom:22px; transform:translateX(-50%); z-index:60; display:none; align-items:center; gap:8px; padding:8px 10px 8px 16px;
+      border-radius:10px; background:#2a2b30; color:var(--text); box-shadow:0 6px 22px rgba(0,0,0,.4); font-size:13px; white-space:nowrap; }
+    body.tool-redact #redact-bar { display:flex; }
+    #redact-count { margin-right:6px; }
+    .btn.danger-btn { background:#d83b3b; color:#fff; border-color:#d83b3b; }
+    .btn.danger-btn:hover { filter:brightness(1.08); }
     .pdf-note-hit { position:absolute; pointer-events:auto; cursor:help; }
     .pdf-note-hit:hover::after { content:attr(data-tip); position:absolute; left:0; top:calc(100% + 6px); z-index:30; width:max-content; max-width:280px;
       padding:7px 10px; border-radius:6px; background:#26272c; color:#eee; font:12px/1.4 Segoe UI, sans-serif; white-space:pre-wrap; box-shadow:0 4px 14px rgba(0,0,0,.35); }
@@ -480,6 +492,7 @@
     <symbol id="i-scan" viewBox="0 0 24 24"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3M8 9h8M8 12h8M8 15h5"/></symbol>
     <symbol id="i-compare" viewBox="0 0 24 24"><path d="M5 4h6v16H5zM13 4h6v16h-6M8 8v8M16 9h0M15 12h2M16 15h0"/></symbol>
     <symbol id="i-para" viewBox="0 0 24 24"><path d="M10 4h9M10 4a4 4 0 0 0 0 8h2M12 4v16M16 4v16"/></symbol>
+    <symbol id="i-redact" viewBox="0 0 24 24"><rect x="3" y="8" width="18" height="8" rx="1" fill="currentColor" stroke="none"/><path d="M3 4h10M3 20h14"/></symbol>
     <symbol id="i-trash" viewBox="0 0 24 24"><path d="M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13M10 11v6M14 11v6"/></symbol>
     <symbol id="i-save" viewBox="0 0 24 24"><path d="M5 4h11l3 3v13H5zM8 4v5h7V4M8 20v-6h8v6"/></symbol>
     <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 14L4 9l5-5M4 9h9a6 6 0 0 1 0 12h-3"/></symbol>
@@ -558,7 +571,7 @@
     <button id="btn-save-modified" class="icon-tool" title="Save as a new PDF next to the original (Ctrl+S)"><svg class="ico"><use href="#i-save"/></svg></button>
   </div>
 
-  <div id="tools-view"><div class="tv-inner"><input id="tool-search" placeholder="Find any tool" spellcheck="false"><div id="recent-files"><div class="rf-head"><span>Recent</span><button id="rf-clear">Clear</button></div><div class="rf-list"></div></div><div class="tv-grid"><button class="tool-card" data-tool="create"><span class="tc-ico"><svg class="ico"><use href="#i-extract"/></svg></span><span>Create a PDF</span></button><button class="tool-card" data-tool="merge"><span class="tc-ico"><svg class="ico"><use href="#i-merge"/></svg></span><span>Combine files</span></button><button class="tool-card" data-tool="blank"><span class="tc-ico"><svg class="ico"><use href="#i-plus"/></svg></span><span>Blank page</span></button><button class="tool-card" data-tool="edit"><span class="tc-ico"><svg class="ico"><use href="#i-ibeam"/></svg></span><span>Edit a PDF</span></button><button class="tool-card" data-tool="headfoot"><span class="tc-ico"><svg class="ico"><use href="#i-headfoot"/></svg></span><span>Header and footer</span></button><button class="tool-card" data-tool="number"><span class="tc-ico"><svg class="ico"><use href="#i-hash"/></svg></span><span>Add page numbers</span></button><button class="tool-card" data-tool="convert"><span class="tc-ico"><svg class="ico"><use href="#i-convert"/></svg></span><span>Convert to PDF</span></button><button class="tool-card" data-tool="export"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>Export a PDF</span></button><button class="tool-card" data-tool="toword"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>PDF to Word</span></button><button class="tool-card" data-tool="toexcel"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>PDF to Excel</span></button><button class="tool-card" data-tool="toppt"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>PDF to PowerPoint</span></button><button class="tool-card" data-tool="compress"><span class="tc-ico"><svg class="ico"><use href="#i-compress"/></svg></span><span>Compress a PDF</span></button><button class="tool-card" data-tool="split"><span class="tc-ico"><svg class="ico"><use href="#i-split"/></svg></span><span>Split a PDF</span></button><button class="tool-card" data-tool="delpages"><span class="tc-ico"><svg class="ico"><use href="#i-trash"/></svg></span><span>Delete pages</span></button><button class="tool-card" data-tool="fillform"><span class="tc-ico"><svg class="ico"><use href="#i-ibeam"/></svg></span><span>Fill a form</span></button><button class="tool-card" data-tool="compare"><span class="tc-ico"><svg class="ico"><use href="#i-compare"/></svg></span><span>Compare files</span></button><button class="tool-card" data-tool="exportall"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>Export all files</span></button><button class="tool-card" data-tool="extract"><span class="tc-ico"><svg class="ico"><use href="#i-extract"/></svg></span><span>Extract pages</span></button><button class="tool-card" data-tool="ocr"><span class="tc-ico"><svg class="ico"><use href="#i-scan"/></svg></span><span>Recognize text (OCR)</span></button><button class="tool-card" data-tool="print"><span class="tc-ico"><svg class="ico"><use href="#i-print"/></svg></span><span>Print</span></button><button class="tool-card" data-tool="protect"><span class="tc-ico"><svg class="ico"><use href="#i-lock"/></svg></span><span>Protect a PDF</span></button><button class="tool-card" data-tool="sign"><span class="tc-ico"><svg class="ico"><use href="#i-signature"/></svg></span><span>Fill and sign</span></button></div></div></div>
+  <div id="tools-view"><div class="tv-inner"><input id="tool-search" placeholder="Find any tool" spellcheck="false"><div id="recent-files"><div class="rf-head"><span>Recent</span><button id="rf-clear">Clear</button></div><div class="rf-list"></div></div><div class="tv-grid"><button class="tool-card" data-tool="create"><span class="tc-ico"><svg class="ico"><use href="#i-extract"/></svg></span><span>Create a PDF</span></button><button class="tool-card" data-tool="merge"><span class="tc-ico"><svg class="ico"><use href="#i-merge"/></svg></span><span>Combine files</span></button><button class="tool-card" data-tool="blank"><span class="tc-ico"><svg class="ico"><use href="#i-plus"/></svg></span><span>Blank page</span></button><button class="tool-card" data-tool="edit"><span class="tc-ico"><svg class="ico"><use href="#i-ibeam"/></svg></span><span>Edit a PDF</span></button><button class="tool-card" data-tool="headfoot"><span class="tc-ico"><svg class="ico"><use href="#i-headfoot"/></svg></span><span>Header and footer</span></button><button class="tool-card" data-tool="number"><span class="tc-ico"><svg class="ico"><use href="#i-hash"/></svg></span><span>Add page numbers</span></button><button class="tool-card" data-tool="convert"><span class="tc-ico"><svg class="ico"><use href="#i-convert"/></svg></span><span>Convert to PDF</span></button><button class="tool-card" data-tool="export"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>Export a PDF</span></button><button class="tool-card" data-tool="toword"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>PDF to Word</span></button><button class="tool-card" data-tool="toexcel"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>PDF to Excel</span></button><button class="tool-card" data-tool="toppt"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>PDF to PowerPoint</span></button><button class="tool-card" data-tool="compress"><span class="tc-ico"><svg class="ico"><use href="#i-compress"/></svg></span><span>Compress a PDF</span></button><button class="tool-card" data-tool="split"><span class="tc-ico"><svg class="ico"><use href="#i-split"/></svg></span><span>Split a PDF</span></button><button class="tool-card" data-tool="delpages"><span class="tc-ico"><svg class="ico"><use href="#i-trash"/></svg></span><span>Delete pages</span></button><button class="tool-card" data-tool="fillform"><span class="tc-ico"><svg class="ico"><use href="#i-ibeam"/></svg></span><span>Fill a form</span></button><button class="tool-card" data-tool="compare"><span class="tc-ico"><svg class="ico"><use href="#i-compare"/></svg></span><span>Compare files</span></button><button class="tool-card" data-tool="redact"><span class="tc-ico"><svg class="ico"><use href="#i-redact"/></svg></span><span>Redact</span></button><button class="tool-card" data-tool="exportall"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>Export all files</span></button><button class="tool-card" data-tool="extract"><span class="tc-ico"><svg class="ico"><use href="#i-extract"/></svg></span><span>Extract pages</span></button><button class="tool-card" data-tool="ocr"><span class="tc-ico"><svg class="ico"><use href="#i-scan"/></svg></span><span>Recognize text (OCR)</span></button><button class="tool-card" data-tool="print"><span class="tc-ico"><svg class="ico"><use href="#i-print"/></svg></span><span>Print</span></button><button class="tool-card" data-tool="protect"><span class="tc-ico"><svg class="ico"><use href="#i-lock"/></svg></span><span>Protect a PDF</span></button><button class="tool-card" data-tool="sign"><span class="tc-ico"><svg class="ico"><use href="#i-signature"/></svg></span><span>Fill and sign</span></button></div></div></div>
   <div id="main-content">
     <div id="left-sidebar" class="sidebar">
       <div id="side-scroll">
@@ -578,6 +591,7 @@
         <button id="btn-number" class="side-btn"><svg class="ico"><use href="#i-hash"/></svg>Add page numbers</button>
         <button id="btn-headfoot" class="side-btn"><svg class="ico"><use href="#i-headfoot"/></svg>Header and footer</button>
         <button id="btn-blank" class="side-btn"><svg class="ico"><use href="#i-plus"/></svg>Blank page</button>
+        <button id="btn-redact" class="side-btn" title="Black out text or pictures for good"><svg class="ico"><use href="#i-redact"/></svg>Redact</button>
         <button id="btn-ocr" class="side-btn" title="Find the words in scanned pages so you can search, copy and export them"><svg class="ico"><use href="#i-scan"/></svg>Recognize text (OCR)</button>
         </div>
         <div class="pane" data-pane="sign">
@@ -623,6 +637,7 @@
             <button id="btn-save-page" class="side-btn" title="Save this page as its own PDF"><svg class="ico"><use href="#i-extract"/></svg>Extract page</button>
             <button id="btn-delete-page" class="side-btn"><svg class="ico"><use href="#i-trash"/></svg>Delete page</button>
           </div>
+          <div id="redact-bar"><span id="redact-count"></span><button id="redact-find" class="btn quiet">Find words...</button><button id="redact-cancel" class="btn quiet">Cancel</button><button id="redact-apply" class="btn danger-btn">Apply</button></div>
           <div id="drop-message">
             <div class="drop-box">
               <svg class="ico ico-lg"><use href="#i-docup"/></svg>
@@ -643,6 +658,7 @@
             <div id="text-layer"></div>
             <div id="find-layer"></div>
             <div id="form-layer"></div>
+            <div id="area-glass"><div id="area-rubber"></div></div>
           </div>
           </div>
       </div>
@@ -1549,6 +1565,7 @@
       if (file !== currentTempPdf || num !== pageNum) return;   // moved on meanwhile
       pageParagraphs = info.paragraphs || [];
       const k = currentRenderScale;
+      if (currentTool === 'redact') drawRedactions();
       // comments and markup: their words appear when the pointer rests on them
       pageNotes = info.notes || [];
       for (const n of pageNotes) {
@@ -1610,6 +1627,89 @@
       }
       showToast("This PDF has no fill-in fields. Use Add text to type anywhere on it", true);
     }
+    // ---------- boxes dragged on the page ----------
+    // Tools that work on an area (redaction, comments) turn on #area-glass; a finished drag calls areaDone.
+    let areaDone = null;
+    (() => {
+      const glass = document.getElementById('area-glass'), rub = document.getElementById('area-rubber');
+      let start = null;
+      const at = e => { const r = glass.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+      glass.addEventListener('mousedown', e => {
+        if (e.button !== 0 || e.target !== glass) return;
+        start = at(e); Object.assign(rub.style, { left: start[0] + 'px', top: start[1] + 'px', width: '0px', height: '0px', display: 'block' });
+        rub.style.borderColor = currentTool === 'redact' ? '#e03c3c' : '#2f6fd0';
+      });
+      window.addEventListener('mousemove', e => {
+        if (!start) return;
+        const [x, y] = at(e);
+        Object.assign(rub.style, { left: Math.min(x, start[0]) + 'px', top: Math.min(y, start[1]) + 'px', width: Math.abs(x - start[0]) + 'px', height: Math.abs(y - start[1]) + 'px' });
+      });
+      window.addEventListener('mouseup', e => {
+        if (!start) return;
+        const [x, y] = at(e), s0 = start; start = null; rub.style.display = 'none';
+        const k = currentRenderScale;
+        const rect = [Math.min(x, s0[0]) / k, Math.min(y, s0[1]) / k, Math.max(x, s0[0]) / k, Math.max(y, s0[1]) / k];
+        if (areaDone) areaDone(rect, [s0[0] / k, s0[1] / k], [x / k, y / k]);
+      });
+    })();
+
+    // ---------- redaction ----------
+    let pendingRedactions = {};   // page (1-based) -> [rect in points]
+    function redactCount() { return Object.values(pendingRedactions).reduce((n, l) => n + l.length, 0); }
+    function drawRedactions() {
+      document.querySelectorAll('.redact-mark').forEach(m => m.remove());
+      const layer = document.getElementById('form-layer'), k = currentRenderScale;
+      (pendingRedactions[pageNum] || []).forEach((r, i) => {
+        const m = document.createElement('div'); m.className = 'redact-mark'; m.title = 'Click to unmark';
+        Object.assign(m.style, { left: r[0] * k + 'px', top: r[1] * k + 'px', width: (r[2] - r[0]) * k + 'px', height: (r[3] - r[1]) * k + 'px' });
+        m.addEventListener('mousedown', e => { e.stopPropagation(); pendingRedactions[pageNum].splice(i, 1); drawRedactions(); });
+        layer.append(m);
+      });
+      const n = redactCount(), pages = Object.values(pendingRedactions).filter(l => l.length).length;
+      document.getElementById('redact-count').textContent = n ? `${n} ${n === 1 ? 'area' : 'areas'} marked${pages > 1 ? ` on ${pages} pages` : ''}` : 'Drag over what to black out';
+      document.getElementById('redact-apply').disabled = !n;
+    }
+    async function startRedacting() {
+      if (!await needDoc()) return;
+      goTab('edit');
+      switchTool('btn-pointer', 'redact');
+      areaDone = rect => { if (rect[2] - rect[0] < 2 || rect[3] - rect[1] < 2) return; (pendingRedactions[pageNum] = pendingRedactions[pageNum] || []).push(rect); drawRedactions(); };
+      drawRedactions();
+      showToast('Drag over anything you want to black out, or find words to mark them everywhere');
+    }
+    function stopRedacting() { pendingRedactions = {}; areaDone = null; drawRedactions(); switchTool('btn-pointer', 'pointer'); }
+    document.getElementById('redact-cancel').addEventListener('click', stopRedacting);
+    document.getElementById('redact-find').addEventListener('click', async () => {
+      const v = await askDialog('Find and black out', [{ key: 'q', label: 'Words, a name or a number', hint: 'e.g. a phone number or name' }], 'Mark them');
+      if (!v || !v.q.trim()) return;
+      await syncEditsToPython();
+      const d = await api('search', { filepath: currentTempPdf, query: v.q.trim() });
+      if (!d.count) return showToast(`"${v.q.trim()}" isn't in this PDF`, true);
+      for (const [pg, boxes] of Object.entries(d.boxes)) {
+        const l = pendingRedactions[pg] = pendingRedactions[pg] || [];
+        boxes.forEach(b => l.push([b[0] - 1, b[1] - 1, b[2] + 1, b[3] + 1]));
+      }
+      drawRedactions();
+      showToast(`Marked ${d.count} ${d.count === 1 ? 'place' : 'places'} on ${d.pages.length} ${d.pages.length === 1 ? 'page' : 'pages'}`);
+    });
+    document.getElementById('redact-apply').addEventListener('click', async () => {
+      const boxes = Object.entries(pendingRedactions).flatMap(([pg, l]) => l.map(rect => ({ page: +pg - 1, rect })));
+      if (!boxes.length) return;
+      const v = await askDialog(`Black out ${boxes.length} ${boxes.length === 1 ? 'area' : 'areas'}?`, [
+        { key: 'scrub', label: 'Also remove hidden information (author, comments, attachments)', type: 'checkbox', value: true }], 'Black out for good');
+      if (!v) return;
+      await syncEditsToPython();
+      pushHistory();
+      const d = await api('redact', { filepath: currentTempPdf, boxes, scrub: v.scrub });
+      if (!d.success) { pdfHistory.pop(); return showToast(d.error || "Couldn't redact", true); }
+      currentTempPdf = d.new_file;
+      const f = fileQueue.find(x => x.originalPath === currentActiveFile); if (f) f.pdfPath = currentTempPdf;
+      stopRedacting();
+      currentPdfDoc = await pdfjsLib.getDocument({ data: new Uint8Array(fs.readFileSync(currentTempPdf)) }).promise;
+      renderPage(pageNum); generateThumbnails();
+      showToast(d.message + '. Save to keep it');
+    });
+
     // typed values go into the PDF's own fields
     async function commitFormValues() {
       const values = Object.values(pendingForm);
@@ -1919,6 +2019,7 @@
         showToast(d.message);
     }
     document.getElementById('btn-ocr').addEventListener('click', doOcr);
+    document.getElementById('btn-redact').addEventListener('click', startRedacting);
 
     document.getElementById('btn-rotate').addEventListener('click', async () => {
       if(!currentTempPdf) return;
@@ -2527,6 +2628,10 @@
     function switchTool(toolId, toolName) {
       document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active'));
       if(document.getElementById(toolId)) document.getElementById(toolId).classList.add('active');
+      if (currentTool !== toolName && (currentTool === 'redact' || currentTool === 'markup')) {   // leaving an area tool
+        areaDone = null;
+        if (currentTool === 'redact') { pendingRedactions = {}; document.querySelectorAll('.redact-mark').forEach(m => m.remove()); }
+      }
       currentTool = toolName;
       
       document.body.className = 'tool-' + toolName;
@@ -3057,7 +3162,7 @@
       merge: () => document.getElementById('btn-merge').click(), convert: () => document.getElementById('btn-process-all').click(),
       compress: () => document.getElementById('btn-compress').click(), split: () => document.getElementById('btn-split').click(),
       number: () => document.getElementById('btn-number').click(), delpages: showPageDelete,
-      exportall: doExportAll, extract: showPagePicking, ocr: doOcr, print: doPrint, fillform: startFilling, compare: doCompare, edit: () => goTab('edit'), sign: () => { goTab('sign'); }
+      exportall: doExportAll, extract: showPagePicking, ocr: doOcr, print: doPrint, fillform: startFilling, compare: doCompare, redact: startRedacting, edit: () => goTab('edit'), sign: () => { goTab('sign'); }
     };
     // Delete pages: bring up the page thumbnails with their trash buttons showing for a moment
     async function showPageDelete() {

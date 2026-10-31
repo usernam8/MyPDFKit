@@ -507,6 +507,7 @@
     <symbol id="i-strike" viewBox="0 0 24 24"><path d="M4 12h16M8 7a4 3 0 0 1 8 0M8 17a4 3 0 0 0 8 0"/></symbol>
     <symbol id="i-underline" viewBox="0 0 24 24"><path d="M7 4v7a5 5 0 0 0 10 0V4M5 20h14"/></symbol>
     <symbol id="i-stamp" viewBox="0 0 24 24"><path d="M9 3h6l-1 8h-4zM4 14h16v4H4zM6 21h12"/></symbol>
+    <symbol id="i-table" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="1"/><path d="M3 10h18M3 14.5h18M9 5v14M15 5v14"/></symbol>
     <symbol id="i-trash" viewBox="0 0 24 24"><path d="M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13M10 11v6M14 11v6"/></symbol>
     <symbol id="i-save" viewBox="0 0 24 24"><path d="M5 4h11l3 3v13H5zM8 4v5h7V4M8 20v-6h8v6"/></symbol>
     <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 14L4 9l5-5M4 9h9a6 6 0 0 1 0 12h-3"/></symbol>
@@ -585,7 +586,7 @@
     <button id="btn-save-modified" class="icon-tool" title="Save as a new PDF next to the original (Ctrl+S)"><svg class="ico"><use href="#i-save"/></svg></button>
   </div>
 
-  <div id="tools-view"><div class="tv-inner"><input id="tool-search" placeholder="Find any tool" spellcheck="false"><div id="recent-files"><div class="rf-head"><span>Recent</span><button id="rf-clear">Clear</button></div><div class="rf-list"></div></div><div class="tv-grid"><button class="tool-card" data-tool="create"><span class="tc-ico"><svg class="ico"><use href="#i-extract"/></svg></span><span>Create a PDF</span></button><button class="tool-card" data-tool="merge"><span class="tc-ico"><svg class="ico"><use href="#i-merge"/></svg></span><span>Combine files</span></button><button class="tool-card" data-tool="blank"><span class="tc-ico"><svg class="ico"><use href="#i-plus"/></svg></span><span>Blank page</span></button><button class="tool-card" data-tool="edit"><span class="tc-ico"><svg class="ico"><use href="#i-ibeam"/></svg></span><span>Edit a PDF</span></button><button class="tool-card" data-tool="headfoot"><span class="tc-ico"><svg class="ico"><use href="#i-headfoot"/></svg></span><span>Header and footer</span></button><button class="tool-card" data-tool="number"><span class="tc-ico"><svg class="ico"><use href="#i-hash"/></svg></span><span>Add page numbers</span></button><button class="tool-card" data-tool="convert"><span class="tc-ico"><svg class="ico"><use href="#i-convert"/></svg></span><span>Convert to PDF</span></button><button class="tool-card" data-tool="export"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>Export a PDF</span></button><button class="tool-card" data-tool="toword"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>PDF to Word</span></button><button class="tool-card" data-tool="toexcel"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>PDF to Excel</span></button><button class="tool-card" data-tool="toppt"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>PDF to PowerPoint</span></button><button class="tool-card" data-tool="compress"><span class="tc-ico"><svg class="ico"><use href="#i-compress"/></svg></span><span>Compress a PDF</span></button><button class="tool-card" data-tool="split"><span class="tc-ico"><svg class="ico"><use href="#i-split"/></svg></span><span>Split a PDF</span></button><button class="tool-card" data-tool="delpages"><span class="tc-ico"><svg class="ico"><use href="#i-trash"/></svg></span><span>Delete pages</span></button><button class="tool-card" data-tool="fillform"><span class="tc-ico"><svg class="ico"><use href="#i-ibeam"/></svg></span><span>Fill a form</span></button><button class="tool-card" data-tool="compare"><span class="tc-ico"><svg class="ico"><use href="#i-compare"/></svg></span><span>Compare files</span></button><button class="tool-card" data-tool="redact"><span class="tc-ico"><svg class="ico"><use href="#i-redact"/></svg></span><span>Redact</span></button><button class="tool-card" data-tool="comment"><span class="tc-ico"><svg class="ico"><use href="#i-comment"/></svg></span><span>Comment</span></button><button class="tool-card" data-tool="exportall"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>Export all files</span></button><button class="tool-card" data-tool="extract"><span class="tc-ico"><svg class="ico"><use href="#i-extract"/></svg></span><span>Extract pages</span></button><button class="tool-card" data-tool="ocr"><span class="tc-ico"><svg class="ico"><use href="#i-scan"/></svg></span><span>Recognize text (OCR)</span></button><button class="tool-card" data-tool="print"><span class="tc-ico"><svg class="ico"><use href="#i-print"/></svg></span><span>Print</span></button><button class="tool-card" data-tool="protect"><span class="tc-ico"><svg class="ico"><use href="#i-lock"/></svg></span><span>Protect a PDF</span></button><button class="tool-card" data-tool="sign"><span class="tc-ico"><svg class="ico"><use href="#i-signature"/></svg></span><span>Fill and sign</span></button></div></div></div>
+  <div id="tools-view"><div class="tv-inner"><input id="tool-search" placeholder="Find any tool" spellcheck="false"><div id="recent-files"><div class="rf-head"><span>Recent</span><button id="rf-clear">Clear</button></div><div class="rf-list"></div></div><div class="tv-grid"><button class="tool-card" data-tool="create"><span class="tc-ico"><svg class="ico"><use href="#i-extract"/></svg></span><span>Create a PDF</span></button><button class="tool-card" data-tool="merge"><span class="tc-ico"><svg class="ico"><use href="#i-merge"/></svg></span><span>Combine files</span></button><button class="tool-card" data-tool="blank"><span class="tc-ico"><svg class="ico"><use href="#i-plus"/></svg></span><span>Blank page</span></button><button class="tool-card" data-tool="edit"><span class="tc-ico"><svg class="ico"><use href="#i-ibeam"/></svg></span><span>Edit a PDF</span></button><button class="tool-card" data-tool="headfoot"><span class="tc-ico"><svg class="ico"><use href="#i-headfoot"/></svg></span><span>Header and footer</span></button><button class="tool-card" data-tool="number"><span class="tc-ico"><svg class="ico"><use href="#i-hash"/></svg></span><span>Add page numbers</span></button><button class="tool-card" data-tool="convert"><span class="tc-ico"><svg class="ico"><use href="#i-convert"/></svg></span><span>Convert to PDF</span></button><button class="tool-card" data-tool="export"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>Export a PDF</span></button><button class="tool-card" data-tool="toword"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>PDF to Word</span></button><button class="tool-card" data-tool="toexcel"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>PDF to Excel</span></button><button class="tool-card" data-tool="toppt"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>PDF to PowerPoint</span></button><button class="tool-card" data-tool="compress"><span class="tc-ico"><svg class="ico"><use href="#i-compress"/></svg></span><span>Compress a PDF</span></button><button class="tool-card" data-tool="split"><span class="tc-ico"><svg class="ico"><use href="#i-split"/></svg></span><span>Split a PDF</span></button><button class="tool-card" data-tool="delpages"><span class="tc-ico"><svg class="ico"><use href="#i-trash"/></svg></span><span>Delete pages</span></button><button class="tool-card" data-tool="fillform"><span class="tc-ico"><svg class="ico"><use href="#i-ibeam"/></svg></span><span>Fill a form</span></button><button class="tool-card" data-tool="compare"><span class="tc-ico"><svg class="ico"><use href="#i-compare"/></svg></span><span>Compare files</span></button><button class="tool-card" data-tool="redact"><span class="tc-ico"><svg class="ico"><use href="#i-redact"/></svg></span><span>Redact</span></button><button class="tool-card" data-tool="comment"><span class="tc-ico"><svg class="ico"><use href="#i-comment"/></svg></span><span>Comment</span></button><button class="tool-card" data-tool="template"><span class="tc-ico"><svg class="ico"><use href="#i-table"/></svg></span><span>Fill from spreadsheet</span></button><button class="tool-card" data-tool="exportall"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>Export all files</span></button><button class="tool-card" data-tool="extract"><span class="tc-ico"><svg class="ico"><use href="#i-extract"/></svg></span><span>Extract pages</span></button><button class="tool-card" data-tool="ocr"><span class="tc-ico"><svg class="ico"><use href="#i-scan"/></svg></span><span>Recognize text (OCR)</span></button><button class="tool-card" data-tool="print"><span class="tc-ico"><svg class="ico"><use href="#i-print"/></svg></span><span>Print</span></button><button class="tool-card" data-tool="protect"><span class="tc-ico"><svg class="ico"><use href="#i-lock"/></svg></span><span>Protect a PDF</span></button><button class="tool-card" data-tool="sign"><span class="tc-ico"><svg class="ico"><use href="#i-signature"/></svg></span><span>Fill and sign</span></button></div></div></div>
   <div id="main-content">
     <div id="left-sidebar" class="sidebar">
       <div id="side-scroll">
@@ -620,6 +621,7 @@
         <button id="btn-split" class="side-btn" title="Split the open PDF into one file per page"><svg class="ico"><use href="#i-split"/></svg>Split into pages</button>
         <button id="btn-export" class="side-btn" title="Word, Excel, PowerPoint, images, web page or text"><svg class="ico"><use href="#i-docup"/></svg>Export a PDF</button>
         <button id="btn-export-all" class="side-btn" title="Export every file in this tab at once"><svg class="ico"><use href="#i-docup"/></svg>Export all files</button>
+        <button id="btn-template" class="side-btn" title="Make one filled copy per row of an Excel or CSV file"><svg class="ico"><use href="#i-table"/></svg>Fill from spreadsheet</button>
         <button id="btn-compare" class="side-btn" title="Show what changed between two versions"><svg class="ico"><use href="#i-compare"/></svg>Compare files</button>
         </div>
       </div>
@@ -3108,6 +3110,36 @@
       });
     }
 
+    // ---------- fill a template from a spreadsheet ----------
+    // The open PDF is the template: {{Column}} spots in its text and form fields named like the columns get
+    // each row's values.
+    async function doTemplate() {
+      if (!await needDoc()) return;
+      const data = await pickFile('.xlsx,.xlsm,.csv,.tsv');
+      if (!data) return;
+      const tname = (fileQueue.find(f => f.originalPath === currentActiveFile) || {}).name || 'template.pdf';
+      const info = await api('template_info', { template: currentTempPdf, data });
+      if (info.error) return showToast(info.error, true);
+      if (!info.used.length) {
+        return showToast(info.spots ? `None of this PDF's spots match the spreadsheet's columns (${info.headers.join(', ')})`
+          : 'Put {{Column name}} in the PDF where each value goes (or use a form with fields named like the columns), then try again', true);
+      }
+      const v = await askDialog(`Fill ${info.rows} ${info.rows === 1 ? 'copy' : 'copies'} from the spreadsheet`, [
+        { key: 'combine', label: 'Make', type: 'select', options: [['', 'One PDF per row, in a new folder'], ['1', 'One PDF with every row']] },
+        { key: 'name_col', label: 'Name each file by', type: 'select', options: info.headers.filter(Boolean).map(h => [h, h]) },
+      ].concat(info.missing.length ? [{ key: 'note', label: `Not in the spreadsheet, left blank: ${info.missing.join(', ')}`, type: 'hidden' }] : []), 'Fill');
+      if (!v) return;
+      showToast(`Filling ${info.rows} ${info.rows === 1 ? 'copy' : 'copies'}...`);
+      const d = await api('fill_template', { template: currentTempPdf, template_name: tname, original_path: currentActiveFile, data, combine: !!v.combine, name_col: v.name_col });
+      if (!d.success) return showToast(d.error || "Couldn't fill the template", true);
+      showToast(d.message);
+      if (v.combine) {   // the combined PDF opens in this tab
+        fileQueue.push({ name: d.path.split(/[\\/]/).pop(), originalPath: d.path, pdfPath: null, status: 'pending' });
+        renderQueueUI(); backgroundProcessQueue(); processAndLoad(d.path);
+      } else require('electron').shell.openPath(d.path);
+    }
+    document.getElementById('btn-template').addEventListener('click', doTemplate);
+
     // ---------- compare two files ----------
     async function doCompare() {
       await syncEditsToPython();
@@ -3253,7 +3285,7 @@
       merge: () => document.getElementById('btn-merge').click(), convert: () => document.getElementById('btn-process-all').click(),
       compress: () => document.getElementById('btn-compress').click(), split: () => document.getElementById('btn-split').click(),
       number: () => document.getElementById('btn-number').click(), delpages: showPageDelete,
-      exportall: doExportAll, extract: showPagePicking, ocr: doOcr, print: doPrint, fillform: startFilling, compare: doCompare, redact: startRedacting, comment: () => startMarkup(), edit: () => goTab('edit'), sign: () => { goTab('sign'); }
+      exportall: doExportAll, extract: showPagePicking, ocr: doOcr, print: doPrint, fillform: startFilling, compare: doCompare, redact: startRedacting, comment: () => startMarkup(), template: doTemplate, edit: () => goTab('edit'), sign: () => { goTab('sign'); }
     };
     // Delete pages: bring up the page thumbnails with their trash buttons showing for a moment
     async function showPageDelete() {

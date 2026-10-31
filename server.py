@@ -504,6 +504,109 @@ def delete_annot():
         return jsonify({"success": True, "new_file": new_path})
     except Exception as e: return jsonify({"error": str(e)}), 500
 
+# ---------- fill a template from a spreadsheet ----------
+PLACEHOLDER = re.compile(r'\{\{\s*([^{}]+?)\s*\}\}|<<\s*([^<>]+?)\s*>>')
+_norm_key = lambda t: re.sub(r'[^a-z0-9]', '', str(t).lower())
+
+def _read_table(path):
+    """(headers, rows as dicts) from the first sheet of an .xlsx/.xlsm or a .csv/.tsv; the first row with
+    any text is the header row."""
+    low = path.lower()
+    if low.endswith(('.csv', '.tsv', '.txt')):
+        import csv
+        raw = open(path, 'rb').read()
+        for enc in ('utf-8-sig', 'cp1252', 'latin-1'):
+            try: text = raw.decode(enc); break
+            except UnicodeDecodeError: continue
+        dialect = csv.Sniffer().sniff(text[:4096], delimiters=',;\t|') if text.strip() else csv.excel
+        rows = [r for r in csv.reader(text.splitlines(), dialect) if any(c.strip() for c in r)]
+    elif low.endswith(('.xlsx', '.xlsm')):
+        from openpyxl import load_workbook
+        ws = load_workbook(path, data_only=True, read_only=True).worksheets[0]
+        def cell(v):
+            if v is None: return ''
+            if hasattr(v, 'strftime'): return v.strftime('%m/%d/%Y')
+            if isinstance(v, float) and v.is_integer(): return str(int(v))
+            return str(v)
+        rows = [[cell(v) for v in r] for r in ws.iter_rows(values_only=True) if any(v not in (None, '') for v in r)]
+    else:
+        raise ValueError("Use an .xlsx or .csv file (save older .xls files as .xlsx first)")
+    if not rows: raise ValueError("The spreadsheet is empty")
+    headers = [h.strip() for h in rows[0]]
+    return headers, [{h: (r[i].strip() if i < len(r) else '') for i, h in enumerate(headers) if h} for r in rows[1:]]
+
+def _template_spots(doc):
+    """What the template has to fill: {{Name}} / <<Name>> spots in its text, and its form fields."""
+    names, fields = set(), set()
+    for page in doc:
+        for m in PLACEHOLDER.finditer(page.get_text()): names.add((m.group(1) or m.group(2)).strip())
+        for w in page.widgets() or []: fields.add(w.field_name)
+    return names, fields
+
+def _fill_one(template, row, lookup):
+    """A copy of the template with this row's values in its {{...}} spots and matching form fields."""
+    doc = fitz.open(template)
+    value = lambda name: row.get(lookup.get(_norm_key(name), ''), '')
+    for page in doc:
+        edits = []
+        for sp in _page_spans(page):
+            if PLACEHOLDER.search(sp['text']):
+                new = PLACEHOLDER.sub(lambda m: value(m.group(1) or m.group(2)), sp['text'])
+                edits.append({'rect': list(sp['bbox']), 'base_y': sp['origin'][1], 'new_text': new if new.strip() else ' '})
+        if edits: _rewrite_text(doc, page, edits)
+        for w in page.widgets() or []:
+            key = lookup.get(_norm_key(w.field_name))
+            if key is None: continue
+            v = row.get(key, '')
+            if w.field_type in (fitz.PDF_WIDGET_TYPE_CHECKBOX, fitz.PDF_WIDGET_TYPE_RADIOBUTTON):
+                w.field_value = w.on_state() if v.strip().lower() in ('1', 'yes', 'y', 'true', 'x', 'checked', 'on') else 'Off'
+            else: w.field_value = v
+            w.update()
+    return doc
+
+@app.route('/template_info', methods=['POST'])
+def template_info():
+    d = request.json
+    try:
+        headers, rows = _read_table(d['data'])
+        doc = fitz.open(d['template']); names, fields = _template_spots(doc); doc.close()
+        keys = {_norm_key(h) for h in headers}
+        used = sorted({n for n in names | fields if _norm_key(n) in keys})
+        missing = sorted({n for n in names if _norm_key(n) not in keys})
+        return jsonify({"headers": headers, "rows": len(rows), "used": used, "missing": missing,
+                        "spots": len(names) + len(fields)})
+    except Exception as e: return jsonify({"error": str(e)}), 400
+
+@app.route('/fill_template', methods=['POST'])
+def fill_template():
+    """One filled PDF per spreadsheet row (named by a column), or all of them in one PDF."""
+    d = request.json
+    try:
+        headers, rows = _read_table(d['data'])
+        lookup = {_norm_key(h): h for h in headers}
+        base = os.path.splitext(d.get('template_name') or os.path.basename(d['template']))[0]
+        folder = os.path.dirname(d.get('original_path') or d['template'])
+        name_col = d.get('name_col') or headers[0]
+        if d.get('combine'):
+            out_doc = fitz.open()
+            for row in rows:
+                one = _fill_one(d['template'], row, lookup); out_doc.insert_pdf(one); one.close()
+            out = get_unique_filename(os.path.join(folder, f'{base} - all {len(rows)} filled.pdf'))
+            try: out_doc.subset_fonts()
+            except Exception: pass
+            out_doc.save(out, garbage=3, deflate=True)
+            return jsonify({"success": True, "path": out, "message": f"Filled {len(rows)} copies into {os.path.basename(out)}"})
+        out_dir = get_unique_filename(os.path.join(folder, f'{base} - filled'))
+        os.makedirs(out_dir)
+        for i, row in enumerate(rows, 1):
+            label = re.sub(r'[\\/:*?"<>|]+', '-', row.get(name_col, '').strip())[:80] or f'Row {i}'
+            one = _fill_one(d['template'], row, lookup)
+            try: one.subset_fonts()
+            except Exception: pass
+            one.save(get_unique_filename(os.path.join(out_dir, f'{base} - {label}.pdf')), garbage=3, deflate=True); one.close()
+        return jsonify({"success": True, "path": out_dir, "message": f"Made {len(rows)} filled PDFs in the folder {os.path.basename(out_dir)}"})
+    except Exception as e: return jsonify({"error": str(e)}), 500
+
 @app.route('/formats', methods=['GET'])
 def formats():
     return jsonify({"extensions": [e[1:] for e in OPENABLE_EXT]})

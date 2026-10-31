@@ -226,7 +226,15 @@
     #redact-count { margin-right:6px; }
     .btn.danger-btn { background:#d83b3b; color:#fff; border-color:#d83b3b; }
     .btn.danger-btn:hover { filter:brightness(1.08); }
-    .pdf-note-hit { position:absolute; pointer-events:auto; cursor:help; }
+    .pdf-note-hit { position:absolute; pointer-events:auto; cursor:pointer; }
+    .pdf-note-hit.handle { width:12px !important; height:12px !important; margin:-6px 0 0 -6px; border-radius:50%; background:rgba(47,111,208,.0); }
+    .pdf-note-hit.handle:hover { background:rgba(47,111,208,.5); }
+    .mk-grid { display:grid; grid-template-columns:repeat(3, 1fr); gap:4px; margin:8px 0; }
+    .mk-mode { display:flex; flex-direction:column; align-items:center; gap:3px; padding:6px 2px; border:1px solid var(--line); border-radius:6px; background:transparent; color:var(--text); font:11px Segoe UI, sans-serif; cursor:pointer; }
+    .mk-mode .ico { width:16px; height:16px; }
+    .mk-mode:hover { background:var(--raised); }
+    .mk-mode.selected { border-color:var(--accent); background:rgba(91,141,239,.15); }
+    #mk-stamp { width:100%; margin-bottom:8px; }
     .pdf-note-hit:hover::after { content:attr(data-tip); position:absolute; left:0; top:calc(100% + 6px); z-index:30; width:max-content; max-width:280px;
       padding:7px 10px; border-radius:6px; background:#26272c; color:#eee; font:12px/1.4 Segoe UI, sans-serif; white-space:pre-wrap; box-shadow:0 4px 14px rgba(0,0,0,.35); }
     #text-layer { z-index: 5; pointer-events: auto; } 
@@ -493,6 +501,12 @@
     <symbol id="i-compare" viewBox="0 0 24 24"><path d="M5 4h6v16H5zM13 4h6v16h-6M8 8v8M16 9h0M15 12h2M16 15h0"/></symbol>
     <symbol id="i-para" viewBox="0 0 24 24"><path d="M10 4h9M10 4a4 4 0 0 0 0 8h2M12 4v16M16 4v16"/></symbol>
     <symbol id="i-redact" viewBox="0 0 24 24"><rect x="3" y="8" width="18" height="8" rx="1" fill="currentColor" stroke="none"/><path d="M3 4h10M3 20h14"/></symbol>
+    <symbol id="i-comment" viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/></symbol>
+    <symbol id="i-box" viewBox="0 0 24 24"><rect x="4" y="6" width="16" height="12" rx="1"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 19L19 5M10 5h9v9"/></symbol>
+    <symbol id="i-strike" viewBox="0 0 24 24"><path d="M4 12h16M8 7a4 3 0 0 1 8 0M8 17a4 3 0 0 0 8 0"/></symbol>
+    <symbol id="i-underline" viewBox="0 0 24 24"><path d="M7 4v7a5 5 0 0 0 10 0V4M5 20h14"/></symbol>
+    <symbol id="i-stamp" viewBox="0 0 24 24"><path d="M9 3h6l-1 8h-4zM4 14h16v4H4zM6 21h12"/></symbol>
     <symbol id="i-trash" viewBox="0 0 24 24"><path d="M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13M10 11v6M14 11v6"/></symbol>
     <symbol id="i-save" viewBox="0 0 24 24"><path d="M5 4h11l3 3v13H5zM8 4v5h7V4M8 20v-6h8v6"/></symbol>
     <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 14L4 9l5-5M4 9h9a6 6 0 0 1 0 12h-3"/></symbol>
@@ -571,7 +585,7 @@
     <button id="btn-save-modified" class="icon-tool" title="Save as a new PDF next to the original (Ctrl+S)"><svg class="ico"><use href="#i-save"/></svg></button>
   </div>
 
-  <div id="tools-view"><div class="tv-inner"><input id="tool-search" placeholder="Find any tool" spellcheck="false"><div id="recent-files"><div class="rf-head"><span>Recent</span><button id="rf-clear">Clear</button></div><div class="rf-list"></div></div><div class="tv-grid"><button class="tool-card" data-tool="create"><span class="tc-ico"><svg class="ico"><use href="#i-extract"/></svg></span><span>Create a PDF</span></button><button class="tool-card" data-tool="merge"><span class="tc-ico"><svg class="ico"><use href="#i-merge"/></svg></span><span>Combine files</span></button><button class="tool-card" data-tool="blank"><span class="tc-ico"><svg class="ico"><use href="#i-plus"/></svg></span><span>Blank page</span></button><button class="tool-card" data-tool="edit"><span class="tc-ico"><svg class="ico"><use href="#i-ibeam"/></svg></span><span>Edit a PDF</span></button><button class="tool-card" data-tool="headfoot"><span class="tc-ico"><svg class="ico"><use href="#i-headfoot"/></svg></span><span>Header and footer</span></button><button class="tool-card" data-tool="number"><span class="tc-ico"><svg class="ico"><use href="#i-hash"/></svg></span><span>Add page numbers</span></button><button class="tool-card" data-tool="convert"><span class="tc-ico"><svg class="ico"><use href="#i-convert"/></svg></span><span>Convert to PDF</span></button><button class="tool-card" data-tool="export"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>Export a PDF</span></button><button class="tool-card" data-tool="toword"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>PDF to Word</span></button><button class="tool-card" data-tool="toexcel"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>PDF to Excel</span></button><button class="tool-card" data-tool="toppt"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>PDF to PowerPoint</span></button><button class="tool-card" data-tool="compress"><span class="tc-ico"><svg class="ico"><use href="#i-compress"/></svg></span><span>Compress a PDF</span></button><button class="tool-card" data-tool="split"><span class="tc-ico"><svg class="ico"><use href="#i-split"/></svg></span><span>Split a PDF</span></button><button class="tool-card" data-tool="delpages"><span class="tc-ico"><svg class="ico"><use href="#i-trash"/></svg></span><span>Delete pages</span></button><button class="tool-card" data-tool="fillform"><span class="tc-ico"><svg class="ico"><use href="#i-ibeam"/></svg></span><span>Fill a form</span></button><button class="tool-card" data-tool="compare"><span class="tc-ico"><svg class="ico"><use href="#i-compare"/></svg></span><span>Compare files</span></button><button class="tool-card" data-tool="redact"><span class="tc-ico"><svg class="ico"><use href="#i-redact"/></svg></span><span>Redact</span></button><button class="tool-card" data-tool="exportall"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>Export all files</span></button><button class="tool-card" data-tool="extract"><span class="tc-ico"><svg class="ico"><use href="#i-extract"/></svg></span><span>Extract pages</span></button><button class="tool-card" data-tool="ocr"><span class="tc-ico"><svg class="ico"><use href="#i-scan"/></svg></span><span>Recognize text (OCR)</span></button><button class="tool-card" data-tool="print"><span class="tc-ico"><svg class="ico"><use href="#i-print"/></svg></span><span>Print</span></button><button class="tool-card" data-tool="protect"><span class="tc-ico"><svg class="ico"><use href="#i-lock"/></svg></span><span>Protect a PDF</span></button><button class="tool-card" data-tool="sign"><span class="tc-ico"><svg class="ico"><use href="#i-signature"/></svg></span><span>Fill and sign</span></button></div></div></div>
+  <div id="tools-view"><div class="tv-inner"><input id="tool-search" placeholder="Find any tool" spellcheck="false"><div id="recent-files"><div class="rf-head"><span>Recent</span><button id="rf-clear">Clear</button></div><div class="rf-list"></div></div><div class="tv-grid"><button class="tool-card" data-tool="create"><span class="tc-ico"><svg class="ico"><use href="#i-extract"/></svg></span><span>Create a PDF</span></button><button class="tool-card" data-tool="merge"><span class="tc-ico"><svg class="ico"><use href="#i-merge"/></svg></span><span>Combine files</span></button><button class="tool-card" data-tool="blank"><span class="tc-ico"><svg class="ico"><use href="#i-plus"/></svg></span><span>Blank page</span></button><button class="tool-card" data-tool="edit"><span class="tc-ico"><svg class="ico"><use href="#i-ibeam"/></svg></span><span>Edit a PDF</span></button><button class="tool-card" data-tool="headfoot"><span class="tc-ico"><svg class="ico"><use href="#i-headfoot"/></svg></span><span>Header and footer</span></button><button class="tool-card" data-tool="number"><span class="tc-ico"><svg class="ico"><use href="#i-hash"/></svg></span><span>Add page numbers</span></button><button class="tool-card" data-tool="convert"><span class="tc-ico"><svg class="ico"><use href="#i-convert"/></svg></span><span>Convert to PDF</span></button><button class="tool-card" data-tool="export"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>Export a PDF</span></button><button class="tool-card" data-tool="toword"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>PDF to Word</span></button><button class="tool-card" data-tool="toexcel"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>PDF to Excel</span></button><button class="tool-card" data-tool="toppt"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>PDF to PowerPoint</span></button><button class="tool-card" data-tool="compress"><span class="tc-ico"><svg class="ico"><use href="#i-compress"/></svg></span><span>Compress a PDF</span></button><button class="tool-card" data-tool="split"><span class="tc-ico"><svg class="ico"><use href="#i-split"/></svg></span><span>Split a PDF</span></button><button class="tool-card" data-tool="delpages"><span class="tc-ico"><svg class="ico"><use href="#i-trash"/></svg></span><span>Delete pages</span></button><button class="tool-card" data-tool="fillform"><span class="tc-ico"><svg class="ico"><use href="#i-ibeam"/></svg></span><span>Fill a form</span></button><button class="tool-card" data-tool="compare"><span class="tc-ico"><svg class="ico"><use href="#i-compare"/></svg></span><span>Compare files</span></button><button class="tool-card" data-tool="redact"><span class="tc-ico"><svg class="ico"><use href="#i-redact"/></svg></span><span>Redact</span></button><button class="tool-card" data-tool="comment"><span class="tc-ico"><svg class="ico"><use href="#i-comment"/></svg></span><span>Comment</span></button><button class="tool-card" data-tool="exportall"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>Export all files</span></button><button class="tool-card" data-tool="extract"><span class="tc-ico"><svg class="ico"><use href="#i-extract"/></svg></span><span>Extract pages</span></button><button class="tool-card" data-tool="ocr"><span class="tc-ico"><svg class="ico"><use href="#i-scan"/></svg></span><span>Recognize text (OCR)</span></button><button class="tool-card" data-tool="print"><span class="tc-ico"><svg class="ico"><use href="#i-print"/></svg></span><span>Print</span></button><button class="tool-card" data-tool="protect"><span class="tc-ico"><svg class="ico"><use href="#i-lock"/></svg></span><span>Protect a PDF</span></button><button class="tool-card" data-tool="sign"><span class="tc-ico"><svg class="ico"><use href="#i-signature"/></svg></span><span>Fill and sign</span></button></div></div></div>
   <div id="main-content">
     <div id="left-sidebar" class="sidebar">
       <div id="side-scroll">
@@ -626,6 +640,7 @@
       <button id="btn-add-text" class="tool-btn" title="Click the page to add new text"><svg class="ico"><use href="#i-text"/></svg><span>Add text</span></button>
       <button id="btn-highlight" class="tool-btn" title="Highlight"><svg class="ico"><use href="#i-highlighter"/></svg><span>Highlight</span></button>
       <button id="btn-draw" class="tool-btn" title="Draw with the pen"><svg class="ico"><use href="#i-pen"/></svg><span>Draw</span></button>
+      <button id="btn-comment" class="tool-btn" title="Comments and markup: notes, boxes, arrows, strike out, stamps"><svg class="ico"><use href="#i-comment"/></svg><span>Comment</span></button>
       <button class="tool-btn" data-proxy="btn-add-sig" title="Sign"><svg class="ico"><use href="#i-signature"/></svg><span>Sign</span></button>
       <span class="palette-sep"></span>
       <button id="btn-palette-undo" class="tool-btn" title="Undo (Ctrl+Z)"><svg class="ico"><use href="#i-undo"/></svg><span>Undo</span></button>
@@ -665,6 +680,29 @@
     </div>
 
     <div id="tool-pop">
+      <div id="panel-markup" style="display:none;">
+        <div class="tool-header active"><svg class="ico"><use href="#i-comment"/></svg>Comment</div>
+        <div class="mk-grid">
+          <button class="mk-mode selected" data-mode="note" title="Click where the note goes"><svg class="ico"><use href="#i-comment"/></svg>Note</button>
+          <button class="mk-mode" data-mode="box" title="Drag a box"><svg class="ico"><use href="#i-box"/></svg>Box</button>
+          <button class="mk-mode" data-mode="arrow" title="Drag from the tail to the point"><svg class="ico"><use href="#i-arrow"/></svg>Arrow</button>
+          <button class="mk-mode" data-mode="strike" title="Drag across words"><svg class="ico"><use href="#i-strike"/></svg>Strike</button>
+          <button class="mk-mode" data-mode="underline" title="Drag across words"><svg class="ico"><use href="#i-underline"/></svg>Underline</button>
+          <button class="mk-mode" data-mode="stamp" title="Click where the stamp goes"><svg class="ico"><use href="#i-stamp"/></svg>Stamp</button>
+        </div>
+        <select id="mk-stamp" class="ribbon-select" title="Stamp">
+          <option>Approved</option><option>Not approved</option><option>Draft</option><option>Final</option><option>Confidential</option>
+          <option>For comment</option><option>Departmental</option><option>For public release</option><option>Not for public release</option>
+          <option>Sold</option><option>Expired</option><option>As is</option><option>Top secret</option><option>Experimental</option>
+        </select>
+        <div class="color-row" id="mk-colors">
+          <div class="color-dot selected" style="background:#e03c3c;" data-c="#e03c3c"></div>
+          <div class="color-dot" style="background:#2f6fd0;" data-c="#2f6fd0"></div>
+          <div class="color-dot" style="background:#16a34a;" data-c="#16a34a"></div>
+          <div class="color-dot" style="background:#f59e0b;" data-c="#f59e0b"></div>
+          <div class="color-dot" style="background:#111111;" data-c="#111111"></div>
+        </div>
+      </div>
 
       <div id="panel-draw" style="display: none;">
         <div id="opts-hl">
@@ -1569,12 +1607,15 @@
       // comments and markup: their words appear when the pointer rests on them
       pageNotes = info.notes || [];
       for (const n of pageNotes) {
-        if (!n.text) continue;
+        if (['Widget', 'Link', 'Popup'].includes(n.kind)) continue;
         const [x0, y0, x1, y1] = n.rect;
         const hot = document.createElement('div');
-        hot.className = 'pdf-note-hit';
-        hot.dataset.tip = (n.author && n.author !== 'Compare' ? n.author + ': ' : '') + n.text;
+        const shape = !n.text && ['Square', 'Circle', 'Line', 'StrikeOut', 'Underline', 'Ink', 'Polygon', 'PolyLine'].includes(n.kind);
+        hot.className = 'pdf-note-hit' + (shape ? ' handle' : '');
+        hot.dataset.tip = n.text ? (n.author && n.author !== 'Compare' ? n.author + ': ' : '') + n.text : 'Click to delete';
         Object.assign(hot.style, { left: x0 * k + 'px', top: y0 * k + 'px', width: Math.max(8, (x1 - x0) * k) + 'px', height: Math.max(8, (y1 - y0) * k) + 'px' });
+        hot.addEventListener('mousedown', e => e.stopPropagation());
+        hot.addEventListener('click', () => noteMenu(n));
         layer.append(hot);
       }
       for (const f of info.fields || []) {
@@ -1652,6 +1693,55 @@
         if (areaDone) areaDone(rect, [s0[0] / k, s0[1] / k], [x / k, y / k]);
       });
     })();
+
+    // ---------- comments and markup ----------
+    let markupMode = 'note', markupColor = '#e03c3c';
+    document.querySelectorAll('.mk-mode').forEach(b => b.addEventListener('click', () => {
+      markupMode = b.dataset.mode;
+      document.querySelectorAll('.mk-mode').forEach(x => x.classList.toggle('selected', x === b));
+      if (markupMode !== 'stamp') setTimeout(hideToolPop, 120);
+    }));
+    document.getElementById('mk-stamp').addEventListener('change', () => setTimeout(hideToolPop, 120));
+    document.querySelectorAll('#mk-colors .color-dot').forEach(d => d.addEventListener('click', () => {
+      markupColor = d.dataset.c;
+      document.querySelectorAll('#mk-colors .color-dot').forEach(x => x.classList.toggle('selected', x === d));
+    }));
+    // a finished change from the server: the PDF as it now is, with Undo able to take it back
+    async function takeNewFile(d, message) {
+      if (!d.success) { pdfHistory.pop(); return showToast(d.error || "Couldn't do that", true); }
+      currentTempPdf = d.new_file;
+      const f = fileQueue.find(x => x.originalPath === currentActiveFile); if (f) f.pdfPath = currentTempPdf;
+      currentPdfDoc = await pdfjsLib.getDocument({ data: new Uint8Array(fs.readFileSync(currentTempPdf)) }).promise;
+      renderPage(pageNum); generateThumbnails();
+      if (message) showToast(message);
+    }
+    async function addMarkup(rect, p1, p2) {
+      const small = rect[2] - rect[0] < 4 && rect[3] - rect[1] < 4;
+      const body = { filepath: currentTempPdf, page: pageNum - 1, kind: markupMode, color: markupColor, rect, p1, p2 };
+      if (markupMode === 'note') {
+        const v = await askDialog('Add a note', [{ key: 't', label: 'Note', type: 'textarea', hint: 'Type your comment' }], 'Add note');
+        if (!v || !v.t.trim()) return;
+        body.text = v.t; body.p1 = p1;
+      } else if (markupMode === 'stamp') { body.stamp = document.getElementById('mk-stamp').value; body.p1 = p2; }
+      else if (markupMode === 'arrow') { if (Math.hypot(p2[0] - p1[0], p2[1] - p1[1]) < 6) return showToast('Drag from where the arrow starts to where it points', true); }
+      else if (small) return showToast(markupMode === 'box' ? 'Drag to draw the box' : 'Drag across the words', true);
+      await syncEditsToPython();
+      pushHistory();
+      await takeNewFile(await api('annotate', body));
+    }
+    function startMarkup() {
+      switchTool('btn-comment', 'markup');
+      areaDone = addMarkup;
+    }
+    document.getElementById('btn-comment').addEventListener('click', startMarkup);
+    // click a comment to see it and delete it
+    async function noteMenu(n) {
+      const v = await askDialog(n.text ? `"${n.text.slice(0, 120)}"` : `${n.kind} comment`, [], 'Delete');
+      if (!v) return;
+      await syncEditsToPython();
+      pushHistory();
+      await takeNewFile(await api('delete_annot', { filepath: currentTempPdf, page: pageNum - 1, xref: n.xref }), 'Comment deleted');
+    }
 
     // ---------- redaction ----------
     let pendingRedactions = {};   // page (1-based) -> [rect in points]
@@ -2933,13 +3023,14 @@
     // Tool options pop up beside the tool's button: picking a color closes them, so does clicking
     // anywhere else. Clicking the tool's button again brings them back (or hides them).
     const toolPop = document.getElementById('tool-pop');
-    const POP_FOR = { 'btn-highlight': 'hl', 'btn-draw': 'pen', 'btn-text': 'text', 'btn-add-text': 'text' };
+    const POP_FOR = { 'btn-highlight': 'hl', 'btn-draw': 'pen', 'btn-text': 'text', 'btn-add-text': 'text', 'btn-comment': 'markup' };
     let popFor = null;   // id of the button the popover belongs to
     function showToolPop(id) {
       const which = POP_FOR[id];
       if (!which) { toolPop.classList.remove('open'); popFor = null; return; }
       panelText.style.display = which === 'text' ? 'block' : 'none';
-      panelDraw.style.display = which === 'text' ? 'none' : 'block';
+      panelDraw.style.display = which === 'hl' || which === 'pen' ? 'block' : 'none';
+      document.getElementById('panel-markup').style.display = which === 'markup' ? 'block' : 'none';
       document.getElementById('opts-hl').style.display = which === 'hl' ? 'block' : 'none';
       document.getElementById('opts-pen').style.display = which === 'pen' ? 'block' : 'none';
       toolPop.classList.add('open'); popFor = id;
@@ -3162,7 +3253,7 @@
       merge: () => document.getElementById('btn-merge').click(), convert: () => document.getElementById('btn-process-all').click(),
       compress: () => document.getElementById('btn-compress').click(), split: () => document.getElementById('btn-split').click(),
       number: () => document.getElementById('btn-number').click(), delpages: showPageDelete,
-      exportall: doExportAll, extract: showPagePicking, ocr: doOcr, print: doPrint, fillform: startFilling, compare: doCompare, redact: startRedacting, edit: () => goTab('edit'), sign: () => { goTab('sign'); }
+      exportall: doExportAll, extract: showPagePicking, ocr: doOcr, print: doPrint, fillform: startFilling, compare: doCompare, redact: startRedacting, comment: () => startMarkup(), edit: () => goTab('edit'), sign: () => { goTab('sign'); }
     };
     // Delete pages: bring up the page thumbnails with their trash buttons showing for a moment
     async function showPageDelete() {

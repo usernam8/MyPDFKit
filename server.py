@@ -451,6 +451,59 @@ def redact():
         return jsonify({"success": True, "new_file": new_path, "message": f"Blacked out {n} {'area' if n == 1 else 'areas'} for good"})
     except Exception as e: return jsonify({"error": str(e)}), 500
 
+STAMPS = {'Approved': fitz.STAMP_Approved, 'Draft': fitz.STAMP_Draft, 'Confidential': fitz.STAMP_Confidential, 'Final': fitz.STAMP_Final,
+          'Not approved': fitz.STAMP_NotApproved, 'For comment': fitz.STAMP_ForComment, 'Experimental': fitz.STAMP_Experimental,
+          'Expired': fitz.STAMP_Expired, 'As is': fitz.STAMP_AsIs, 'Departmental': fitz.STAMP_Departmental, 'For public release': fitz.STAMP_ForPublicRelease,
+          'Not for public release': fitz.STAMP_NotForPublicRelease, 'Sold': fitz.STAMP_Sold, 'Top secret': fitz.STAMP_TopSecret}
+
+@app.route('/annotate', methods=['POST'])
+def annotate():
+    """Add a comment or markup as a standard PDF annotation (other readers show it too): a note, a box,
+    an arrow, struck-out or underlined words, or a stamp. Points are as shown on screen."""
+    d = request.json; fp = d['filepath']
+    try:
+        doc = fitz.open(fp); page = doc[int(d['page'])]
+        un = page.derotation_matrix
+        color = parse_color(d.get('color') or '#e03c3c')
+        kind, text = d['kind'], (d.get('text') or '').strip()
+        author = d.get('author') or os.environ.get('USERNAME', '')
+        if kind == 'note':
+            a = page.add_text_annot(fitz.Point(d['p1']) * un, text or 'Note', icon='Comment')
+        elif kind == 'box':
+            a = page.add_rect_annot(fitz.Rect(d['rect']) * un); a.set_border(width=1.5)
+        elif kind == 'arrow':
+            a = page.add_line_annot(fitz.Point(d['p1']) * un, fitz.Point(d['p2']) * un)
+            a.set_line_ends(fitz.PDF_ANNOT_LE_NONE, fitz.PDF_ANNOT_LE_CLOSED_ARROW); a.set_border(width=1.8)
+        elif kind in ('strike', 'underline'):
+            area = fitz.Rect(d['rect']) * un
+            words = [fitz.Rect(w[:4]) for w in page.get_text('words') if fitz.Rect(w[:4]).intersects(area)]
+            if not words: doc.close(); return jsonify({"error": "There's no text there. Drag across the words"}), 400
+            a = (page.add_strikeout_annot if kind == 'strike' else page.add_underline_annot)(words)
+        elif kind == 'stamp':
+            c = fitz.Point(d['p1']) * un
+            a = page.add_stamp_annot(fitz.Rect(c.x - 80, c.y - 24, c.x + 80, c.y + 24), stamp=STAMPS.get(d.get('stamp'), fitz.STAMP_Approved))
+        else:
+            doc.close(); return jsonify({"error": "Unknown kind"}), 400
+        if kind not in ('stamp',): a.set_colors(stroke=color)
+        a.set_info(title=author, content=text or a.info.get('content', ''))
+        a.update()
+        new_path = os.path.join(TEMP_DIR, f"mod_{hashlib.md5((fp + str(os.path.getmtime(fp)) + json.dumps(d)).encode()).hexdigest()}.pdf")
+        doc.save(new_path, garbage=3, deflate=True); doc.close()
+        return jsonify({"success": True, "new_file": new_path})
+    except Exception as e: return jsonify({"error": str(e)}), 500
+
+@app.route('/delete_annot', methods=['POST'])
+def delete_annot():
+    d = request.json; fp = d['filepath']
+    try:
+        doc = fitz.open(fp); page = doc[int(d['page'])]
+        for a in page.annots() or []:
+            if a.xref == int(d['xref']): page.delete_annot(a); break
+        new_path = os.path.join(TEMP_DIR, f"mod_{hashlib.md5((fp + str(os.path.getmtime(fp)) + 'del' + str(d['xref'])).encode()).hexdigest()}.pdf")
+        doc.save(new_path, garbage=3, deflate=True); doc.close()
+        return jsonify({"success": True, "new_file": new_path})
+    except Exception as e: return jsonify({"error": str(e)}), 500
+
 @app.route('/formats', methods=['GET'])
 def formats():
     return jsonify({"extensions": [e[1:] for e in OPENABLE_EXT]})

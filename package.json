@@ -1,12 +1,12 @@
 {
   "name": "my-pdf-kit",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Modern PDF Editor",
   "author": "usernam8",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "build:server": "python -m PyInstaller --noconfirm --onedir --noconsole --name server --hidden-import win32timezone --hidden-import fontTools.subset --collect-data docx --collect-data pptx server.py",
+    "build:server": "python -m PyInstaller --noconfirm --onedir --noconsole --name server --hidden-import win32timezone --hidden-import fontTools.subset --collect-submodules winrt --collect-data docx --collect-data pptx server.py",
     "build": "npm run build:server && electron-builder --win",
     "release": "npm run build:server && electron-builder --win && powershell -NoProfile -ExecutionPolicy Bypass -File publish-release.ps1"
   },

@@ -120,6 +120,33 @@ function setupAutoUpdate() {
 }
 ipcMain.handle('app-version', () => app.getVersion());
 
+// ---------- printing ----------
+// The renderer sends page pictures (made by the backend); they go into a hidden window, one per sheet,
+// and Windows' own print dialog takes it from there (printer, copies, pages, paper).
+ipcMain.handle('print-pages', async (_e, pages) => {
+  if (!pages || !pages.length) return { error: 'Nothing to print' };
+  const landscape = pages.filter(p => p.w > p.h).length > pages.length / 2;
+  const html = `<!doctype html><meta charset="utf-8"><style>
+    @page { margin: 0; }
+    html, body { margin: 0; background: #fff; }
+    .pg { width: 100vw; height: 100vh; display: flex; align-items: center; justify-content: center; page-break-after: always; break-after: page; overflow: hidden; }
+    .pg:last-child { page-break-after: auto; break-after: auto; }
+    img { max-width: 100%; max-height: 100%; object-fit: contain; }
+  </style>` + pages.map(p => `<div class="pg"><img src="${require('url').pathToFileURL(p.path).href}"></div>`).join('');
+  const file = path.join(path.dirname(pages[0].path), 'print.html');
+  fs.writeFileSync(file, html);
+  const pw = new BrowserWindow({ show: false, webPreferences: { sandbox: true } });
+  try {
+    await pw.loadFile(file);
+    await pw.webContents.executeJavaScript('Promise.all([...document.images].map(i => i.decode().catch(() => {})))');
+    return await new Promise(resolve => pw.webContents.print({ silent: false, printBackground: true, landscape, margins: { marginType: 'none' } },
+      (ok, reason) => resolve(ok || reason === 'cancelled' || reason === 'Print job canceled' ? { ok } : { error: "Couldn't print: " + reason })));
+  } finally {
+    pw.destroy();
+    fs.rm(path.dirname(file), { recursive: true, force: true }, () => {});
+  }
+});
+
 function killServer() {
   if (serverProc && !serverProc.killed) {
     // /T kills the whole process tree

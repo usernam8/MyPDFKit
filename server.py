@@ -577,6 +577,103 @@ def rotate_page():
         return jsonify({"success": True, "new_file": new_path})
     except Exception as e: return jsonify({"error": str(e)}), 500
 
+@app.route('/pages_op', methods=['POST'])
+def pages_op():
+    """Several pages at once (0-based `pages`): delete them, turn them 90 degrees, or save them as a new PDF
+    next to the original."""
+    d = request.json; fp = d['filepath']; op = d['op']
+    pages = sorted({int(i) for i in d.get('pages', [])})
+    try:
+        doc = fitz.open(fp)
+        pages = [i for i in pages if 0 <= i < len(doc)]
+        if not pages: return jsonify({"error": "No pages picked"}), 400
+        if op == 'extract':
+            orig = d.get('original_path') or fp
+            base = os.path.splitext(os.path.basename(orig))[0]
+            label = _page_label(pages)
+            out = get_unique_filename(os.path.join(os.path.dirname(orig), f"{base} (pages {label}).pdf"))
+            new = fitz.open()
+            for i in pages: new.insert_pdf(doc, from_page=i, to_page=i)
+            new.save(out, garbage=3, deflate=True); new.close(); doc.close()
+            return jsonify({"success": True, "path": out, "message": f"Saved {os.path.basename(out)}"})
+        if op == 'delete':
+            if len(pages) >= len(doc): return jsonify({"error": "A PDF needs at least one page"}), 400
+            doc.delete_pages(pages)
+        elif op == 'rotate':
+            for i in pages: doc[i].set_rotation((doc[i].rotation + 90) % 360)
+        else: return jsonify({"error": "Unknown action"}), 400
+        hasher = hashlib.md5((fp + str(os.path.getmtime(fp)) + op + str(pages)).encode()).hexdigest()
+        new_path = os.path.join(TEMP_DIR, f"mod_{hasher}.pdf")
+        doc.save(new_path, garbage=3); doc.close()
+        return jsonify({"success": True, "new_file": new_path})
+    except Exception as e: return jsonify({"error": str(e)}), 500
+
+def _page_label(pages):
+    """[0,1,2,4] -> '1-3, 5'"""
+    runs, start = [], pages[0]
+    for a, b in zip(pages, pages[1:] + [None]):
+        if b != a + 1: runs.append(f"{start + 1}" if start == a else f"{start + 1}-{a + 1}"); start = b
+    return ', '.join(runs)
+
+@app.route('/render_pages', methods=['POST'])
+def render_pages():
+    """Page pictures for printing: JPEGs at print quality, with each page's size in points."""
+    fp = request.json['filepath']
+    try:
+        doc = fitz.open(fp)
+        out = tempfile.mkdtemp(dir=TEMP_DIR, prefix='print_')
+        pages = []
+        for i, p in enumerate(doc):
+            f = os.path.join(out, f'{i + 1}.jpg')
+            p.get_pixmap(dpi=200).save(f, jpg_quality=92)
+            pages.append({"path": f, "w": p.rect.width, "h": p.rect.height})
+        doc.close()
+        return jsonify({"success": True, "pages": pages})
+    except Exception as e: return jsonify({"error": str(e)}), 500
+
+async def _ocr_png(png):
+    """Words and their boxes (in pixels) found by Windows' built-in text recognition."""
+    from winrt.windows.media.ocr import OcrEngine
+    from winrt.windows.graphics.imaging import BitmapDecoder
+    from winrt.windows.storage.streams import InMemoryRandomAccessStream, DataWriter
+    stream = InMemoryRandomAccessStream()
+    w = DataWriter(stream); w.write_bytes(png); await w.store_async(); await w.flush_async(); w.detach_stream()
+    stream.seek(0)
+    bmp = await (await BitmapDecoder.create_async(stream)).get_software_bitmap_async()
+    engine = OcrEngine.try_create_from_user_profile_languages()
+    if engine is None: raise RuntimeError("Windows text recognition isn't available. Add a language with OCR in Windows Settings.")
+    res = await engine.recognize_async(bmp)
+    return [(wd.text, wd.bounding_rect) for line in res.lines for wd in line.words]
+
+@app.route('/ocr', methods=['POST'])
+def ocr_pdf():
+    """Make scanned pages searchable: recognized words go onto the page as invisible text right over the
+    picture of them, so Find, copy and export work while the page looks exactly the same.
+    Pages that already have text are left alone."""
+    import asyncio
+    fp = request.json['filepath']
+    try:
+        doc = fitz.open(fp)
+        done = words = 0
+        for page in doc:
+            if len(page.get_text().strip()) >= 20: continue
+            dpi = 300; k = 72 / dpi
+            found = asyncio.run(_ocr_png(page.get_pixmap(dpi=dpi).tobytes('png')))
+            for text, r in found:
+                x0, y0, w, h = r.x * k, r.y * k, r.width * k, r.height * k
+                size = min(w / max(fitz.get_text_length(text, fontname='helv', fontsize=1), 0.01), h * 1.3)
+                page.insert_text((x0, y0 + h * 0.85), text, fontsize=max(1, size), fontname='helv', render_mode=3)
+            done += 1; words += len(found)
+        if not done:
+            doc.close()
+            return jsonify({"success": True, "new_file": None, "message": "This PDF already has searchable text"})
+        hasher = hashlib.md5((fp + str(os.path.getmtime(fp)) + 'ocr').encode()).hexdigest()
+        new_path = os.path.join(TEMP_DIR, f"mod_{hasher}.pdf")
+        doc.save(new_path, garbage=3, deflate=True); doc.close()
+        return jsonify({"success": True, "new_file": new_path,
+                        "message": f"Recognized {words} words on {done} {'page' if done == 1 else 'pages'}. Find and export now work on them"})
+    except Exception as e: return jsonify({"error": str(e)}), 500
+
 @app.route('/split_pdf', methods=['POST'])
 def split_pdf():
     data = request.json

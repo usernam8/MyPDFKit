@@ -347,7 +347,7 @@
     .fmt-body { display:flex; flex-direction:column; gap:1px; min-width:0; }
     .fmt-name { font-weight:600; font-size:13px; }
     .fmt-detail { font-size:12px; color:var(--dim); }
-    .fmt-why { font-size:12px; color:var(--accent); margin-top:3px; }
+    .fmt-why { white-space:pre-line;  font-size:12px; color:var(--accent); margin-top:3px; }
     .rec-pill { display:inline-block; margin-left:6px; padding:1px 7px; border-radius:999px; background:var(--accent); color:var(--accent-ink); font-size:10.5px; font-weight:700; vertical-align:1px; }
     .field { display:flex; flex-direction:column; gap:4px; margin-bottom:12px; min-width:320px; }
     .field label { font-size:12px; color:var(--dim); }
@@ -1659,14 +1659,26 @@
         const files = fileQueue.filter(f => f.status === 'ready');
         if (!files.length) return showToast('Add some files first', true);
         if (fileQueue.some(f => f.status === 'pending' || f.status === 'processing')) return showToast('Wait for every file to finish converting first', true);
-        const v = await askDialog(`Export ${files.length} ${files.length === 1 ? 'file' : 'files'}`, [{ key: 'fmt', label: 'Export to', type: 'select',
-            options: [['xlsx', 'Excel workbook (.xlsx)'], ['docx', 'Word document (.docx)'], ['pptx', 'PowerPoint (.pptx)'], ['png', 'Images (.png)'], ['txt', 'Plain text (.txt)']] }], 'Export');
-        if (!v) return;
         await syncEditsToPython();
+        // what each file is best exported as (tables to Excel, essays to Word, mixed files split by part)
+        showToast('Looking at the files...');
+        const sugs = await Promise.all(files.map(f => api('suggest_export', { filepath: f.pdfPath, original_path: f.originalPath }).catch(() => ({}))));
+        document.getElementById('toast-message').classList.remove('show');
+        const label = fmt => fmt === 'auto' ? 'split into Excel, Word and PowerPoint parts' : (OFFICE_NAMES[fmt] || fmt);
+        let reason;
+        if (files.length <= 4) reason = files.map((f, n) => `${f.name} → ${label(sugs[n].format || 'docx')}`).join('\n');
+        else {
+            const counts = {};
+            sugs.forEach(sg => { const k = label(sg.format || 'docx'); counts[k] = (counts[k] || 0) + 1; });
+            reason = Object.entries(counts).map(([k, n]) => `${n} ${n === 1 ? 'file' : 'files'} to ${k}`).join('\n');
+        }
+        const fmt = await chooseExportFormat({ format: 'each', reason }, `Export ${files.length} ${files.length === 1 ? 'file' : 'files'}`);
+        if (!fmt) return;
         let ok = 0; const failed = [];
         for (const [n, f] of files.entries()) {
             showToast(`Exporting ${n + 1} of ${files.length}...`);
-            try { const d = await api('export', { filepath: f.pdfPath, original_path: f.originalPath, format: v.fmt }); d.success ? ok++ : failed.push(f.name); }
+            const format = fmt === 'each' ? (sugs[n].format || 'docx') : fmt;
+            try { const d = await api('export', { filepath: f.pdfPath, original_path: f.originalPath, format }); d.success ? ok++ : failed.push(f.name); }
             catch (e) { failed.push(f.name); }
         }
         showToast(failed.length ? `Exported ${ok}; couldn't export ${failed.join(', ')}` : `Exported all ${ok} ${ok === 1 ? 'file' : 'files'} next to the originals`, failed.length > 0);
@@ -2704,13 +2716,18 @@
       ['docx', 'Word document', '.docx, editable text'], ['xlsx', 'Excel workbook', '.xlsx, tables and numbers'],
       ['pptx', 'PowerPoint', '.pptx, one slide per page'], ['png', 'Images (PNG)', 'one picture per page'],
       ['jpeg', 'Images (JPEG)', 'smaller pictures, one per page'], ['html', 'Web page', '.html'], ['txt', 'Plain text', '.txt, text only']];
-    function chooseExportFormat(sug) {
+    // options that only appear when they fit: a PDF mixing tables and text, or several files at once
+    const AUTO_FORMAT = ['auto', 'Best format for each part', 'tables to Excel, text to Word, slides to PowerPoint'];
+    const EACH_FORMAT = ['each', 'Best format for each file', 'every file in its recommended format'];
+    function chooseExportFormat(sug, title = 'Export a PDF') {
       return new Promise(resolve => {
-        const list = sug ? [EXPORT_FORMATS.find(f => f[0] === sug.format), ...EXPORT_FORMATS.filter(f => f[0] !== sug.format)] : EXPORT_FORMATS;
+        const all = [...(sug && sug.format === 'each' ? [EACH_FORMAT] : []), ...(sug && sug.format === 'auto' ? [AUTO_FORMAT] : []), ...EXPORT_FORMATS];
+        const list = sug ? [all.find(f => f[0] === sug.format), ...all.filter(f => f[0] !== sug.format)] : all;
         let picked = list[0][0];
         const bd = document.createElement('div'); bd.className = 'backdrop';
         const dlg = document.createElement('div'); dlg.className = 'dialog export-dialog';
-        dlg.innerHTML = '<h3>Export a PDF</h3><div class="fmt-list" role="listbox"></div>';
+        dlg.innerHTML = '<h3></h3><div class="fmt-list" role="listbox"></div>';
+        dlg.querySelector('h3').textContent = title;
         const box = dlg.querySelector('.fmt-list');
         list.forEach(([v, name, detail], i) => {
           const o = document.createElement('button'); o.className = 'fmt-opt' + (i === 0 ? ' selected' : ''); o.setAttribute('role', 'option');
@@ -2753,7 +2770,8 @@
       catch (e) { return showToast("Couldn't export. The converter isn't responding.", true); }
       if (d.error) return showToast(d.error, true);
       showToast(d.message);
-      if (OFFICE_NAMES[format] && d.path) require('electron').shell.openPath(d.path);
+      if (d.paths && d.paths.length > 1) require('electron').shell.showItemInFolder(d.paths[0]);   // several files: show them
+      else if (OFFICE_NAMES[format] && d.path) require('electron').shell.openPath(d.path);
     }
     async function doProtect() {
       if (!await needDoc()) return;

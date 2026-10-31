@@ -225,8 +225,11 @@ def process_all_files():
 
 _system_fonts = None
 def _font_key(name):
-    """'ABCDEF+Calibri-Bold', 'Calibri,Bold', 'Arial-BoldMT' and 'Calibri Bold' all become 'calibribold'."""
-    name = re.sub(r'^[A-Z]{6}\+', '', name or '')
+    """'ABCDEF+Calibri-Bold', 'Calibri,Bold', 'Arial-BoldMT' and 'Calibri Bold' all become 'calibribold'.
+    Junk some PDF makers put before the name (Firefox writes things like 'AAAAAD\u00e5\u00bc\u00abMontserrat-Regular')
+    is dropped too."""
+    name = (name or '').split('+')[-1]
+    name = re.sub(r'^.*[^\x00-\x7f]', '', name) or name
     parts = [re.sub(r'(PSMT|PS|MT)$', '', p) for p in re.split(r'[-,]', name)]   # Adobe's 'MT'/'PS' name tails
     key = re.sub(r'[^a-z0-9]', '', ''.join(parts).lower())
     return re.sub(r'regular$', '', key) or key
@@ -250,28 +253,38 @@ def _find_system_font(name):
                 label = re.sub(r'\s*\(.*\)$', '', label)
                 for part in label.split(' & '):
                     _system_fonts.setdefault(_font_key(part), os.path.join(folder, file))
-    return _system_fonts.get(_font_key(name))
+    key = _font_key(name)
+    if key in _system_fonts: return _system_fonts[key]
+    # a name cut short ('Montserrat-Regu'): the longest installed name it starts with
+    best = max((k for k in _system_fonts if len(k) >= 4 and key.startswith(k)), key=len, default=None)
+    return _system_fonts.get(best) if best else None
+
+def _same_font(a, b):
+    """Do two font names (one maybe cut short or with junk in front) name the same font?"""
+    ka, kb = _font_key(a), _font_key(b)
+    return bool(ka and kb) and (ka == kb or (min(len(ka), len(kb)) >= 6 and (ka.startswith(kb) or kb.startswith(ka))))
 
 def _text_font(doc, page, span_font, text, cache):
-    """A font name usable in insert_text that draws `text` like `span_font`:
-    the installed font of that name, else the copy embedded in the PDF if it has every letter,
+    """A font name usable in insert_text that draws `text` like `span_font`: the copy embedded in this PDF
+    when it has every letter needed (it is exactly the original), else the installed font of that name,
     else the closest built-in font."""
     if (span_font, text) in cache: return cache[(span_font, text)]
     alias = None
-    path = _find_system_font(span_font)
-    if path and os.path.exists(path):
-        alias = 'E' + hashlib.md5(path.encode()).hexdigest()[:8]
-        page.insert_font(fontname=alias, fontfile=path)
-    else:
-        for xref, ext, _, base, *_ in page.get_fonts(full=True):
-            if _font_key(base) != _font_key(span_font) or ext in ('n/a', ''): continue
-            try:
-                buf = doc.extract_font(xref)[3]
-                if buf and all(fitz.Font(fontbuffer=buf).has_glyph(ord(ch)) for ch in text if not ch.isspace()):
-                    alias = 'X%d' % xref
-                    page.insert_font(fontname=alias, fontbuffer=buf)
-                    break
-            except Exception: pass
+    for xref, ext, _, base, *_ in page.get_fonts(full=True):
+        if ext in ('n/a', '') or not _same_font(base, span_font): continue
+        try:
+            buf = doc.extract_font(xref)[3]
+            if buf and all(fitz.Font(fontbuffer=buf).has_glyph(ord(ch)) for ch in text if not ch.isspace()):
+                alias = 'X%d' % xref
+                page.insert_font(fontname=alias, fontbuffer=buf)
+                cache['font:' + alias] = fitz.Font(fontbuffer=buf)
+                break
+        except Exception: pass
+    if not alias:
+        path = _find_system_font(span_font)
+        if path and os.path.exists(path):
+            alias = 'E' + hashlib.md5(path.encode()).hexdigest()[:8]
+            page.insert_font(fontname=alias, fontfile=path)
     if not alias:
         low = span_font.lower()
         b, it = 'bold' in low or 'black' in low or 'heavy' in low, 'italic' in low or 'oblique' in low
@@ -282,11 +295,79 @@ def _text_font(doc, page, span_font, text, cache):
     cache[(span_font, text)] = alias
     return alias
 
+def _pdf_tokens(data):
+    """Operands and operators of a content stream; strings, arrays and dicts come back as placeholders."""
+    i, n = 0, len(data)
+    ws = b' \t\r\n\x0c\x00'
+    while i < n:
+        ch = data[i:i + 1]
+        if ch in (b' ', b'\t', b'\r', b'\n', b'\x0c', b'\x00'): i += 1; continue
+        if ch == b'%':
+            while i < n and data[i:i + 1] not in (b'\r', b'\n'): i += 1
+            continue
+        if ch == b'(':
+            depth, i = 1, i + 1
+            while i < n and depth:
+                c = data[i:i + 1]
+                if c == b'\\': i += 2; continue
+                depth += (c == b'(') - (c == b')'); i += 1
+            yield ('str', None); continue
+        if data[i:i + 2] in (b'<<', b'>>'): yield ('dict', None); i += 2; continue
+        if ch == b'<':
+            j = data.find(b'>', i); i = (j + 1) if j >= 0 else n; yield ('str', None); continue
+        if ch in (b'[', b']', b'{', b'}'): yield ('arr', None); i += 1; continue
+        j = i + 1
+        while j < n and data[j:j + 1] not in ws and data[j:j + 1] not in (b'(', b')', b'<', b'>', b'[', b']', b'/', b'%', b'{', b'}'): j += 1
+        tok = data[i:j]; i = j
+        if ch == b'/': yield ('name', tok); continue
+        try: yield ('num', float(tok))
+        except ValueError: yield ('op', tok.decode('latin-1'))
+
+def _text_slants(page):
+    """Where each run of text starts on the page and how much it leans (as a shear factor), read from the
+    drawing commands. Some PDF makers (browsers printing a web page, for one) draw italics by slanting a
+    regular font this way instead of using an italic font."""
+    runs = []
+    try: data = page.read_contents()
+    except Exception: return runs
+    ident = fitz.Matrix(1, 0, 0, 1, 0, 0)
+    ctm, stack, tm, tlm, ops = fitz.Matrix(ident), [], fitz.Matrix(ident), fitz.Matrix(ident), []
+    to_page = page.transformation_matrix
+    for kind, v in _pdf_tokens(data):
+        if kind != 'op': ops.append(v); continue
+        nums = [x for x in ops if isinstance(x, float)]; ops = []
+        if v == 'q': stack.append(fitz.Matrix(ctm))
+        elif v == 'Q': ctm = stack.pop() if stack else ctm
+        elif v == 'cm' and len(nums) >= 6: ctm = fitz.Matrix(*nums[-6:]) * ctm
+        elif v == 'BT': tm, tlm = fitz.Matrix(ident), fitz.Matrix(ident)
+        elif v == 'Tm' and len(nums) >= 6: tm = tlm = fitz.Matrix(*nums[-6:])
+        elif v in ('Td', 'TD') and len(nums) >= 2: tm = tlm = fitz.Matrix(1, 0, 0, 1, nums[-2], nums[-1]) * tlm
+        elif v in ('Tj', 'TJ', "'", '"'):
+            m = tm * ctm * to_page
+            ux, uy, vx, vy = m.a, m.b, m.c, m.d
+            if abs(ux * vy - uy * vx) < 1e-9: continue
+            # how far the glyph's upright axis leans along the baseline, per unit of height
+            k = (ux * vx + uy * vy) / (ux * ux + uy * uy) * (abs(ux) / max(abs(vy), 1e-9)) if abs(uy) < 1e-6 else 0
+            o = fitz.Point(0, 0) * m
+            runs.append((o.x, o.y, k))
+    return runs
+
+def _slant_at(runs, x, y):
+    """Shear of the text run that starts at or just before (x, y)."""
+    near = [r for r in runs if abs(r[1] - y) < 1.5 and r[0] <= x + 1.5]
+    return max(near, key=lambda r: r[0])[2] if near else 0
+
 def _rewrite_text(doc, page, edits):
     """Replace edited words with the same look the originals had. Each edit says where the original text
     sat (rect, its baseline y) and what it should say now; moved or restyled text also carries
     dx/dy and the new size, color, bold and italic."""
-    spans = [s for b in page.get_text('dict')['blocks'] if b['type'] == 0 for l in b['lines'] for s in l['spans'] if s['text'].strip()]
+    spans = []
+    for b in page.get_text('rawdict')['blocks']:
+        if b['type'] != 0: continue
+        for l in b['lines']:
+            for sp in l['spans']:
+                sp['text'] = ''.join(c['c'] for c in sp['chars'])
+                if sp['text'].strip(): spans.append(sp)
     plans = []
     for e in edits:
         r = fitz.Rect(*map(float, e['rect']))
@@ -299,6 +380,7 @@ def _rewrite_text(doc, page, edits):
         for s in hit:   # remove just these glyphs: no white box, lines and pictures untouched
             page.add_redact_annot(fitz.Rect(s['bbox']), fill=False, cross_out=False)
     if not plans: return
+    slants = _text_slants(page)   # read before the redactions rewrite the page
     page.apply_redactions(images=fitz.PDF_REDACT_IMAGE_NONE, graphics=fitz.PDF_REDACT_LINE_ART_NONE)
 
     cache = {}
@@ -320,7 +402,28 @@ def _rewrite_text(doc, page, edits):
         x, y = s['origin']
         x += float(e.get('dx', 0)); y += float(e.get('dy', 0))
         alias = _text_font(doc, page, font, text, cache)
-        page.insert_text(fitz.Point(x, y), text, fontsize=size, fontname=alias, color=rgb)
+        sx, sy = s['origin']
+        k = 0 if (e.get('styled') and 'italic' in e) else _slant_at(slants, sx, sy)
+        morph = (fitz.Point(x, y), fitz.Matrix(1, 0, k, 1, 0, 0)) if abs(k) > 0.01 else None
+        f = cache.get('font:' + alias)
+        if f is not None and ' ' in text and not f.has_glyph(32):
+            # the embedded font has no space (some makers place each word on its own): do the same,
+            # spacing words like the original did
+            # the original line's width minus its words' widths, shared out over its spaces
+            chars = [c for t in hit for c in t.get('chars', [])]
+            words0 = ''.join(c['c'] for c in chars).split()
+            n_sp = max(1, len(words0) - 1)
+            ink = sum(f.text_length(w, s['size']) for w in words0)
+            span_w = (chars[-1]['bbox'][2] - chars[0]['origin'][0]) if chars else 0
+            space = (span_w - ink) / n_sp if words0 and len(words0) > 1 and span_w > ink else size * 0.27
+            space *= size / s['size']
+            cx = x
+            for w in text.split(' '):
+                if w: page.insert_text(fitz.Point(cx, y), w, fontsize=size, fontname=alias, color=rgb,
+                                       morph=(fitz.Point(x, y), morph[1]) if morph else None)
+                cx += (f.text_length(w, size) if w else 0) + space
+        else:
+            page.insert_text(fitz.Point(x, y), text, fontsize=size, fontname=alias, color=rgb, morph=morph)
         if e.get('underline'):
             w = fitz.get_text_length(text, fontname='helv', fontsize=size) if alias in ('helv',) else None
             try: w = fitz.Font(fontfile=_find_system_font(font)).text_length(text, size) if w is None else w
@@ -1123,6 +1226,26 @@ def export_pdf():
             shutil.copyfile(orig, out)
             return jsonify({"success": True, "path": out,
                             "message": f"Saved {os.path.basename(out)}, copied from the original Excel file"})
+        if fmt == 'auto':   # each kind of page to its own format: tables to Excel, text to Word, slides to PowerPoint
+            src = fitz.open(fp)
+            parts = _page_parts(src)
+            if len(parts) == 1: fmt = parts[0][0]; src.close()
+            else:
+                outs = []
+                try:
+                    for kind, pages in parts:
+                        sub = fitz.open()
+                        for i in pages: sub.insert_pdf(src, from_page=i, to_page=i)
+                        out = get_unique_filename(os.path.join(folder, f'{base} ({KIND_NAMES[kind][0]}).{kind}'))
+                        if kind == 'docx':
+                            tmp = os.path.join(TEMP_DIR, f'part_{hashlib.md5(out.encode()).hexdigest()}.pdf')
+                            sub.save(tmp); export_docx(tmp, out)
+                        elif kind == 'xlsx': export_xlsx(sub, out)
+                        else: export_pptx(sub, out)
+                        sub.close(); outs.append(out)
+                finally: src.close()
+                return jsonify({"success": True, "path": outs[0], "paths": outs,
+                                "message": "Saved " + ", ".join(os.path.basename(o) for o in outs)})
         if fmt in ('docx', 'xlsx', 'pptx'):
             out = get_unique_filename(os.path.join(folder, f'{base}.{fmt}'))
             note = ''
@@ -1188,9 +1311,32 @@ def create_blank():
         return jsonify({"success": True, "path": out})
     except Exception as e: return jsonify({"error": str(e)}), 500
 
+KIND_NAMES = {'xlsx': ('tables', 'Excel'), 'docx': ('text', 'Word'), 'pptx': ('slides', 'PowerPoint')}
+
+def _page_kind(page):
+    """What a page mostly is: 'xlsx' (a ruled table or form), 'pptx' (a slide) or 'docx' (text, or a scan)."""
+    words = len(page.get_text('words'))
+    if words < 5 and page.get_images(): return 'docx'
+    hs, vs, _ = _ruling(page)
+    if len(hs) >= 4 and len(vs) >= 4: return 'xlsx'
+    r = page.rect
+    if r.width > r.height * 1.25 and words < 150: return 'pptx'
+    return 'docx'
+
+def _page_parts(doc):
+    """Pages grouped by kind, in order of first appearance: [('docx', [0, 2]), ('xlsx', [1])]."""
+    parts = {}
+    for i, page in enumerate(doc): parts.setdefault(_page_kind(page), []).append(i)
+    return list(parts.items())
+
+def _pages_text(pages):
+    """[0, 1, 2, 4] -> 'pages 1-3, 5'; [3] -> 'page 4'"""
+    return ('page ' if len(pages) == 1 else 'pages ') + _page_label(pages)
+
 def suggest_export(fp, orig):
-    """Best export format for this document and why: the file it was opened from, then the program
-    that made the PDF (it records that), then what the pages look like."""
+    """Best export format for this document and why: the file it was opened from, then whether it mixes
+    kinds of pages (tables and text, say: then each part gets its own format), then the program that made
+    the PDF (it records that), then what the pages look like."""
     ext = os.path.splitext(orig or '')[1].lower()
     by_ext = {'.xlsx': 'xlsx', '.xlsm': 'xlsx', '.xls': 'xlsx', '.docx': 'docx', '.doc': 'docx', '.pptx': 'pptx', '.ppt': 'pptx'}
     names = {'xlsx': 'Excel', 'docx': 'Word', 'pptx': 'PowerPoint'}
@@ -1198,6 +1344,10 @@ def suggest_export(fp, orig):
         return by_ext[ext], f"You opened this from an {names[by_ext[ext]]} file" if by_ext[ext] == 'xlsx' else f"You opened this from a {names[by_ext[ext]]} file"
     doc = fitz.open(fp)
     try:
+        if len(doc) > 1:
+            parts = _page_parts(doc)
+            if len(parts) > 1:
+                return 'auto', '; '.join(f"{KIND_NAMES[k][0].capitalize()} ({_pages_text(pg)}) to {KIND_NAMES[k][1]}" for k, pg in parts)
         made_by = f"{doc.metadata.get('creator') or ''} {doc.metadata.get('producer') or ''}".lower()
         for key, fmt, app_name in (('excel', 'xlsx', 'Excel'), ('calc', 'xlsx', 'a spreadsheet app'), ('google sheets', 'xlsx', 'Google Sheets'),
                                    ('powerpoint', 'pptx', 'PowerPoint'), ('impress', 'pptx', 'a slides app'), ('keynote', 'pptx', 'Keynote'), ('google slides', 'pptx', 'Google Slides'),

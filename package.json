@@ -1,15 +1,17 @@
 {
   "name": "my-pdf-kit",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Modern PDF Editor",
-  "author": "Your Name",
+  "author": "usernam8",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
     "build:server": "python -m PyInstaller --noconfirm --onedir --noconsole --name server --hidden-import win32timezone --hidden-import fontTools.subset --collect-data docx --collect-data pptx server.py",
-    "build": "npm run build:server && electron-builder --win"
+    "build": "npm run build:server && electron-builder --win",
+    "release": "npm run build:server && electron-builder --win && powershell -NoProfile -ExecutionPolicy Bypass -File publish-release.ps1"
   },
   "dependencies": {
+    "electron-updater": "^6.3.9",
     "pdfjs-dist": "3.11.174"
   },
   "devDependencies": {
@@ -19,7 +21,9 @@
   "build": {
     "appId": "com.mypdfkit.app",
     "productName": "MyPDFKit",
-    "directories": { "output": "release" },
+    "directories": {
+      "output": "release"
+    },
     "files": [
       "main.js",
       "index.html",
@@ -27,19 +31,43 @@
       "node_modules/pdfjs-dist/build/pdf.min.js",
       "node_modules/pdfjs-dist/build/pdf.worker.min.js"
     ],
-    "win": { "target": "nsis", "icon": "build/icon.ico" },
+    "win": {
+      "target": "nsis",
+      "icon": "build/icon.ico"
+    },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut": true
+      "createDesktopShortcut": true,
+      "artifactName": "MyPDFKit-Setup-${version}.${ext}"
     },
     "extraResources": [
-      { "from": "dist/server", "to": "server" }
+      {
+        "from": "dist/server",
+        "to": "server"
+      }
     ],
     "fileAssociations": [
-      { "ext": "pdf", "name": "PDF Document" },
-      { "ext": "docx", "name": "Word Document" },
-      { "ext": "xlsx", "name": "Excel Document" }
+      {
+        "ext": "pdf",
+        "name": "PDF Document"
+      },
+      {
+        "ext": "docx",
+        "name": "Word Document"
+      },
+      {
+        "ext": "xlsx",
+        "name": "Excel Document"
+      }
+    ],
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "usernam8",
+        "repo": "MyPDFKit-releases",
+        "releaseType": "release"
+      }
     ]
   }
 }

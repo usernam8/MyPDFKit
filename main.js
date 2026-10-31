@@ -1,4 +1,4 @@
-const { app, BrowserWindow, dialog, Menu } = require('electron');
+const { app, BrowserWindow, dialog, Menu, ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
@@ -96,7 +96,29 @@ if (gotLock) app.whenReady().then(async () => {
   createWindow();   // show the window immediately; the backend finishes starting in parallel
   try { await waitForServer(); serverUp = true; flushOpenFiles(); }
   catch (e) { dialog.showErrorBox('MyPDFKit', e.message); }
+  setupAutoUpdate();
 });
+
+// ---------- updates ----------
+// The installed app checks GitHub (the public MyPDFKit-releases repo) at startup and every few hours,
+// downloads a newer version in the background, then offers a restart. If the user ignores it, the
+// update is installed the next time the app closes.
+function setupAutoUpdate() {
+  if (!app.isPackaged) return;
+  let autoUpdater;
+  try { ({ autoUpdater } = require('electron-updater')); } catch (e) { console.error('[update] unavailable', e); return; }
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true;
+  autoUpdater.on('update-downloaded', info => {
+    if (win && !win.isDestroyed()) win.webContents.send('update-ready', info.version);
+  });
+  autoUpdater.on('error', err => console.error('[update]', err && err.message));
+  const check = () => autoUpdater.checkForUpdates().catch(err => console.error('[update]', err && err.message));
+  setTimeout(check, 4000);   // after startup settles
+  setInterval(check, 4 * 60 * 60 * 1000);
+  ipcMain.on('install-update', () => { killServer(); autoUpdater.quitAndInstall(true, true); });
+}
+ipcMain.handle('app-version', () => app.getVersion());
 
 function killServer() {
   if (serverProc && !serverProc.killed) {

@@ -125,6 +125,11 @@
     #brain-status::before { content:""; width:7px; height:7px; border-radius:50%; background:var(--danger); }
     #brain-status.online::before { background:var(--ok); }
     html.packaged #brain-status { display:none; }
+    #update-pill { -webkit-app-region:no-drag; display:none; align-items:center; gap:6px; height:26px; margin-right:6px; padding:0 11px 0 9px; border:0; border-radius:13px;
+      background:var(--accent); color:#fff; font:600 12px/1 inherit; cursor:pointer; white-space:nowrap; }
+    #update-pill.show { display:flex; }
+    #update-pill .ico { width:14px; height:14px; }
+    #update-pill:hover { filter:brightness(1.1); }
 
     /* ---- right panel ---- */
     .tool-header { display:flex; align-items:center; gap:9px; padding:8px 16px 8px 14px; border-left:2px solid transparent; font-size:13px; font-weight:600; color:var(--dim); cursor:pointer; }
@@ -491,6 +496,7 @@
     <span id="doc-name"></span>
     <span class="menu-spacer"></span>
     <label class="find"><svg class="ico"><use href="#i-search"/></svg><input id="find-box" placeholder="Find text" spellcheck="false" title="Enter: next match, Shift+Enter: previous, Esc: clear"><span id="find-count"></span><span class="find-nav"><button id="find-prev" title="Previous match (Shift+Enter)" disabled><svg class="ico"><use href="#i-up"/></svg></button><button id="find-next" title="Next match (Enter)" disabled><svg class="ico"><use href="#i-down"/></svg></button><button id="find-close" title="Clear (Esc)"><svg class="ico"><use href="#i-plus"/></svg></button></span></label>
+    <button id="update-pill" title="A new version is downloaded. Restart to use it."><svg class="ico"><use href="#i-rotate"/></svg>Update ready · Restart</button>
     <button id="btn-top-undo" class="icon-tool" title="Undo last action"><svg class="ico"><use href="#i-undo"/></svg></button>
     <button id="btn-save-modified" class="icon-tool" title="Save as a new PDF next to the original (Ctrl+S)"><svg class="ico"><use href="#i-save"/></svg></button>
   </div>
@@ -742,6 +748,19 @@
         });
     }
     checkBackend();
+
+    // updates: main.js downloads new versions in the background and says when one is ready
+    ipcRenderer.on('update-ready', (_e, version) => {
+      const pill = document.getElementById('update-pill');
+      pill.title = `Version ${version} is downloaded. Restart to use it (it also installs when you close the app).`;
+      pill.classList.add('show');
+      showToast(`Version ${version} is ready. Restart when you like`);
+    });
+    document.getElementById('update-pill').addEventListener('click', async () => {
+      await syncEditsToPython();   // nothing in progress gets lost
+      ipcRenderer.send('install-update');
+    });
+    ipcRenderer.invoke('app-version').then(v => { document.getElementById('strip-home').title = `Home: all tools (MyPDFKit ${v})`; }).catch(() => {});
 
     // the font picker lists every font installed on this PC (each shown in its own typeface)
     let fontsLoaded = false;

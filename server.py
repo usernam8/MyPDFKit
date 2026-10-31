@@ -607,6 +607,80 @@ def fill_template():
         return jsonify({"success": True, "path": out_dir, "message": f"Made {len(rows)} filled PDFs in the folder {os.path.basename(out_dir)}"})
     except Exception as e: return jsonify({"error": str(e)}), 500
 
+WATERMARK_TURN = -1   # a page turned 90 degrees needs its watermark turned back the other way (checked on turned pages)
+
+def _gs_table(doc, page):
+    """Where the page's ExtGState (see-through settings) table lives: (xref holding it, key path to it)."""
+    t, v = doc.xref_get_key(page.xref, 'Resources')
+    holder, path = (int(v.split()[0]), 'ExtGState') if t == 'xref' else (page.xref, 'Resources/ExtGState')
+    t2, v2 = doc.xref_get_key(holder, path)
+    if t2 == 'xref': return int(v2.split()[0]), ''
+    return holder, path
+
+def _gs_names(doc, page):
+    holder, path = _gs_table(doc, page)
+    if not path: return set(doc.xref_get_keys(holder))
+    t, v = doc.xref_get_key(holder, path)
+    return set(re.findall(r'/([^\s/<>\[\]()]+)\s*(?:<<|\d+ 0 R)', v)) if t == 'dict' else set()
+
+def _multiply_new_gs(doc, page, before):
+    """Make the see-through setting the watermark just added (and only it) blend as 'multiply': the
+    watermark then only darkens the white of the page, so it looks behind the content even on pages that
+    paint a white background."""
+    try:
+        holder, path = _gs_table(doc, page)
+        for name in _gs_names(doc, page) - before:
+            key = (path + '/' if path else '') + name
+            t, v = doc.xref_get_key(holder, key)
+            if t == 'xref': doc.xref_set_key(int(v.split()[0]), 'BM', '/Multiply')
+            else: doc.xref_set_key(holder, key + '/BM', '/Multiply')
+    except Exception as e: print('blend not set:', e, file=sys.stderr)
+
+@app.route('/watermark', methods=['POST'])
+def watermark():
+    """A watermark (text or a picture) or a background color on every page of each file.
+    files: [paths]; kind: text | image | color; on_top: over the content or behind it."""
+    import math
+    d = request.json
+    try:
+        kind = d.get('kind', 'text'); on_top = bool(d.get('on_top', True))
+        rgb = parse_color(d.get('color') or '#c0392b'); opacity = max(0.03, min(1, float(d.get('opacity', 30)) / 100))
+        img_bytes = None
+        if kind == 'image':
+            with Image.open(d['image']) as im:   # the picture, made see-through
+                im = im.convert('RGBA'); a = im.getchannel('A').point(lambda v: int(v * opacity)); im.putalpha(a)
+                buf = BytesIO(); im.save(buf, 'PNG'); img_bytes = buf.getvalue(); iw, ih = im.size
+        outs = []
+        for fp in d['files']:
+            doc = fitz.open(fp)
+            for page in doc:
+                r = page.rect   # as shown
+                c = fitz.Point((r.x0 + r.x1) / 2, (r.y0 + r.y1) / 2)
+                if kind == 'color':
+                    page.draw_rect(page.mediabox, color=None, fill=rgb, overlay=False, fill_opacity=1)
+                elif kind == 'image':
+                    w = r.width * {'small': .25, 'medium': .45, 'large': .7}.get(d.get('size'), .45); h = w * ih / iw
+                    box = fitz.Rect(c.x - w / 2, c.y - h / 2, c.x + w / 2, c.y + h / 2) * page.derotation_matrix
+                    page.insert_image(box, stream=img_bytes, overlay=on_top, keep_proportion=True)
+                else:
+                    text = (d.get('text') or 'CONFIDENTIAL').strip()
+                    diag = d.get('angle', 'diagonal') == 'diagonal'
+                    ang = math.degrees(math.atan2(r.height, r.width)) if diag else 0
+                    room = (math.hypot(r.width, r.height) if diag else r.width) * {'small': .35, 'medium': .6, 'large': .85}.get(d.get('size'), .6)
+                    size = min(room / max(1, fitz.get_text_length(text, fontname='hebo', fontsize=1)), r.height * 0.4)
+                    wlen = fitz.get_text_length(text, fontname='hebo', fontsize=size)
+                    # laid out in the page's own (unturned) coordinates, then turned so it reads right as shown
+                    cu = c * page.derotation_matrix
+                    turn = (ang if diag else 0) + WATERMARK_TURN * page.rotation
+                    before = _gs_names(doc, page)
+                    page.insert_text(fitz.Point(cu.x - wlen / 2, cu.y + size * 0.35), text, fontsize=size, fontname='hebo', color=rgb,
+                                     fill_opacity=opacity, overlay=True, morph=(cu, fitz.Matrix(-turn)) if turn else None)
+                    if not on_top: _multiply_new_gs(doc, page, before)   # tint only: the page's own text stays crisp on top
+            out = os.path.join(TEMP_DIR, f"mod_{hashlib.md5((fp + str(os.path.getmtime(fp)) + json.dumps(d)).encode()).hexdigest()}.pdf")
+            doc.save(out, garbage=3, deflate=True); doc.close(); outs.append(out)
+        return jsonify({"success": True, "files": outs})
+    except Exception as e: return jsonify({"error": str(e)}), 500
+
 @app.route('/formats', methods=['GET'])
 def formats():
     return jsonify({"extensions": [e[1:] for e in OPENABLE_EXT]})

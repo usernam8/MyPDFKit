@@ -883,7 +883,10 @@ def _rewrite_text(doc, page, edits):
     page.apply_redactions(images=fitz.PDF_REDACT_IMAGE_NONE, graphics=fitz.PDF_REDACT_LINE_ART_NONE)
     for sp in _repair_neighbours(page, spans, {id(s) for _, hit in plans for s in hit}):
         plans.append(({'new_text': sp['text']}, [sp]))
+    _rewrite_text_plans(doc, page, plans, slants, looks)
 
+def _rewrite_text_plans(doc, page, plans, slants, looks):
+    """Write each (edit, original runs) pair: see _rewrite_text."""
     cache = {}
     for e, hit in plans:
         text = str(e.get('new_text', '')).replace('\n', ' ').strip()
@@ -981,6 +984,123 @@ def fonts():
                 fam = re.sub(r'\s+(Bold|Italic|Oblique|Regular)(\s+(Bold|Italic|Oblique))*$', '', part).strip()
                 if fam and not fam.startswith('@'): fams.add(fam)
     return jsonify({"fonts": sorted(fams, key=str.lower)})
+
+# ---------- paragraphs ----------
+def _rewrap_paragraph(doc, page, rect, text):
+    """Replace the paragraph inside `rect` with `text`, rewrapped to the paragraph's width in its own font,
+    size, color, line spacing and alignment. Returns how many lines it now takes, and how many it took."""
+    rect = fitz.Rect(rect)
+    spans = _page_spans(page)
+    mine = [sp for sp in spans if sp['dir'] == (1, 0) and fitz.Rect(sp['bbox']).intersects(rect)
+            and rect.contains(fitz.Point((sp['bbox'][0] + sp['bbox'][2]) / 2, (sp['bbox'][1] + sp['bbox'][3]) / 2))]
+    if not mine: raise ValueError("Couldn't find that paragraph")
+    # the look most of its letters have
+    weight = {}
+    for sp in mine: key = (sp['font'], round(sp['size'], 2), sp['color'], sp['flags']); weight[key] = weight.get(key, 0) + len(sp['text'].strip())
+    font, size, color, flags = max(weight, key=weight.get)
+    rgb = ((color >> 16 & 255) / 255, (color >> 8 & 255) / 255, (color & 255) / 255)
+    # its lines: baselines, edges
+    base = sorted({round(sp['origin'][1], 1) for sp in mine})
+    lines = []
+    for y in base:
+        row = [sp for sp in mine if abs(sp['origin'][1] - y) < 0.6]
+        lines.append((y, min(c['origin'][0] for sp in row for c in sp['chars'] if c['c'].strip()), max(c['bbox'][2] for sp in row for c in sp['chars'] if c['c'].strip())))
+    pitch = sorted(b - a for a, b in zip(base, base[1:]))[len(base) // 2 - 1] if len(base) > 1 else size * 1.2
+    left = min(l[1] for l in lines); right = max(l[2] for l in lines)
+    width = right - left
+    full = lines[:-1] or lines
+    if len(lines) > 1 and all(abs(l[2] - right) < 1.5 for l in full) and all(abs(l[1] - left) < 1.5 for l in lines):
+        align = 'justify'
+    elif len(lines) > 1 and all(abs((l[1] + l[2]) / 2 - (left + right) / 2) < 2 for l in lines) and any(abs(l[1] - left) > 3 for l in lines):
+        align = 'center'
+    elif len(lines) > 1 and all(abs(l[2] - right) < 1.5 for l in lines) and any(abs(l[1] - left) > 3 for l in lines):
+        align = 'right'
+    else:
+        align = 'left'
+    slants = _text_slants(page); k, hs = _run_at(slants, *mine[0]['origin'])
+    if abs(hs - 1) > 0.02: size /= hs ** 0.5
+    else: hs = 1
+    looks = _trace_looks(page)
+    f = _font_for(doc, page, font, text, {})
+    # take the old words away (only them), and put back anything nearby that slid
+    for sp in mine:
+        box = _tight_box(sp['chars'])
+        if box: page.add_redact_annot(box, fill=False, cross_out=False)
+    page.apply_redactions(images=fitz.PDF_REDACT_IMAGE_NONE, graphics=fitz.PDF_REDACT_LINE_ART_NONE)
+    restore = _repair_neighbours(page, spans, {id(sp) for sp in mine})
+    # each original word with its own look, so bold or slanted words stay that way
+    styles, words0 = {}, []
+    for sp in mine:
+        c0 = sp['color']
+        col = ((c0 >> 16 & 255) / 255, (c0 >> 8 & 255) / 255, (c0 & 255) / 255)
+        word = []
+        for ch in sp['chars'] + [{'c': ' ', 'origin': (0, 0)}]:
+            if ch['c'].strip(): word.append(ch); continue
+            if not word: continue
+            # a run can mix upright and slanted words: look the slant up where this word starts
+            kk, hh = _run_at(slants, *word[0]['origin'])
+            sz = sp['size'] / (hh ** 0.5) if abs(hh - 1) > 0.02 else sp['size']
+            words0.append((''.join(c['c'] for c in word), (sp['font'], round(sz, 2), col, round(kk, 3), round(hh if abs(hh - 1) > 0.02 else 1, 3))))
+            word = []
+    main = (font, size, rgb, round(k, 3), hs)
+    import difflib
+    new_words = [(para_i, w) for para_i, para in enumerate(text.replace('\r', '').split('\n')) for w in (para.split() or [''])]
+    look_of = [main] * len(new_words)
+    sm = difflib.SequenceMatcher(None, [w for w, _ in words0], [w for _, w in new_words], autojunk=False)
+    for op, i1, i2, j1, j2 in sm.get_opcodes():
+        for jj in range(j1, j2):
+            if op == 'equal': look_of[jj] = words0[i1 + jj - j1][1]
+            elif words0: look_of[jj] = words0[min(max(i1 - 1, 0), len(words0) - 1)][1]   # new words look like the one before
+    fonts = {}
+    def font_of(st):
+        if st[0] not in fonts: fonts[st[0]] = _font_for(doc, page, st[0], text, {})
+        return fonts[st[0]]
+    wlen = lambda w, st: font_of(st).text_length(w, st[1]) * st[4]
+    space = (f.text_length(' ', size) * hs) or size * 0.25
+    # wrap
+    out_lines, cur, last_para = [], [], None
+    for (pi, w), st in zip(new_words, look_of):
+        if last_para is not None and pi != last_para:
+            out_lines.append((cur, True)); cur = []
+        last_para = pi
+        if not w: continue
+        if cur and sum(wlen(a, b) for a, b in cur) + space * len(cur) + wlen(w, st) > width + 0.5:
+            out_lines.append((cur, False)); cur = []
+        cur.append((w, st))
+    out_lines.append((cur, True))
+    y = lines[0][0]
+    for words, last in out_lines:
+        if words:
+            ink = sum(wlen(a, b) for a, b in words)
+            gap = space
+            if align == 'justify' and not last and len(words) > 1: gap = (width - ink) / (len(words) - 1)
+            line_w = ink + gap * (len(words) - 1)
+            x = left if align in ('left', 'justify') else (right - line_w if align == 'right' else left + (width - line_w) / 2)
+            for w, st in words:
+                fo, sz, col, kk, hh = font_of(st), st[1], st[2], st[3], st[4]
+                tw = fitz.TextWriter(page.rect)
+                tw.append((x, y), w, font=fo, fontsize=sz)
+                m = fitz.Matrix(hh, 0, kk, 1, 0, 0)
+                tw.write_text(page, color=col, morph=(fitz.Point(x, y), m) if (abs(kk) > 0.01 or hh != 1) else None)
+                x += wlen(w, st) + gap
+        y += pitch
+    for sp in restore:   # neighbours that slid, back where they were
+        _rewrite_text_plans(doc, page, [({'new_text': sp['text']}, [sp])], slants, looks)
+    return len([l for l in out_lines]), len(lines)
+
+@app.route('/rewrite_paragraph', methods=['POST'])
+def rewrite_paragraph():
+    d = request.json; fp = d['filepath']
+    try:
+        doc = fitz.open(fp); page = doc[int(d['page'])]
+        now, before = _rewrap_paragraph(doc, page, d['rect'], d['text'])
+        try: doc.subset_fonts()
+        except Exception: pass
+        new_path = os.path.join(TEMP_DIR, f"mod_{hashlib.md5((fp + str(os.path.getmtime(fp)) + d['text']).encode()).hexdigest()}.pdf")
+        doc.save(new_path, garbage=3, deflate=True); doc.close()
+        note = '' if now <= before else f'. It now takes {now - before} more {"line" if now - before == 1 else "lines"}; check it doesn\'t run into what\'s below'
+        return jsonify({"success": True, "new_file": new_path, "message": "Paragraph updated" + note})
+    except Exception as e: return jsonify({"error": str(e)}), 500
 
 @app.route('/burn_edits', methods=['POST'])
 def burn_edits():

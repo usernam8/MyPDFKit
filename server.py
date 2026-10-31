@@ -244,7 +244,19 @@ def process_file():
     if not path or not os.path.exists(path): return jsonify({"error": "File not found"}), 400
 
     ext = path.lower()
-    if ext.endswith('.pdf'): return jsonify({"pdf_path": path})
+    if ext.endswith('.pdf'):
+        # a locked PDF needs its password first; a damaged one is opened from a repaired copy
+        try:
+            d = fitz.open(path)
+            if d.needs_pass: d.close(); return jsonify({"needs_password": True})
+            if d.is_repaired:
+                fixed = os.path.join(TEMP_DIR, 'fixed_' + hashlib.md5((path + str(os.path.getmtime(path))).encode()).hexdigest() + '.pdf')
+                d.save(fixed, garbage=3, deflate=True); d.close()
+                return jsonify({"pdf_path": fixed, "message": "This PDF was damaged; it was repaired to open it"})
+            d.close()
+        except Exception as e:
+            return jsonify({"error": f"This file couldn't be read as a PDF ({e})"}), 400
+        return jsonify({"pdf_path": path})
 
     # CONVERTER_VERSION is in the key so a change to how files are converted redoes old previews
     hasher = hashlib.md5((path + str(os.path.getmtime(path)) + CONVERTER_VERSION).encode('utf-8')).hexdigest()
@@ -262,6 +274,19 @@ def process_file():
             pythoncom.CoUninitialize()
 
     return jsonify({"pdf_path": temp_target})
+
+@app.route('/unlock', methods=['POST'])
+def unlock():
+    """Open a password-protected PDF: an unlocked working copy (the original file keeps its password)."""
+    d = request.json; path, pw = d.get('filepath'), d.get('password', '')
+    try:
+        doc = fitz.open(path)
+        if doc.needs_pass and not doc.authenticate(pw):
+            doc.close(); return jsonify({"error": "That password isn't right"}), 400
+        out = os.path.join(TEMP_DIR, 'open_' + hashlib.md5((path + str(os.path.getmtime(path))).encode()).hexdigest() + '.pdf')
+        doc.save(out, encryption=fitz.PDF_ENCRYPT_NONE, garbage=3, deflate=True); doc.close()
+        return jsonify({"pdf_path": out})
+    except Exception as e: return jsonify({"error": str(e)}), 500
 
 @app.route('/process_all_files', methods=['POST'])
 def process_all_files():
@@ -433,12 +458,12 @@ def _font_for(doc, page, span_font, text, cache, prefer_embedded=True):
         except Exception: pass
     low = span_font.lower()
     b, it = 'bold' in low or 'black' in low or 'heavy' in low, 'italic' in low or 'oblique' in low
-    fam = 'co' if 'cour' in low or 'mono' in low else 'ti' if 'times' in low or 'serif' in low and 'sans' not in low else 'he'
+    fam = 'co' if 'cour' in low or 'mono' in low else 'ti' if not low or 'times' in low or 'serif' in low and 'sans' not in low else 'he'
     return fitz.Font({('co', 0, 0): 'cour', ('co', 1, 0): 'cobo', ('co', 0, 1): 'coit', ('co', 1, 1): 'cobi',
                       ('ti', 0, 0): 'tiro', ('ti', 1, 0): 'tibo', ('ti', 0, 1): 'tiit', ('ti', 1, 1): 'tibi',
                       ('he', 0, 0): 'helv', ('he', 1, 0): 'hebo', ('he', 0, 1): 'heit', ('he', 1, 1): 'hebi'}[(fam, int(b), int(it))])
 
-def _layout(chars, text, font, size, keep_positions):
+def _layout(chars, text, font, size, keep_positions, hscale=1.0):
     """Where each letter of `text` goes. Letters that were already there stay exactly where they were (PDF
     makers often space letters a little differently from the font's own widths, and copying those spots
     is what keeps an edit invisible); new letters are spaced by the font, and what follows a change moves
@@ -449,7 +474,7 @@ def _layout(chars, text, font, size, keep_positions):
     def adv(ch):
         if ch == ' ' and not font.has_glyph(32):   # fonts with no space: use the original's spacing
             return (sum(c['bbox'][2] - c['bbox'][0] for c in sp) / len(sp)) if sp else size * 0.27
-        return font.text_length(ch, size)
+        return font.text_length(ch, size) * hscale
     if not keep_positions:
         out, x = [], x0
         for ch in text: out.append((x, ch)); x += adv(ch)
@@ -537,13 +562,14 @@ def _text_slants(page):
     try: data = page.read_contents()
     except Exception: return runs
     ident = fitz.Matrix(1, 0, 0, 1, 0, 0)
-    ctm, stack, tm, tlm, ops = fitz.Matrix(ident), [], fitz.Matrix(ident), fitz.Matrix(ident), []
+    ctm, stack, tm, tlm, ops, th = fitz.Matrix(ident), [], fitz.Matrix(ident), fitz.Matrix(ident), [], 1.0
     to_page = page.transformation_matrix
     for kind, v in _pdf_tokens(data):
         if kind != 'op': ops.append(v); continue
         nums = [x for x in ops if isinstance(x, float)]; ops = []
-        if v == 'q': stack.append(fitz.Matrix(ctm))
-        elif v == 'Q': ctm = stack.pop() if stack else ctm
+        if v == 'q': stack.append((fitz.Matrix(ctm), th))
+        elif v == 'Q': ctm, th = stack.pop() if stack else (ctm, th)
+        elif v == 'Tz' and nums: th = nums[-1] / 100   # horizontal stretch, in percent
         elif v == 'cm' and len(nums) >= 6: ctm = fitz.Matrix(*nums[-6:]) * ctm
         elif v == 'BT': tm, tlm = fitz.Matrix(ident), fitz.Matrix(ident)
         elif v == 'Tm' and len(nums) >= 6: tm = tlm = fitz.Matrix(*nums[-6:])
@@ -551,43 +577,113 @@ def _text_slants(page):
         elif v in ('Tj', 'TJ', "'", '"'):
             m = tm * ctm * to_page
             ux, uy, vx, vy = m.a, m.b, m.c, m.d
-            if abs(ux * vy - uy * vx) < 1e-9: continue
-            # how far the glyph's upright axis leans along the baseline, per unit of height
-            k = (ux * vx + uy * vy) / (ux * ux + uy * uy) * (abs(ux) / max(abs(vy), 1e-9)) if abs(uy) < 1e-6 else 0
+            cross = ux * vy - uy * vx
+            if abs(cross) < 1e-9: continue
+            lu = (ux * ux + uy * uy) ** 0.5
+            height = abs(cross) / lu                          # glyph height across the baseline
+            k = (ux * vx + uy * vy) / (lu * height)           # lean along the baseline, per unit of height
+            hs = th * lu / height                             # width stretch (Tz, or a squashed matrix)
             o = fitz.Point(0, 0) * m
-            runs.append((o.x, o.y, k))
+            runs.append((o.x, o.y, k, hs))
     return runs
 
-def _slant_at(runs, x, y):
-    """Shear of the text run that starts at or just before (x, y)."""
+def _run_at(runs, x, y):
+    """(lean, width stretch) of the text run that starts at (x, y), or the one just before it on that line."""
+    if not runs: return 0, 1
+    best = min(runs, key=lambda r: (r[0] - x) ** 2 + (r[1] - y) ** 2)
+    if (best[0] - x) ** 2 + (best[1] - y) ** 2 < 2.5: return best[2], best[3]
     near = [r for r in runs if abs(r[1] - y) < 1.5 and r[0] <= x + 1.5]
-    return max(near, key=lambda r: r[0])[2] if near else 0
+    r = max(near, key=lambda r: r[0]) if near else None
+    return (r[2], r[3]) if r else (0, 1)
 
-def _rewrite_text(doc, page, edits):
-    """Replace edited words with the same look the originals had. Each edit says where the original text
-    sat (rect, its baseline y) and what it should say now; moved or restyled text also carries
-    dx/dy and the new size, color, bold and italic."""
+def _slant_at(runs, x, y):
+    return _run_at(runs, x, y)[0]
+
+def _trace_looks(page):
+    """How each run of text is painted: [(first letter's origin, mode, opacity)], mode as PDF's text render
+    mode (0 filled, 1 outlined, 3 invisible like an OCR layer)."""
+    out = []
+    try:
+        for sp in page.get_texttrace():
+            if not sp['chars']: continue
+            t = sp.get('type', 0)
+            mode = {0: 0, 1: 1, 3: 3}.get(t, 0)
+            out.append((sp['chars'][0][2], mode, sp.get('opacity', 1) or 1))
+    except Exception: pass
+    return out
+
+def _page_spans(page):
+    """Every run of text on the page, letter by letter, with its line's direction."""
     spans = []
     for b in page.get_text('rawdict')['blocks']:
         if b['type'] != 0: continue
         for l in b['lines']:
             for sp in l['spans']:
                 sp['text'] = ''.join(c['c'] for c in sp['chars'])
+                sp['dir'] = l.get('dir', (1, 0))
                 if sp['text'].strip(): spans.append(sp)
+    return spans
+
+def _glyph_key(c):
+    return (c['c'], round(c['origin'][0], 1), round(c['origin'][1], 1))
+
+def _tight_box(chars):
+    ink = [c['bbox'] for c in chars if c['c'].strip()]
+    if not ink: return None
+    return fitz.Rect(min(b[0] for b in ink), min(b[1] for b in ink), max(b[2] for b in ink), max(b[3] for b in ink)) + (0.3, 0.5, -0.3, -0.5)
+
+def _repair_neighbours(page, spans, edited):
+    """Removing words can make the PDF's own cleanup slide the text after them (when that text was placed
+    relative to the removed words). Find letters that are no longer where they were, take away the slid
+    copies, and return the runs to write back in their original places."""
+    before = {_glyph_key(c) for sp in spans for c in sp['chars'] if c['c'].strip()}
+    restore, done = [], set(edited)
+    for _ in range(3):
+        now = {_glyph_key(c): c for sp in _page_spans(page) for c in sp['chars'] if c['c'].strip()}
+        stray = [c for k, c in now.items() if k not in before]
+        damaged = [sp for sp in spans if id(sp) not in done and any(_glyph_key(c) not in now for c in sp['chars'] if c['c'].strip())]
+        if not stray and not damaged: break
+        for c in stray: page.add_redact_annot(fitz.Rect(c['bbox']) + (0.3, 0.5, -0.3, -0.5), fill=False, cross_out=False)
+        for sp in damaged:   # take away what's left of it too, then write it back whole
+            left = [c for c in sp['chars'] if _glyph_key(c) in now]
+            box = _tight_box(left)
+            if box: page.add_redact_annot(box, fill=False, cross_out=False)
+            done.add(id(sp)); restore.append(sp)
+        page.apply_redactions(images=fitz.PDF_REDACT_IMAGE_NONE, graphics=fitz.PDF_REDACT_LINE_ART_NONE)
+    return restore
+
+RTL_TEXT = re.compile('[\u0590-\u08ff\ufb1d-\ufdff\ufe70-\ufefe]')   # Hebrew, Arabic and their joined forms
+
+def _html_font_family(font):
+    """A font name as CSS knows it ('ABCDEF+NotoNaskhArabic-Regular' -> 'NotoNaskhArabic')."""
+    return re.sub(r'^.*[^\x00-\x7f]', '', (font or '').split('+')[-1]).split('-')[0].split(',')[0] or 'sans-serif'
+
+def _rewrite_text(doc, page, edits):
+    """Replace edited words with the same look the originals had. Each edit says where the original text
+    sat (rect, its baseline y) and what it should say now; moved or restyled text also carries
+    dx/dy and the new size, color, bold and italic."""
+    spans = _page_spans(page)
     plans = []
     for e in edits:
         r = fitz.Rect(*map(float, e['rect']))
         by = float(e.get('base_y', r.y1))
-        hit = [s for s in spans if abs(s['origin'][1] - by) < max(2, s['size'] * 0.3)
-               and fitz.Rect(s['bbox']).x1 > r.x0 + 1 and fitz.Rect(s['bbox']).x0 < r.x1 - 1]
+        def inside(sp):   # most of the run's letters sit in the edited area (not a neighbour that touches it)
+            xs = [(c['bbox'][0] + c['bbox'][2]) / 2 for c in sp['chars'] if c['c'].strip()]
+            return xs and sum(r.x0 - 1 <= x <= r.x1 + 1 for x in xs) * 2 >= len(xs)
+        hit = [s for s in spans if abs(s['origin'][1] - by) < max(2, s['size'] * 0.3) and inside(s)]
         if not hit: continue
         hit.sort(key=lambda s: s['origin'][0])
         plans.append((e, hit))
-        for s in hit:   # remove just these glyphs: no white box, lines and pictures untouched
-            page.add_redact_annot(fitz.Rect(s['bbox']), fill=False, cross_out=False)
+        for s in hit:   # remove just these glyphs: no white box, lines, pictures and neighbours untouched
+            ink = [c['bbox'] for c in s['chars'] if c['c'].strip()]
+            box = fitz.Rect(min(b[0] for b in ink), min(b[1] for b in ink), max(b[2] for b in ink), max(b[3] for b in ink)) if ink else fitz.Rect(s['bbox'])
+            page.add_redact_annot(box + (0.3, 0.5, -0.3, -0.5), fill=False, cross_out=False)
     if not plans: return
     slants = _text_slants(page)   # read before the redactions rewrite the page
+    looks = _trace_looks(page)
     page.apply_redactions(images=fitz.PDF_REDACT_IMAGE_NONE, graphics=fitz.PDF_REDACT_LINE_ART_NONE)
+    for sp in _repair_neighbours(page, spans, {id(s) for _, hit in plans for s in hit}):
+        plans.append(({'new_text': sp['text']}, [sp]))
 
     cache = {}
     for e, hit in plans:
@@ -609,20 +705,62 @@ def _rewrite_text(doc, page, edits):
                 fam = e.get('font_family') or re.sub(r'^.*[^\x00-\x7f]', '', font.split('+')[-1]).split('-')[0].split(',')[0]
                 style = ('Bold' if bold else '') + ('Italic' if italic else '')
                 font = fam + ('-' + style if style else ''); restyled = True
+        k, hs = _run_at(slants, *s['origin'])
+        if e.get('styled') and 'italic' in e: k = 0
+        if abs(hs - 1) > 0.02: size /= hs ** 0.5   # PDF reports stretched text at the mean of width and height; take the height
+        else: hs = 1
         f = _font_for(doc, page, font, text, cache, prefer_embedded=not restyled)
-        chars = [ch for t in hit for ch in t['chars']]
+        # the line may run in any direction (turned or tilted text): lay it out flat from its first letter,
+        # then turn the result to match
+        ddx, ddy = s['dir']
+        o0 = fitz.Point(s['origin'])
+        flat = [dict(c, origin=(o0.x + (c['origin'][0] - o0.x) * ddx + (c['origin'][1] - o0.y) * ddy, o0.y))
+                for t in hit for c in t['chars']]
         dx, dy = float(e.get('dx', 0)), float(e.get('dy', 0))
-        x, y = s['origin'][0] + dx, s['origin'][1] + dy
-        k = 0 if (e.get('styled') and 'italic' in e) else _slant_at(slants, *s['origin'])
-        morph = (fitz.Point(x, y), fitz.Matrix(1, 0, k, 1, 0, 0)) if abs(k) > 0.01 else None
-        tw = fitz.TextWriter(page.rect)
-        placed = _layout(chars, text, f, size, keep_positions=not restyled)
-        for px, ch in placed:
-            if ch.isspace(): continue
-            tw.append((px + dx, y), ch, font=f, fontsize=size)
-        tw.write_text(page, color=rgb, morph=morph)
-        if e.get('underline') and placed:
-            end_x = placed[-1][0] + dx + f.text_length(placed[-1][1], size)
+        x, y = o0.x + dx, o0.y + dy
+        placed = _layout(flat, text, f, size, keep_positions=not restyled, hscale=hs)
+        look = min(looks, key=lambda L: (L[0][0] - o0.x) ** 2 + (L[0][1] - o0.y) ** 2) if looks else None
+        mode, opacity = (look[1], look[2]) if look and (look[0][0] - o0.x) ** 2 + (look[0][1] - o0.y) ** 2 < 4 else (0, 1)
+        # (morphs work with the page's y axis flipped, so the turn goes the other way round)
+        m = fitz.Matrix(hs, 0, k, 1, 0, 0) * fitz.Matrix(ddx, -ddy, ddy, ddx, 0, 0)
+        morph = (fitz.Point(x, y), m) if (abs(k) > 0.01 or hs != 1 or abs(ddx - 1) > 1e-3) else None
+        op = opacity if opacity < 1 else -1
+        old_text = ''.join(c['c'] for t in hit for c in t['chars']).strip()
+        if RTL_TEXT.search(text) and text != old_text and abs(ddx - 1) < 1e-3 and mode != 3:   # (unchanged: keep its exact glyphs)
+            # Arabic, Hebrew and the like: letters must join up and run right to left, so let the layout
+            # engine (with its text shaping) set the words, ending where the original line ended
+            right = max(c['bbox'][2] for t in hit for c in t['chars']) + dx
+            css = (f"* {{margin:0;padding:0}} p {{font-family:'{_html_font_family(font)}',sans-serif; font-size:{size:.2f}px;"
+                   f" color:rgb({rgb[0]*255:.0f},{rgb[1]*255:.0f},{rgb[2]*255:.0f}); white-space:nowrap}}")
+            import html as _h
+            body = f'<p dir="rtl">{_h.escape(text)}</p>'
+            # set it once on a scratch page to learn its width and where its baseline falls, then place it
+            # so it ends where the original line ended, at full size
+            scratch = fitz.open().new_page(width=4000, height=size * 4 + 20)
+            scratch.insert_htmlbox(fitz.Rect(0, 0, 4000, size * 4 + 20), body, css=css + ' p {text-align:left}')
+            got = [sp for b in scratch.get_text('dict')['blocks'] if b['type'] == 0 for l in b['lines'] for sp in l['spans'] if sp['text'].strip()]
+            if got:
+                left = min(sp['bbox'][0] for sp in got); width = max(sp['bbox'][2] for sp in got) - left
+                base = max(sp['origin'][1] for sp in got)
+                box = fitz.Rect(right - width - 3, y - base, right + 1, y - base + size * 4 + 20)
+                page.insert_htmlbox(box, body, css=css + ' p {text-align:right}', opacity=1 if op < 0 else op)
+        elif abs(ddx - 1) < 1e-3:   # level text: one go
+            tw = fitz.TextWriter(page.rect)
+            for px, ch in placed:
+                if ch.isspace(): continue
+                # positions are already stretched; the morph stretches again, so take that back out first
+                tw.append((x + (px - o0.x) / hs, y), ch, font=f, fontsize=size)
+            tw.write_text(page, color=rgb, morph=morph, render_mode=mode, opacity=op)
+        else:                     # turned text: each letter at its spot along the line, turned in place
+            for px, ch in placed:
+                if ch.isspace(): continue
+                t = px - o0.x
+                at = fitz.Point(x + t * ddx, y + t * ddy)
+                tw = fitz.TextWriter(page.rect)
+                tw.append(at, ch, font=f, fontsize=size)
+                tw.write_text(page, color=rgb, morph=(at, m), render_mode=mode, opacity=op)
+        if e.get('underline') and placed and mode != 3:
+            end_x = placed[-1][0] + dx + f.text_length(placed[-1][1], size) * hs
             page.draw_line((x, y + size * 0.12), (end_x, y + size * 0.12), color=rgb, width=max(0.5, size / 18))
 
 @app.route('/fonts', methods=['GET'])

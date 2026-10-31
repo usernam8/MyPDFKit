@@ -1390,9 +1390,20 @@
                         method: 'POST', headers: {'Content-Type': 'application/json'},
                         body: JSON.stringify({ filepath: fileObj.originalPath })
                     });
-                    const data = await res.json();
+                    let data = await res.json();
+                    // a locked PDF: ask for its password (a few tries), then open an unlocked working copy
+                    for (let tries = 0; data.needs_password && tries < 3; tries++) {
+                        const v = await askDialog(tries ? `Wrong password. Try again for ${fileObj.name}` : `${fileObj.name} is password-protected`,
+                            [{ key: 'pw', label: 'Password', type: 'password' }], 'Open');
+                        if (!v) { data = { error: 'locked' }; break; }
+                        const u = await api('unlock', { filepath: fileObj.originalPath, password: v.pw });
+                        data = u.error ? { needs_password: true } : u;
+                    }
+                    if (data.needs_password) data = { error: 'locked' };
+                    if (data.message) showToast(data.message);
                     if(data.error) {
                         fileObj.status = 'error';
+                        if (data.error !== 'locked') showToast(data.error, true);
                     } else {
                         fileObj.pdfPath = data.pdf_path;
                         fileObj.status = 'ready';

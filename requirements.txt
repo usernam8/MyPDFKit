@@ -1,0 +1,9 @@
+flask
+flask-cors
+pymupdf
+pywin32
+pillow
+pyinstaller
+pdf2docx
+openpyxl
+python-pptx

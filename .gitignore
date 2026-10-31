@@ -1,0 +1,8 @@
+node_modules/
+dist/
+release/
+build/*
+!build/icon.ico
+__pycache__/
+*.spec
+*.pyc

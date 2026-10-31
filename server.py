@@ -7,6 +7,7 @@ import pythoncom
 import shutil
 import re
 import base64
+import json
 from io import BytesIO
 from flask import Flask, request, jsonify
 from flask_cors import CORS
@@ -228,6 +229,77 @@ def office_to_pdf(src, dst):
         libreoffice_to_pdf(src, dst)
 
 CONVERTER_VERSION = '3'   # bump when office_to_pdf output changes (2: cut-off Excel columns widened, 3: many more formats)
+
+# ---------- forms ----------
+FIELD_KINDS = {fitz.PDF_WIDGET_TYPE_TEXT: 'text', fitz.PDF_WIDGET_TYPE_CHECKBOX: 'checkbox', fitz.PDF_WIDGET_TYPE_RADIOBUTTON: 'radio',
+               fitz.PDF_WIDGET_TYPE_COMBOBOX: 'combo', fitz.PDF_WIDGET_TYPE_LISTBOX: 'list', fitz.PDF_WIDGET_TYPE_SIGNATURE: 'signature',
+               fitz.PDF_WIDGET_TYPE_BUTTON: 'button'}
+
+def _page_fields(page):
+    """The fill-in fields on a page, where they are (as shown, after the page's rotation) and what they hold."""
+    out = []
+    for w in page.widgets() or []:
+        kind = FIELD_KINDS.get(w.field_type, 'other')
+        if kind in ('button', 'other'): continue
+        r = w.rect * page.rotation_matrix
+        out.append({"xref": w.xref, "name": w.field_name, "kind": kind, "rect": [r.x0, r.y0, r.x1, r.y1],
+                    "value": w.field_value, "options": w.choice_values or [],
+                    "on": w.on_state() if kind in ('checkbox', 'radio') else None,
+                    "readonly": bool(w.field_flags & 1), "multiline": bool(w.field_flags & 4096) if kind == 'text' else False,
+                    "size": w.text_fontsize or 0, "maxlen": w.text_maxlen or 0, "label": w.field_label or ''})
+    return out
+
+@app.route('/page_info', methods=['POST'])
+def page_info():
+    """What the page has beyond its drawing: fill-in fields, and its paragraphs (for editing them whole)."""
+    d = request.json
+    try:
+        doc = fitz.open(d['filepath']); page = doc[int(d.get('page', 0))]
+        info = {"fields": _page_fields(page), "paragraphs": _paragraphs(page)}
+        doc.close()
+        return jsonify(info)
+    except Exception as e: return jsonify({"error": str(e), "fields": [], "paragraphs": []})
+
+@app.route('/fill_form', methods=['POST'])
+def fill_form():
+    """Write typed values into the PDF's own fields: [{page, xref, value}], value true/false for boxes."""
+    d = request.json; fp = d['filepath']
+    try:
+        doc = fitz.open(fp)
+        by_page = {}
+        for v in d.get('values', []): by_page.setdefault(int(v['page']), []).append(v)
+        for pno, vals in by_page.items():
+            page = doc[pno]
+            widgets = {w.xref: w for w in page.widgets() or []}
+            for v in vals:
+                w = widgets.get(int(v['xref']))
+                if not w: continue
+                kind = FIELD_KINDS.get(w.field_type)
+                if kind in ('checkbox', 'radio'):
+                    w.field_value = w.on_state() if v['value'] else 'Off'
+                else:
+                    w.field_value = str(v['value'])
+                w.update()
+                widgets = {x.xref: x for x in page.widgets() or []}   # updating can renew the list
+        if d.get('flatten'):   # turn the fields into plain page content
+            try: doc.bake(annots=False, widgets=True)
+            except Exception as e: print('flatten skipped:', e, file=sys.stderr)
+        new_path = os.path.join(TEMP_DIR, f"mod_{hashlib.md5((fp + str(os.path.getmtime(fp)) + json.dumps(d.get('values'))).encode()).hexdigest()}.pdf")
+        doc.save(new_path, garbage=3, deflate=True); doc.close()
+        return jsonify({"success": True, "new_file": new_path})
+    except Exception as e: return jsonify({"error": str(e)}), 500
+
+def _paragraphs(page):
+    """Blocks of two or more lines of running text (for editing a paragraph as a whole): the block's box,
+    each line's box, and the text."""
+    out = []
+    for b in page.get_text('dict')['blocks']:
+        if b['type'] != 0: continue
+        lines = [l for l in b['lines'] if ''.join(s['text'] for s in l['spans']).strip() and l['dir'] == (1, 0)]
+        if len(lines) < 2: continue
+        out.append({"rect": list(b['bbox']), "lines": [list(l['bbox']) for l in lines],
+                    "text": ' '.join(''.join(s['text'] for s in l['spans']).strip() for l in lines)})
+    return out
 
 @app.route('/formats', methods=['GET'])
 def formats():

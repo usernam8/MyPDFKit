@@ -214,6 +214,9 @@
     .pdf-field[disabled] { background:rgba(220,220,220,.35); border-color:transparent; }
     input.pdf-field[type=checkbox], input.pdf-field[type=radio] { appearance:auto; accent-color:#2f6fd0; padding:0; }
     body.tool-draw #form-layer, body.tool-crop #form-layer { display:none; }
+    .pdf-note-hit { position:absolute; pointer-events:auto; cursor:help; }
+    .pdf-note-hit:hover::after { content:attr(data-tip); position:absolute; left:0; top:calc(100% + 6px); z-index:30; width:max-content; max-width:280px;
+      padding:7px 10px; border-radius:6px; background:#26272c; color:#eee; font:12px/1.4 Segoe UI, sans-serif; white-space:pre-wrap; box-shadow:0 4px 14px rgba(0,0,0,.35); }
     #text-layer { z-index: 5; pointer-events: auto; } 
     
     #hl-canvas { z-index: 6; mix-blend-mode: multiply; pointer-events: none; }
@@ -440,6 +443,8 @@
     #sig-saved.show { display:flex; }
     #sig-saved img { height:56px; max-width:220px; object-fit:contain; }
     #sig-saved .spacer { flex:1; }
+    .field-check { display:flex; flex-direction:row-reverse; justify-content:flex-end; align-items:center; gap:8px; }
+    .field-check label { margin:0; }
     .sig-remember { display:flex; align-items:center; gap:6px; margin-top:10px; font-size:12.5px; color:var(--dim); }
 
     /* notifications: a small pill near the bottom that slides in and fades away */
@@ -469,6 +474,7 @@
     <symbol id="i-extract" viewBox="0 0 24 24"><path d="M6 3h8l5 5v13H6zM14 3v5h5M9 15h6"/></symbol>
     <symbol id="i-print" viewBox="0 0 24 24"><path d="M7 9V3h10v6M7 17H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2M7 14h10v7H7z"/></symbol>
     <symbol id="i-scan" viewBox="0 0 24 24"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3M8 9h8M8 12h8M8 15h5"/></symbol>
+    <symbol id="i-compare" viewBox="0 0 24 24"><path d="M5 4h6v16H5zM13 4h6v16h-6M8 8v8M16 9h0M15 12h2M16 15h0"/></symbol>
     <symbol id="i-trash" viewBox="0 0 24 24"><path d="M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13M10 11v6M14 11v6"/></symbol>
     <symbol id="i-save" viewBox="0 0 24 24"><path d="M5 4h11l3 3v13H5zM8 4v5h7V4M8 20v-6h8v6"/></symbol>
     <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 14L4 9l5-5M4 9h9a6 6 0 0 1 0 12h-3"/></symbol>
@@ -547,7 +553,7 @@
     <button id="btn-save-modified" class="icon-tool" title="Save as a new PDF next to the original (Ctrl+S)"><svg class="ico"><use href="#i-save"/></svg></button>
   </div>
 
-  <div id="tools-view"><div class="tv-inner"><input id="tool-search" placeholder="Find any tool" spellcheck="false"><div id="recent-files"><div class="rf-head"><span>Recent</span><button id="rf-clear">Clear</button></div><div class="rf-list"></div></div><div class="tv-grid"><button class="tool-card" data-tool="create"><span class="tc-ico"><svg class="ico"><use href="#i-extract"/></svg></span><span>Create a PDF</span></button><button class="tool-card" data-tool="merge"><span class="tc-ico"><svg class="ico"><use href="#i-merge"/></svg></span><span>Combine files</span></button><button class="tool-card" data-tool="blank"><span class="tc-ico"><svg class="ico"><use href="#i-plus"/></svg></span><span>Blank page</span></button><button class="tool-card" data-tool="edit"><span class="tc-ico"><svg class="ico"><use href="#i-ibeam"/></svg></span><span>Edit a PDF</span></button><button class="tool-card" data-tool="headfoot"><span class="tc-ico"><svg class="ico"><use href="#i-headfoot"/></svg></span><span>Header and footer</span></button><button class="tool-card" data-tool="number"><span class="tc-ico"><svg class="ico"><use href="#i-hash"/></svg></span><span>Add page numbers</span></button><button class="tool-card" data-tool="convert"><span class="tc-ico"><svg class="ico"><use href="#i-convert"/></svg></span><span>Convert to PDF</span></button><button class="tool-card" data-tool="export"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>Export a PDF</span></button><button class="tool-card" data-tool="toword"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>PDF to Word</span></button><button class="tool-card" data-tool="toexcel"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>PDF to Excel</span></button><button class="tool-card" data-tool="toppt"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>PDF to PowerPoint</span></button><button class="tool-card" data-tool="compress"><span class="tc-ico"><svg class="ico"><use href="#i-compress"/></svg></span><span>Compress a PDF</span></button><button class="tool-card" data-tool="split"><span class="tc-ico"><svg class="ico"><use href="#i-split"/></svg></span><span>Split a PDF</span></button><button class="tool-card" data-tool="delpages"><span class="tc-ico"><svg class="ico"><use href="#i-trash"/></svg></span><span>Delete pages</span></button><button class="tool-card" data-tool="fillform"><span class="tc-ico"><svg class="ico"><use href="#i-ibeam"/></svg></span><span>Fill a form</span></button><button class="tool-card" data-tool="exportall"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>Export all files</span></button><button class="tool-card" data-tool="extract"><span class="tc-ico"><svg class="ico"><use href="#i-extract"/></svg></span><span>Extract pages</span></button><button class="tool-card" data-tool="ocr"><span class="tc-ico"><svg class="ico"><use href="#i-scan"/></svg></span><span>Recognize text (OCR)</span></button><button class="tool-card" data-tool="print"><span class="tc-ico"><svg class="ico"><use href="#i-print"/></svg></span><span>Print</span></button><button class="tool-card" data-tool="protect"><span class="tc-ico"><svg class="ico"><use href="#i-lock"/></svg></span><span>Protect a PDF</span></button><button class="tool-card" data-tool="sign"><span class="tc-ico"><svg class="ico"><use href="#i-signature"/></svg></span><span>Fill and sign</span></button></div></div></div>
+  <div id="tools-view"><div class="tv-inner"><input id="tool-search" placeholder="Find any tool" spellcheck="false"><div id="recent-files"><div class="rf-head"><span>Recent</span><button id="rf-clear">Clear</button></div><div class="rf-list"></div></div><div class="tv-grid"><button class="tool-card" data-tool="create"><span class="tc-ico"><svg class="ico"><use href="#i-extract"/></svg></span><span>Create a PDF</span></button><button class="tool-card" data-tool="merge"><span class="tc-ico"><svg class="ico"><use href="#i-merge"/></svg></span><span>Combine files</span></button><button class="tool-card" data-tool="blank"><span class="tc-ico"><svg class="ico"><use href="#i-plus"/></svg></span><span>Blank page</span></button><button class="tool-card" data-tool="edit"><span class="tc-ico"><svg class="ico"><use href="#i-ibeam"/></svg></span><span>Edit a PDF</span></button><button class="tool-card" data-tool="headfoot"><span class="tc-ico"><svg class="ico"><use href="#i-headfoot"/></svg></span><span>Header and footer</span></button><button class="tool-card" data-tool="number"><span class="tc-ico"><svg class="ico"><use href="#i-hash"/></svg></span><span>Add page numbers</span></button><button class="tool-card" data-tool="convert"><span class="tc-ico"><svg class="ico"><use href="#i-convert"/></svg></span><span>Convert to PDF</span></button><button class="tool-card" data-tool="export"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>Export a PDF</span></button><button class="tool-card" data-tool="toword"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>PDF to Word</span></button><button class="tool-card" data-tool="toexcel"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>PDF to Excel</span></button><button class="tool-card" data-tool="toppt"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>PDF to PowerPoint</span></button><button class="tool-card" data-tool="compress"><span class="tc-ico"><svg class="ico"><use href="#i-compress"/></svg></span><span>Compress a PDF</span></button><button class="tool-card" data-tool="split"><span class="tc-ico"><svg class="ico"><use href="#i-split"/></svg></span><span>Split a PDF</span></button><button class="tool-card" data-tool="delpages"><span class="tc-ico"><svg class="ico"><use href="#i-trash"/></svg></span><span>Delete pages</span></button><button class="tool-card" data-tool="fillform"><span class="tc-ico"><svg class="ico"><use href="#i-ibeam"/></svg></span><span>Fill a form</span></button><button class="tool-card" data-tool="compare"><span class="tc-ico"><svg class="ico"><use href="#i-compare"/></svg></span><span>Compare files</span></button><button class="tool-card" data-tool="exportall"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>Export all files</span></button><button class="tool-card" data-tool="extract"><span class="tc-ico"><svg class="ico"><use href="#i-extract"/></svg></span><span>Extract pages</span></button><button class="tool-card" data-tool="ocr"><span class="tc-ico"><svg class="ico"><use href="#i-scan"/></svg></span><span>Recognize text (OCR)</span></button><button class="tool-card" data-tool="print"><span class="tc-ico"><svg class="ico"><use href="#i-print"/></svg></span><span>Print</span></button><button class="tool-card" data-tool="protect"><span class="tc-ico"><svg class="ico"><use href="#i-lock"/></svg></span><span>Protect a PDF</span></button><button class="tool-card" data-tool="sign"><span class="tc-ico"><svg class="ico"><use href="#i-signature"/></svg></span><span>Fill and sign</span></button></div></div></div>
   <div id="main-content">
     <div id="left-sidebar" class="sidebar">
       <div id="side-scroll">
@@ -581,6 +587,7 @@
         <button id="btn-split" class="side-btn" title="Split the open PDF into one file per page"><svg class="ico"><use href="#i-split"/></svg>Split into pages</button>
         <button id="btn-export" class="side-btn" title="Word, Excel, PowerPoint, images, web page or text"><svg class="ico"><use href="#i-docup"/></svg>Export a PDF</button>
         <button id="btn-export-all" class="side-btn" title="Export every file in this tab at once"><svg class="ico"><use href="#i-docup"/></svg>Export all files</button>
+        <button id="btn-compare" class="side-btn" title="Show what changed between two versions"><svg class="ico"><use href="#i-compare"/></svg>Compare files</button>
         </div>
       </div>
 
@@ -1474,6 +1481,7 @@
     // ---------- fill-in fields ----------
     let pendingForm = {};        // xref -> { page, xref, value }, typed but not yet written
     let pageParagraphs = [];     // paragraphs on the page shown (for editing one as a whole)
+    let pageNotes = [];          // comments and markup on the page shown
     async function showPageExtras(num) {
       const layer = document.getElementById('form-layer');
       layer.innerHTML = '';
@@ -1485,6 +1493,17 @@
       if (file !== currentTempPdf || num !== pageNum) return;   // moved on meanwhile
       pageParagraphs = info.paragraphs || [];
       const k = currentRenderScale;
+      // comments and markup: their words appear when the pointer rests on them
+      pageNotes = info.notes || [];
+      for (const n of pageNotes) {
+        if (!n.text) continue;
+        const [x0, y0, x1, y1] = n.rect;
+        const hot = document.createElement('div');
+        hot.className = 'pdf-note-hit';
+        hot.dataset.tip = (n.author && n.author !== 'Compare' ? n.author + ': ' : '') + n.text;
+        Object.assign(hot.style, { left: x0 * k + 'px', top: y0 * k + 'px', width: Math.max(8, (x1 - x0) * k) + 'px', height: Math.max(8, (y1 - y0) * k) + 'px' });
+        layer.append(hot);
+      }
       for (const f of info.fields || []) {
         let el;
         const pending = pendingForm[f.xref];
@@ -1789,6 +1808,7 @@
         showToast(failed.length ? `Exported ${ok}; couldn't export ${failed.join(', ')}` : `Exported all ${ok} ${ok === 1 ? 'file' : 'files'} next to the originals`, failed.length > 0);
     }
     document.getElementById('btn-export-all').addEventListener('click', doExportAll);
+    document.getElementById('btn-compare').addEventListener('click', () => doCompare());
 
     // ---------- recent files ----------
     function recentFiles() { try { return JSON.parse(localStorage.getItem('recent-files') || '[]'); } catch (e) { return []; } }
@@ -2807,7 +2827,11 @@
           const lab = document.createElement('label'); lab.textContent = f.label; row.append(lab);
           let el;
           if (f.type === 'select') { el = document.createElement('select'); f.options.forEach(([v, t]) => el.add(new Option(t, v))); }
-          else { el = document.createElement('input'); el.type = f.type || 'text'; el.placeholder = f.hint || ''; }
+          else if (f.type === 'textarea') { el = document.createElement('textarea'); el.rows = f.rows || 3; el.placeholder = f.hint || ''; }
+          else { el = document.createElement('input'); el.type = f.type || 'text'; el.placeholder = f.hint || ''; if (f.min !== undefined) { el.min = f.min; el.max = f.max; el.step = f.step || 1; } }
+          if (f.type === 'checkbox') { el.checked = !!f.value; row.classList.add('field-check'); }
+          else if (f.value !== undefined) el.value = f.value;
+          if (f.onchange) el.addEventListener('change', () => f.onchange(el, inputs));
           inputs[f.key] = el; row.append(el); dlg.append(row);
         });
         const act = document.createElement('div'); act.className = 'dialog-actions';
@@ -2816,10 +2840,50 @@
         act.append(no, ok); dlg.append(act); bd.append(dlg); document.body.append(bd);
         const done = val => { bd.remove(); resolve(val); };
         no.onclick = () => done(null);
-        ok.onclick = () => done(Object.fromEntries(Object.entries(inputs).map(([k, el]) => [k, el.value])));
-        bd.addEventListener('keydown', e => { if (e.key === 'Escape') done(null); if (e.key === 'Enter') ok.click(); });
+        ok.onclick = () => done(Object.fromEntries(Object.entries(inputs).map(([k, el]) => [k, el.type === 'checkbox' ? el.checked : el.value])));
+        bd.addEventListener('keydown', e => { if (e.key === 'Escape') done(null); if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA') ok.click(); });
         (Object.values(inputs)[0] || ok).focus();
       });
+    }
+
+    // ask for a file on this PC; resolves to its path (or null)
+    function pickFile(accept) {
+      return new Promise(resolve => {
+        const inp = document.createElement('input'); inp.type = 'file'; if (accept) inp.accept = accept;
+        inp.onchange = () => resolve(inp.files[0] ? webUtils.getPathForFile(inp.files[0]) : null);
+        inp.addEventListener('cancel', () => resolve(null));
+        inp.click();
+      });
+    }
+
+    // ---------- compare two files ----------
+    async function doCompare() {
+      await syncEditsToPython();
+      const ready = fileQueue.filter(f => f.status === 'ready');
+      const opts = ready.map(f => [f.originalPath, f.name]).concat([['__pick', 'Another file on this PC...']]);
+      const cur = ready.findIndex(f => f.originalPath === currentActiveFile);
+      const before = ready.length > 1 ? ready[cur === 0 ? 1 : 0] : null;
+      const v = await askDialog('Compare two files', [
+        { key: 'a', label: 'Before (the older version)', type: 'select', options: opts, value: before ? before.originalPath : '__pick' },
+        { key: 'b', label: 'After (the newer version)', type: 'select', options: opts, value: cur >= 0 ? currentActiveFile : (ready[0] || {}).originalPath }], 'Compare');
+      if (!v) return;
+      const side = async key => {
+        if (v[key] !== '__pick') { const f = ready.find(x => x.originalPath === v[key]); return { path: f.pdfPath, name: f.name }; }
+        const path = await pickFile();
+        if (!path) return null;
+        const d = await api('process_file', { filepath: path });   // Office files and pictures become PDFs first
+        return d.pdf_path ? { path: d.pdf_path, name: path.split(/[\\/]/).pop() } : null;
+      };
+      const a = await side('a'); if (!a) return;
+      const b = await side('b'); if (!b) return;
+      if (a.path === b.path) return showToast('Pick two different files', true);
+      showToast('Comparing...');
+      const d = await api('compare', { a: a.path, b: b.path, a_name: a.name, b_name: b.name });
+      if (!d.success) return showToast(d.error || "Couldn't compare these files", true);
+      fileQueue.push({ name: d.path.split(/[\\/]/).pop(), originalPath: d.path, pdfPath: null, status: 'pending' });
+      renderQueueUI(); backgroundProcessQueue();
+      processAndLoad(d.path);
+      showToast(d.message + '. Hover a highlight to see what it said before');
     }
 
     const OFFICE_NAMES = { docx: 'Word', xlsx: 'Excel', pptx: 'PowerPoint' };
@@ -2937,7 +3001,7 @@
       merge: () => document.getElementById('btn-merge').click(), convert: () => document.getElementById('btn-process-all').click(),
       compress: () => document.getElementById('btn-compress').click(), split: () => document.getElementById('btn-split').click(),
       number: () => document.getElementById('btn-number').click(), delpages: showPageDelete,
-      exportall: doExportAll, extract: showPagePicking, ocr: doOcr, print: doPrint, fillform: startFilling, edit: () => goTab('edit'), sign: () => { goTab('sign'); }
+      exportall: doExportAll, extract: showPagePicking, ocr: doOcr, print: doPrint, fillform: startFilling, compare: doCompare, edit: () => goTab('edit'), sign: () => { goTab('sign'); }
     };
     // Delete pages: bring up the page thumbnails with their trash buttons showing for a moment
     async function showPageDelete() {

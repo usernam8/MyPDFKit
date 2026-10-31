@@ -255,7 +255,13 @@ def page_info():
     d = request.json
     try:
         doc = fitz.open(d['filepath']); page = doc[int(d.get('page', 0))]
-        info = {"fields": _page_fields(page), "paragraphs": _paragraphs(page)}
+        notes = []
+        for a in page.annots() or []:   # comments and markup, with what they say (shown on hover)
+            text = (a.info.get('content') or '').strip()
+            r = a.rect * page.rotation_matrix
+            notes.append({"xref": a.xref, "kind": a.type[1], "rect": [r.x0, r.y0, r.x1, r.y1], "text": text,
+                          "author": a.info.get('title') or ''})
+        info = {"fields": _page_fields(page), "paragraphs": _paragraphs(page), "notes": notes}
         doc.close()
         return jsonify(info)
     except Exception as e: return jsonify({"error": str(e), "fields": [], "paragraphs": []})
@@ -300,6 +306,127 @@ def _paragraphs(page):
         out.append({"rect": list(b['bbox']), "lines": [list(l['bbox']) for l in lines],
                     "text": ' '.join(''.join(s['text'] for s in l['spans']).strip() for l in lines)})
     return out
+
+# ---------- compare ----------
+def _doc_words(doc):
+    """Every word in reading order: (page, Rect, text)."""
+    out = []
+    for pno, page in enumerate(doc):
+        # by where they sit (line by line, left to right), not the order they're stored in, which edits change
+        words = sorted(page.get_text('words'), key=lambda w: ((w[1] + w[3]) / 2, w[0]))
+        lines, cur = [], []
+        for w in words:
+            if cur and abs((w[1] + w[3]) / 2 - (cur[-1][1] + cur[-1][3]) / 2) > max(2.5, (w[3] - w[1]) * 0.4):
+                lines.append(cur); cur = []
+            cur.append(w)
+        if cur: lines.append(cur)
+        for line in lines:
+            for w in sorted(line, key=lambda w: w[0]): out.append((pno, fitz.Rect(w[:4]), w[4]))
+    return out
+
+def _changed_areas(pa, pb, skip):
+    """Boxes (in page B's points) where the two pages look different, apart from the `skip` boxes:
+    pictures, lines and other drawing that a word comparison can't see."""
+    if abs(pa.rect.width - pb.rect.width) > 1 or abs(pa.rect.height - pb.rect.height) > 1: return []
+    dpi = 40; k = 72 / dpi
+    A, B = pa.get_pixmap(dpi=dpi, colorspace=fitz.csGRAY), pb.get_pixmap(dpi=dpi, colorspace=fitz.csGRAY)
+    if (A.width, A.height) != (B.width, B.height): return []
+    w, h, sa, sb = A.width, A.height, A.samples, B.samples
+    cell = 8
+    hot = set()
+    for cy in range(0, h, cell):
+        for cx in range(0, w, cell):
+            diff = 0
+            for y in range(cy, min(cy + cell, h)):
+                row = y * w
+                for x in range(cx, min(cx + cell, w)):
+                    if abs(sa[row + x] - sb[row + x]) > 48: diff += 1
+            if diff >= 3:
+                r = fitz.Rect(cx * k, cy * k, (cx + cell) * k, (cy + cell) * k)
+                if not any(r.intersects(z) for z in skip): hot.add((cx // cell, cy // cell))
+    # join touching cells into boxes
+    boxes, seen = [], set()
+    for c in hot:
+        if c in seen: continue
+        stack, group = [c], []
+        seen.add(c)
+        while stack:
+            x, y = stack.pop(); group.append((x, y))
+            for n in ((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)):
+                if n in hot and n not in seen: seen.add(n); stack.append(n)
+        xs, ys = [g[0] for g in group], [g[1] for g in group]
+        boxes.append(fitz.Rect(min(xs) * cell * k, min(ys) * cell * k, (max(xs) + 1) * cell * k, (max(ys) + 1) * cell * k))
+    return boxes
+
+@app.route('/compare', methods=['POST'])
+def compare_pdfs():
+    """Compare two PDFs. The report is the newer one (b) with changes marked: changed and added words
+    highlighted (hover shows the old words), removed words flagged where they were, changed pictures or
+    drawings boxed; a first page lists every change."""
+    import difflib
+    d = request.json
+    try:
+        A, B = fitz.open(d['a']), fitz.open(d['b'])
+        name_a, name_b = d.get('a_name') or os.path.basename(d['a']), d.get('b_name') or os.path.basename(d['b'])
+        wa, wb = _doc_words(A), _doc_words(B)
+        norm = lambda t: t.strip().lower()
+        ops = difflib.SequenceMatcher(None, [norm(w[2]) for w in wa], [norm(w[2]) for w in wb], autojunk=False).get_opcodes()
+        report = fitz.open(); report.insert_pdf(B)
+        rp = [report[k] for k in range(len(report))]   # one page object each (notes must stay tied to it)
+        changes, marked = [], {}
+        YELLOW, GREEN, RED = (1, 0.85, 0.2), (0.45, 0.85, 0.45), (0.9, 0.2, 0.2)
+        for op, i1, i2, j1, j2 in ops:
+            if op == 'equal': continue
+            old = ' '.join(w[2] for w in wa[i1:i2]); new = ' '.join(w[2] for w in wb[j1:j2])
+            if op in ('replace', 'insert'):
+                for pno in sorted({w[0] for w in wb[j1:j2]}):
+                    quads = [w[1] for w in wb[j1:j2] if w[0] == pno]
+                    a = rp[pno].add_highlight_annot(quads)
+                    a.set_colors(stroke=YELLOW if op == 'replace' else GREEN)
+                    a.set_info(title='Compare', content=(f'Was: "{old}"' if op == 'replace' else 'Added'))
+                    a.update()
+                    marked.setdefault(pno, []).extend(quads)
+                pg = wb[j1][0]
+            else:   # delete: flag it where the removed words were (just before the next word that's still there)
+                at = wb[j1] if j1 < len(wb) else (wb[-1] if wb else None)
+                pg = at[0] if at else 0
+                spot = fitz.Point(at[1].x0 - 2, at[1].y0) if at else fitz.Point(36, 36)
+                a = rp[pg].add_text_annot(spot, f'Removed: "{old}"', icon='Comment')
+                a.set_colors(stroke=RED); a.update()
+            changes.append((pg, op, old, new))
+        # pictures and drawings that changed
+        visual = 0
+        for pno in range(min(len(A), len(B))):
+            for r in _changed_areas(A[pno], B[pno], marked.get(pno, [])):
+                a = rp[pno].add_rect_annot(r + (-2, -2, 2, 2)); a.set_colors(stroke=RED); a.set_border(width=1.2)
+                a.set_info(title='Compare', content='Something here looks different (a picture, line or drawing)'); a.update()
+                visual += 1
+        if len(A) != len(B): changes.append((min(len(A), len(B)), 'pages', f'{len(A)} pages', f'{len(B)} pages'))
+        # summary page first
+        lines = [f'Comparing "{name_a}" (before) with "{name_b}" (after)', '',
+                 f'{sum(1 for c in changes if c[1] != "pages")} text changes, {visual} other changed areas', '']
+        label = {'replace': 'Changed', 'insert': 'Added', 'delete': 'Removed', 'pages': 'Page count'}
+        for pg, op, old, new in changes[:400]:
+            if op == 'replace': lines.append(f'Page {pg + 1}  Changed: "{old[:80]}"  ->  "{new[:80]}"')
+            elif op == 'insert': lines.append(f'Page {pg + 1}  Added: "{new[:120]}"')
+            elif op == 'delete': lines.append(f'Page {pg + 1}  Removed: "{old[:120]}"')
+            else: lines.append(f'Page count changed: {old} -> {new}')
+        if not changes and not visual: lines.append('No differences found.')
+        per = 46
+        for start in range(0, len(lines), per):
+            sp = report.new_page(pno=start // per, width=612, height=792)
+            y = 60
+            for k, line in enumerate(lines[start:start + per]):
+                bold = start == 0 and k == 0
+                sp.insert_text((50, y), line, fontsize=13 if bold else 9.5, fontname='hebo' if bold else 'helv',
+                               color=(0, 0, 0) if bold or not line.startswith('Page') else (0.15, 0.15, 0.15))
+                y += 22 if bold else 15
+        out = get_unique_filename(os.path.join(os.path.dirname(d['b']) if not d.get('out_dir') else d['out_dir'],
+                                               f"Compare - {os.path.splitext(name_a)[0]} vs {os.path.splitext(name_b)[0]}.pdf"))
+        report.save(out, garbage=3, deflate=True)
+        return jsonify({"success": True, "path": out, "changes": len(changes), "visual": visual,
+                        "message": f"Found {len(changes)} text changes and {visual} other changed areas"})
+    except Exception as e: return jsonify({"error": str(e)}), 500
 
 @app.route('/formats', methods=['GET'])
 def formats():

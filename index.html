@@ -184,6 +184,11 @@
     .thumb-wrapper.drag-over { border-top:4px solid var(--accent); }
     .thumb-wrapper.drag-over-bottom { border-bottom:4px solid var(--accent); }
     .thumb-img { width:100%; display:block; pointer-events:none; }
+    .thumb-del { position:absolute; top:5px; right:5px; width:26px; height:26px; display:grid; place-items:center; padding:0; border:0; border-radius:6px;
+      background:rgba(20,21,23,.82); color:#fff; cursor:pointer; opacity:0; transition:opacity .12s; }
+    .thumb-del .ico { width:15px; height:15px; }
+    .thumb-wrapper:hover .thumb-del { opacity:1; }
+    .thumb-del:hover { background:var(--danger); }
     .thumb-label { position:absolute; bottom:4px; left:50%; transform:translateX(-50%); background:rgba(20,21,23,.8); color:#fff; font-size:11px; font-weight:500; padding:1px 7px; border-radius:9px; }
 
     /* CENTER CANVAS AREA */
@@ -728,6 +733,7 @@
         .then(() => {
           st.textContent = 'Backend connected'; st.classList.add('online');
           backendWasUp = true;
+          loadInstalledFonts();
           setTimeout(checkBackend, 10000);
         }).catch(() => {
           st.textContent = 'Backend offline'; st.classList.remove('online');
@@ -736,6 +742,23 @@
         });
     }
     checkBackend();
+
+    // the font picker lists every font installed on this PC (each shown in its own typeface)
+    let fontsLoaded = false;
+    function loadInstalledFonts() {
+      if (fontsLoaded) return;
+      fontsLoaded = true;
+      fetch('http://127.0.0.1:5000/fonts').then(r => r.json()).then(d => {
+        const sel = document.getElementById('text-font'), cur = sel.value;
+        sel.innerHTML = '';
+        for (const f of d.fonts) {
+          const o = document.createElement('option');
+          o.value = o.textContent = f; o.style.fontFamily = `"${f}"`;
+          sel.append(o);
+        }
+        sel.value = d.fonts.includes(cur) ? cur : 'Arial';
+      }).catch(() => { fontsLoaded = false; });
+    }
 
     document.querySelectorAll('.ribbon-btn, .ribbon-color-picker').forEach(btn => {
         btn.addEventListener('mousedown', function(e) { e.preventDefault(); });
@@ -802,7 +825,9 @@
         sizeDrop.value = currentSize;
         
         let fontFamily = el.style.fontFamily || '';
-        if(fontFamily.includes('Times')) document.getElementById('text-font').value = 'Times New Roman';
+        const fontSel = document.getElementById('text-font'), bare = fontFamily.replace(/["']/g, '').split(',')[0].trim();
+        if ([...fontSel.options].some(o => o.value === bare)) fontSel.value = bare;
+        else if(fontFamily.includes('Times')) document.getElementById('text-font').value = 'Times New Roman';
         else if(fontFamily.includes('Courier')) document.getElementById('text-font').value = 'Courier New';
         else if(fontFamily.includes('Georgia')) document.getElementById('text-font').value = 'Georgia';
         else if(fontFamily.includes('Verdana')) document.getElementById('text-font').value = 'Verdana';
@@ -1512,23 +1537,21 @@
       });
     }
 
-    document.getElementById('btn-delete-page').addEventListener('click', async () => {
-      if(!currentTempPdf) return;
+    // remove one page (num is 1-based); Undo brings it back
+    async function deletePage(num) {
+      if (!currentTempPdf || !currentPdfDoc) return;
+      if (currentPdfDoc.numPages <= 1) return showToast("A PDF needs at least one page", true);
       await syncEditsToPython();
       pushHistory();
-      fetch('http://127.0.0.1:5000/delete_page', {
-        method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ filepath: currentTempPdf, page: pageNum - 1 })
-      }).then(res=>res.json()).then(data => {
-        if(data.success) {
-           fileQueue.find(f => f.originalPath === currentActiveFile).pdfPath = data.new_file;
-           currentTempPdf = data.new_file;
-           if (pageNum > 1) pageNum--; 
-           loadPDF(data.new_file, pageNum);
-           showToast("Page deleted");
-        } else { showToast(data.error, true); }
-      });
-    });
+      const data = await api('delete_page', { filepath: currentTempPdf, page: num - 1 });
+      if (!data.success) return showToast(data.error || "Couldn't delete the page", true);
+      fileQueue.find(f => f.originalPath === currentActiveFile).pdfPath = data.new_file;
+      currentTempPdf = data.new_file;
+      if (pageNum > num || pageNum > currentPdfDoc.numPages - 1) pageNum--;
+      loadPDF(data.new_file, Math.max(1, pageNum));
+      showToast(`Deleted page ${num}. Ctrl+Z puts it back`);
+    }
+    document.getElementById('btn-delete-page').addEventListener('click', () => deletePage(pageNum));
 
     document.getElementById('btn-rotate').addEventListener('click', async () => {
       if(!currentTempPdf) return;
@@ -1735,8 +1758,15 @@
             label.className = 'thumb-label';
             label.textContent = i;
 
+            const del = document.createElement('button');
+            del.className = 'thumb-del'; del.title = `Delete page ${i}`;
+            del.innerHTML = '<svg class="ico"><use href="#i-trash"/></svg>';
+            del.addEventListener('click', e => { e.stopPropagation(); deletePage(i); });
+            del.addEventListener('mousedown', e => e.stopPropagation());
+
             wrapper.appendChild(img);
             wrapper.appendChild(label);
+            wrapper.appendChild(del);
 
             wrapper.addEventListener('dragstart', (e) => {
                 if (isReordering) { e.preventDefault(); return; }

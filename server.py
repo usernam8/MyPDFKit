@@ -327,6 +327,26 @@ def _rewrite_text(doc, page, edits):
             except Exception: w = fitz.get_text_length(text, fontsize=size)
             page.draw_line((x, y + size * 0.12), (x + w, y + size * 0.12), color=rgb, width=max(0.5, size / 18))
 
+@app.route('/fonts', methods=['GET'])
+def fonts():
+    """Installed font families (from the Windows font list), for the font picker."""
+    _find_system_font('')   # builds the list
+    import winreg
+    fams = set()
+    for hive in (winreg.HKEY_LOCAL_MACHINE, winreg.HKEY_CURRENT_USER):
+        try: k = winreg.OpenKey(hive, r'SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts')
+        except OSError: continue
+        i = 0
+        while True:
+            try: label, file, _ = winreg.EnumValue(k, i)
+            except OSError: break
+            i += 1
+            if not str(file).lower().endswith(('.ttf', '.otf')): continue
+            for part in re.sub(r'\s*\(.*\)$', '', label).split(' & '):
+                fam = re.sub(r'\s+(Bold|Italic|Oblique|Regular)(\s+(Bold|Italic|Oblique))*$', '', part).strip()
+                if fam and not fam.startswith('@'): fams.add(fam)
+    return jsonify({"fonts": sorted(fams, key=str.lower)})
+
 @app.route('/burn_edits', methods=['POST'])
 def burn_edits():
     data = request.json
@@ -346,41 +366,20 @@ def burn_edits():
             try: _rewrite_text(doc, page, edits)
             except Exception as e: print(f"Skipped text edits: {e}", file=sys.stderr)
 
-        # 2. Add New Text ("T")
+        # 2. Add New Text ("T"): in the picked font (any installed one), with real bold/italic faces
+        font_cache = {}
         for nt in data.get('new_texts', []):
             try:
                 rgb = parse_color(nt['color'])
-                
-                font_str = nt.get('font', '').lower()
-                is_bold = nt.get('bold', False) or 'bold' in font_str or 'black' in font_str
-                is_italic = nt.get('italic', False) or 'italic' in font_str or 'oblique' in font_str
-
-                fontname = "helv"
-                if "cour" in font_str or "mono" in font_str: 
-                    if is_bold and is_italic: fontname = "cobi"
-                    elif is_bold: fontname = "cobo"
-                    elif is_italic: fontname = "coit"
-                    else: fontname = "cour"
-                elif "time" in font_str or "georgia" in font_str: 
-                    if is_bold and is_italic: fontname = "tibi"
-                    elif is_bold: fontname = "tibo"
-                    elif is_italic: fontname = "tiit"
-                    else: fontname = "tiro"
-                else:
-                    if is_bold and is_italic: fontname = "hebi"
-                    elif is_bold: fontname = "hebo"
-                    elif is_italic: fontname = "heit"
-                    else: fontname = "helv"
-
-                actual_size = float(nt['font_size']) * 0.82 
-
-                insert_pt = fitz.Point(float(nt['x']) + x_off, float(nt['y']) + y_off - 1.0)
-                page.insert_text(insert_pt, str(nt['text']), fontsize=actual_size, color=rgb, fontname=fontname)
-
-                if is_bold:
-                    insert_pt_bold = fitz.Point(float(nt['x']) + x_off + 0.15, float(nt['y']) + y_off - 1.0)
-                    page.insert_text(insert_pt_bold, str(nt['text']), fontsize=actual_size, color=rgb, fontname=fontname)
-
+                fam = str(nt.get('font') or 'Arial').replace('"', '').replace("'", '').split(',')[0].strip()
+                is_bold = bool(nt.get('bold'))
+                is_italic = bool(nt.get('italic'))
+                style = ('Bold' if is_bold else '') + ('Italic' if is_italic else '')
+                text = str(nt['text'])
+                alias = _text_font(doc, page, fam + ('-' + style if style else ''), text, font_cache)
+                actual_size = float(nt['font_size']) * 0.82
+                page.insert_text(fitz.Point(float(nt['x']) + x_off, float(nt['y']) + y_off - 1.0), text,
+                                 fontsize=actual_size, color=rgb, fontname=alias)
             except Exception as e:
                 print(f"Skipped new text: {e}")
 
@@ -446,7 +445,7 @@ def burn_edits():
 
         hasher = hashlib.md5((filepath + str(os.path.getmtime(filepath))).encode()).hexdigest()
         new_path = os.path.join(TEMP_DIR, f"mod_{hasher}.pdf")
-        if edits:   # an installed font goes in whole; keep only the letters used so the file stays small
+        if edits or data.get('new_texts'):   # an installed font goes in whole; keep only the letters used so the file stays small
             try: doc.subset_fonts()
             except Exception as e: print('font subsetting skipped:', e, file=sys.stderr)
         doc.save(new_path, garbage=3, deflate=True)

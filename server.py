@@ -681,6 +681,460 @@ def watermark():
         return jsonify({"success": True, "files": outs})
     except Exception as e: return jsonify({"error": str(e)}), 500
 
+# ---------- small helpers for the routes below ----------
+def _temp_out(fp, tag, extra=''):
+    """A new working file for a change to fp (unique per input file, change and options)."""
+    h = hashlib.md5((fp + str(os.path.getmtime(fp)) + tag + extra).encode()).hexdigest()
+    return os.path.join(TEMP_DIR, f"{tag}_{h}.pdf")
+
+def _pick(doc, pages):
+    """1-based page list from the app -> sorted 0-based indexes (all pages when empty)."""
+    if not pages: return list(range(len(doc)))
+    return sorted({int(n) - 1 for n in pages if 1 <= int(n) <= len(doc)})
+
+# ---------- insert pages from another file ----------
+@app.route('/insert_pages', methods=['POST'])
+def insert_pages():
+    """Copy pages of `source` (1-based `pages`, all when empty) into the open PDF before 0-based `at`
+    (the end when -1). Links, comments and form fields come along."""
+    d = request.json; fp = d['filepath']
+    try:
+        doc = fitz.open(fp); src = fitz.open(d['source'])
+        at = int(d.get('at', -1)); at = len(doc) if at < 0 or at > len(doc) else at
+        picked = _pick(src, d.get('pages'))
+        for k, i in enumerate(picked):
+            doc.insert_pdf(src, from_page=i, to_page=i, start_at=at + k)
+        src.close()
+        out = _temp_out(fp, 'ins', json.dumps(d))
+        doc.save(out, garbage=3, deflate=True); doc.close()
+        return jsonify({"success": True, "new_file": out, "count": len(picked)})
+    except Exception as e: return jsonify({"error": str(e)}), 500
+
+# ---------- paper size, white margins ----------
+PAPER_PT = {'Letter': (612, 792), 'Legal': (612, 1008), 'Tabloid': (792, 1224), 'A3': (841.89, 1190.55),
+            'A4': (595.28, 841.89), 'A5': (419.53, 595.28)}
+
+def _content_box(page):
+    """Where anything is drawn on the page (text, pictures, lines), in page coordinates; None if blank."""
+    pix = page.get_pixmap(dpi=72, alpha=False, annots=True)
+    im = Image.frombytes('RGB', (pix.width, pix.height), pix.samples).convert('L')
+    box = im.point(lambda v: 255 if v < 245 else 0).getbbox()
+    if not box: return None
+    k = page.rect.width / pix.width
+    return fitz.Rect(box[0] * k, box[1] * k, box[2] * k, box[3] * k)
+
+@app.route('/page_size', methods=['POST'])
+def page_size():
+    """mode 'paper': put the chosen pages on another paper size (fit or actual size, centered);
+    'trim': cut the white margins down to `margin` points; 'margin': add `margin` points of white."""
+    d = request.json; fp = d['filepath']; mode = d.get('mode', 'paper')
+    margin = max(0.0, float(d.get('margin', 18)))
+    try:
+        doc = fitz.open(fp)
+        picked = set(_pick(doc, d.get('pages')))
+        if mode == 'trim':
+            n = 0
+            for i in picked:
+                page = doc[i]
+                box = _content_box(page)
+                if not box: continue
+                box = fitz.Rect(box.x0 - margin, box.y0 - margin, box.x1 + margin, box.y1 + margin) & page.rect
+                # the crop box is given unrotated, relative to the media box's top-left
+                r = box * page.derotation_matrix
+                mb = page.mediabox
+                page.set_cropbox(fitz.Rect(r.x0 + page.cropbox.x0 - mb.x0, r.y0 + page.cropbox.y0 - mb.y0,
+                                           r.x1 + page.cropbox.x0 - mb.x0, r.y1 + page.cropbox.y0 - mb.y0) & fitz.Rect(0, 0, mb.width, mb.height))
+                n += 1
+            out = _temp_out(fp, 'trim', json.dumps(d))
+            doc.save(out, garbage=3, deflate=True); doc.close()
+            return jsonify({"success": True, "new_file": out, "message": f"Trimmed {n} {'page' if n == 1 else 'pages'}"})
+        # 'paper' and 'margin' redraw the page onto a new sheet; comments and fields are flattened first
+        try: doc.bake()
+        except Exception: pass
+        new = fitz.open()
+        for i, page in enumerate(doc):
+            if i not in picked:
+                new.insert_pdf(doc, from_page=i, to_page=i); continue
+            pw, ph = page.rect.width, page.rect.height
+            if mode == 'margin':
+                W, H = pw + 2 * margin, ph + 2 * margin
+                target = fitz.Rect(margin, margin, margin + pw, margin + ph)
+            else:
+                W, H = PAPER_PT.get(d.get('paper'), PAPER_PT['Letter'])
+                o = d.get('orient', 'auto')
+                if o == 'landscape' or (o == 'auto' and pw > ph): W, H = H, W
+                f = min(W / pw, H / ph)
+                if d.get('fit') == 'actual': f = min(1, f) if d.get('shrink_only') else 1
+                tw, th = pw * f, ph * f
+                target = fitz.Rect((W - tw) / 2, (H - th) / 2, (W + tw) / 2, (H + th) / 2)
+            np_ = new.new_page(width=W, height=H)
+            np_.show_pdf_page(target, doc, i)
+        try: new.set_toc(doc.get_toc(simple=False))
+        except Exception: pass
+        out = _temp_out(fp, 'size', json.dumps(d))
+        new.save(out, garbage=3, deflate=True); new.close(); doc.close()
+        return jsonify({"success": True, "new_file": out})
+    except Exception as e: return jsonify({"error": str(e)}), 500
+
+# ---------- bookmarks (the outline) ----------
+@app.route('/toc', methods=['POST'])
+def get_toc():
+    try:
+        doc = fitz.open(request.json['filepath'])
+        toc = [{"level": t[0], "title": t[1], "page": t[2]} for t in doc.get_toc(simple=True)]
+        doc.close()
+        return jsonify({"toc": toc})
+    except Exception as e: return jsonify({"error": str(e)}), 500
+
+@app.route('/set_toc', methods=['POST'])
+def set_toc():
+    """Replace the bookmarks: [{level, title, page}] (1-based pages, levels start at 1 and go up by one at most)."""
+    d = request.json; fp = d['filepath']
+    try:
+        doc = fitz.open(fp)
+        toc, last = [], 0
+        for t in d.get('toc', []):
+            lvl = max(1, min(int(t['level']), last + 1)); last = lvl
+            toc.append([lvl, str(t['title'])[:300] or 'Untitled', max(1, min(int(t['page']), len(doc)))])
+        doc.set_toc(toc)
+        out = _temp_out(fp, 'toc', json.dumps(toc))
+        doc.save(out, garbage=3, deflate=True); doc.close()
+        return jsonify({"success": True, "new_file": out})
+    except Exception as e: return jsonify({"error": str(e)}), 500
+
+@app.route('/auto_toc', methods=['POST'])
+def auto_toc():
+    """Suggested bookmarks from the headings: short lines set clearly bigger (or bold at a bigger size)
+    than the body text; the biggest sizes become the top level."""
+    from collections import Counter
+    try:
+        doc = fitz.open(request.json['filepath'])
+        sizes, lines = Counter(), []
+        for pno, page in enumerate(doc):
+            for b in page.get_text('dict')['blocks']:
+                for l in b.get('lines', []):
+                    text = ''.join(s['text'] for s in l['spans']).strip()
+                    if not text: continue
+                    big = max(l['spans'], key=lambda s: len(s['text'].strip()))
+                    size = round(big['size'], 1); bold = bool(big['flags'] & 16) or 'bold' in big['font'].lower()
+                    sizes[size] += len(text)
+                    lines.append((pno + 1, text, size, bold, l['bbox'][1]))
+        if not sizes: return jsonify({"toc": []})
+        body = sizes.most_common(1)[0][0]
+        heads = [(p, t, sz, b) for p, t, sz, b, y in lines
+                 if len(t) <= 90 and not t.endswith(('.', ',', ';')) and re.search(r'[A-Za-z]', t)
+                 and (sz >= body * 1.18 or (b and sz >= body * 1.05))]
+        levels = sorted({h[2] for h in heads}, reverse=True)[:3]
+        toc, seen = [], set()
+        for p, t, sz, b in heads:
+            if sz not in levels: continue
+            key = (p, t)
+            if key in seen: continue
+            seen.add(key)
+            if toc and toc[-1]['page'] == p and toc[-1]['level'] == levels.index(sz) + 1 and len(toc[-1]['title']) + len(t) < 120:
+                toc[-1]['title'] += ' ' + t; continue   # one heading set on two lines
+            toc.append({"level": levels.index(sz) + 1, "title": t, "page": p})
+        # a heading level only below a level that exists
+        last = 0
+        for t in toc: t['level'] = min(t['level'], last + 1); last = t['level']
+        doc.close()
+        return jsonify({"toc": toc[:500]})
+    except Exception as e: return jsonify({"error": str(e)}), 500
+
+# ---------- make it small: aim for a size ----------
+SHRINK_STEPS = [None, (200, 85), (150, 75), (120, 65), (96, 55), (72, 45), (60, 35)]   # (picture dpi, JPEG quality)
+
+def _shrink_once(fp, step, out):
+    doc = fitz.open(fp)
+    try: doc.subset_fonts()
+    except Exception: pass
+    if step:
+        dpi, q = step
+        doc.rewrite_images(dpi_threshold=dpi + 15, dpi_target=dpi, quality=q, lossy=True, lossless=True, bitonal=True, color=True, gray=True)
+    try: doc.scrub(metadata=False, xml_metadata=False, attached_files=False, embedded_files=False, javascript=False,
+                   thumbnails=True, redactions=False, remove_links=False, reset_fields=False, reset_responses=False, hidden_text=False, clean_pages=False)
+    except Exception: pass
+    doc.save(out, garbage=4, deflate=True, deflate_images=True, deflate_fonts=True, clean=True, use_objstms=1)
+    doc.close()
+    return os.path.getsize(out)
+
+def shrink_pdf(fp, target_bytes=None, level='balanced'):
+    """The smallest file that still looks good (level), or the best-looking one under target_bytes.
+    Returns (path, size, met_target)."""
+    steps = SHRINK_STEPS
+    if not target_bytes:
+        steps = {'light': SHRINK_STEPS[:1], 'balanced': [SHRINK_STEPS[2]], 'strong': [SHRINK_STEPS[4]]}.get(level, [SHRINK_STEPS[2]])
+    best = None
+    for k, step in enumerate(steps):
+        out = _temp_out(fp, 'shrink', f'{k}{step}{target_bytes}{level}')
+        size = _shrink_once(fp, step, out)
+        if best is None or size < best[1]: best = (out, size)
+        if target_bytes and size <= target_bytes: return out, size, True
+    return best[0], best[1], not target_bytes
+
+@app.route('/shrink', methods=['POST'])
+def shrink():
+    d = request.json; fp = d['filepath']
+    try:
+        before = os.path.getsize(fp)
+        target = float(d['target_mb']) * 1024 * 1024 if d.get('target_mb') else None
+        out, size, met = shrink_pdf(fp, target, d.get('level', 'balanced'))
+        mb = lambda b: f"{b / 1024 / 1024:.1f} MB" if b >= 1024 * 1024 else f"{max(1, round(b / 1024))} KB"
+        if size >= before:
+            return jsonify({"success": True, "new_file": fp, "size": before, "before": before,
+                            "message": f"This PDF is already as small as it gets ({mb(before)})"})
+        msg = f"{mb(before)} → {mb(size)}" + ("" if met else f". That's the smallest it goes without losing the words; still over {d.get('target_mb')} MB")
+        return jsonify({"success": True, "new_file": out, "size": size, "before": before, "met": met, "message": msg})
+    except Exception as e: return jsonify({"error": str(e)}), 500
+
+# ---------- digital signatures with a certificate ----------
+def _trust_roots():
+    """The certificates Windows trusts, for checking who signed."""
+    import ssl
+    from asn1crypto import x509 as ax509
+    roots = []
+    try:
+        for store in ('ROOT', 'CA'):
+            for der, enc, trust in ssl.enum_certificates(store):
+                if enc == 'x509_asn':
+                    try: roots.append(ax509.Certificate.load(der))
+                    except Exception: pass
+    except Exception: pass
+    return roots
+
+@app.route('/cert_make', methods=['POST'])
+def cert_make():
+    """Make the user's own digital ID: a self-signed certificate saved as a password-protected .pfx."""
+    from cryptography import x509
+    from cryptography.x509.oid import NameOID, ExtendedKeyUsageOID
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import rsa
+    from cryptography.hazmat.primitives.serialization import pkcs12
+    import datetime
+    d = request.json
+    try:
+        if not d.get('name') or not d.get('password'): return jsonify({"error": "Enter your name and a password"}), 400
+        key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        attrs = [x509.NameAttribute(NameOID.COMMON_NAME, d['name'])]
+        if d.get('org'): attrs.append(x509.NameAttribute(NameOID.ORGANIZATION_NAME, d['org']))
+        if d.get('email'): attrs.append(x509.NameAttribute(NameOID.EMAIL_ADDRESS, d['email']))
+        name = x509.Name(attrs)
+        now = datetime.datetime.now(datetime.timezone.utc)
+        cert = (x509.CertificateBuilder().subject_name(name).issuer_name(name).public_key(key.public_key())
+                .serial_number(x509.random_serial_number()).not_valid_before(now - datetime.timedelta(minutes=5))
+                .not_valid_after(now + datetime.timedelta(days=365 * 5))
+                .add_extension(x509.KeyUsage(digital_signature=True, content_commitment=True, key_encipherment=False, data_encipherment=False,
+                                             key_agreement=False, key_cert_sign=True, crl_sign=False, encipher_only=False, decipher_only=False), critical=True)
+                .add_extension(x509.ExtendedKeyUsage([ExtendedKeyUsageOID.EMAIL_PROTECTION, x509.ObjectIdentifier('1.2.840.113583.1.1.5')]), critical=False)
+                .sign(key, hashes.SHA256()))
+        data = pkcs12.serialize_key_and_certificates(d['name'].encode(), key, cert, None,
+                                                     serialization.BestAvailableEncryption(d['password'].encode()))
+        os.makedirs(os.path.dirname(d['out']), exist_ok=True)
+        with open(d['out'], 'wb') as f: f.write(data)
+        with open(d['out'] + '.cer', 'wb') as f: f.write(cert.public_bytes(serialization.Encoding.DER))   # for checking own signatures
+        return jsonify({"success": True, "path": d['out']})
+    except Exception as e: return jsonify({"error": str(e)}), 500
+
+@app.route('/cert_info', methods=['POST'])
+def cert_info():
+    """Who a .pfx/.p12 digital ID belongs to (checks the password)."""
+    from cryptography.hazmat.primitives.serialization import pkcs12
+    from cryptography.x509.oid import NameOID
+    d = request.json
+    try:
+        key, cert, _ = pkcs12.load_key_and_certificates(open(d['pfx'], 'rb').read(), (d.get('password') or '').encode() or None)
+        cn = cert.subject.get_attributes_for_oid(NameOID.COMMON_NAME)
+        return jsonify({"name": cn[0].value if cn else cert.subject.rfc4514_string(),
+                        "issuer": cert.issuer.rfc4514_string(), "expires": cert.not_valid_after_utc.strftime('%b %d, %Y'),
+                        "self_signed": cert.issuer == cert.subject})
+    except ValueError: return jsonify({"error": "That password isn't right for this digital ID"}), 400
+    except Exception as e: return jsonify({"error": str(e)}), 500
+
+@app.route('/sign_cert', methods=['POST'])
+def sign_cert():
+    """Sign with a digital ID (.pfx/.p12). The signed copy is saved next to the original; any later change
+    to it shows up when the signature is checked. rect (on screen, points) gives a visible signature box."""
+    from pyhanko.sign import signers, fields
+    from pyhanko.stamp import TextStampStyle
+    from pyhanko.pdf_utils.incremental_writer import IncrementalPdfFileWriter
+    from pyhanko.pdf_utils.text import TextBoxStyle
+    d = request.json; fp = d['filepath']; orig = d.get('original_path') or fp
+    try:
+        signer = signers.SimpleSigner.load_pkcs12(d['pfx'], passphrase=(d.get('password') or '').encode() or None)
+        if signer is None: return jsonify({"error": "That password isn't right for this digital ID"}), 400
+        if not os.path.exists(d['pfx'] + '.cer'):
+            try:
+                with open(d['pfx'] + '.cer', 'wb') as f: f.write(signer.signing_cert.dump())
+            except Exception: pass
+        # pyHanko signs a plain PDF best: write a clean copy first
+        doc = fitz.open(fp)
+        existing = sum(1 for p in doc for w in (p.widgets() or []) if w.field_type == fitz.PDF_WIDGET_TYPE_SIGNATURE)
+        box = None
+        if d.get('rect'):
+            page = doc[int(d['page'])]
+            r = fitz.Rect(d['rect']) * page.derotation_matrix   # unrotated, top-left origin
+            mb = page.mediabox
+            box = (int(mb.x0 + r.x0), int(mb.y1 - r.y1), int(mb.x0 + r.x1), int(mb.y1 - r.y0))   # PDF space, bottom-left origin
+        clean = _temp_out(fp, 'presign')
+        doc.save(clean, garbage=3, deflate=True, no_new_id=False); doc.close()
+        field = f"Signature{existing + 1}"
+        out = get_unique_filename(os.path.join(os.path.dirname(orig), os.path.splitext(os.path.basename(orig))[0] + ' - signed.pdf'))
+        meta = signers.PdfSignatureMetadata(field_name=field, reason=d.get('reason') or None, location=d.get('location') or None,
+                                            name=d.get('name') or None)
+        style = TextStampStyle(stamp_text='Digitally signed by %(signer)s\nDate: %(ts)s' + (f"\nReason: {d['reason']}" if d.get('reason') else ''),
+                               text_box_style=TextBoxStyle(), border_width=1)
+        with open(clean, 'rb') as inf:
+            w = IncrementalPdfFileWriter(inf, strict=False)
+            fields.append_signature_field(w, fields.SigFieldSpec(field, on_page=int(d.get('page', 0)), box=box) if box
+                                          else fields.SigFieldSpec(field))
+            pdf_signer = signers.PdfSigner(meta, signer=signer, stamp_style=style)
+            with open(out, 'wb') as outf: pdf_signer.sign_pdf(w, output=outf)
+        return jsonify({"success": True, "path": out, "message": f"Signed and saved {os.path.basename(out)}"})
+    except Exception as e: return jsonify({"error": str(e)}), 500
+
+@app.route('/verify_signatures', methods=['POST'])
+def verify_signatures():
+    """Every digital signature in the file: who signed, when, whether the file changed since, and whether
+    the signer's ID is one Windows trusts (or one of the user's own IDs)."""
+    from pyhanko.pdf_utils.reader import PdfFileReader
+    from pyhanko.sign.validation import validate_pdf_signature
+    from pyhanko_certvalidator import ValidationContext
+    from pyhanko.sign.validation.status import SignatureCoverageLevel
+    from asn1crypto import x509 as ax509
+    d = request.json
+    try:
+        own = []
+        for path in d.get('own_ids', []):   # the user's own IDs (their certificate saved beside each) count as trusted on this PC
+            try: own.append(ax509.Certificate.load(open(path + '.cer', 'rb').read()))
+            except Exception: pass
+        with open(d['filepath'], 'rb') as f:
+            r = PdfFileReader(f, strict=False)
+            sigs = list(r.embedded_signatures)
+            if not sigs: return jsonify({"signatures": []})
+            vc = ValidationContext(trust_roots=_trust_roots() + own, allow_fetching=False)
+            out = []
+            for sig in sigs:
+                st = validate_pdf_signature(sig, vc, skip_diff=False)
+                cert = sig.signer_cert
+                who = cert.subject.native.get('common_name') or cert.subject.human_friendly
+                when = sig.self_reported_timestamp
+                whole = st.coverage == SignatureCoverageLevel.ENTIRE_FILE
+                mods = getattr(st, 'modification_level', None)
+                out.append({"field": sig.field_name, "signer": who, "time": when.strftime('%b %d, %Y %I:%M %p') if when else '',
+                            "intact": bool(st.intact and st.valid), "trusted": bool(st.trusted),
+                            "changed_after": not whole and (mods is None or getattr(mods, 'name', '') not in ('NONE', 'LTA_UPDATES')),
+                            "reason": sig.sig_object.get('/Reason', '') and str(sig.sig_object.get('/Reason')),
+                            "issuer": cert.issuer.human_friendly})
+        return jsonify({"signatures": out})
+    except Exception as e: return jsonify({"error": str(e)}), 500
+
+# ---------- the same action on many files ----------
+import threading, uuid
+BATCH = {}
+
+def _batch_one(client, src, action, opt, out_dir):
+    """Run one action on one file through the app's own routes; returns the saved path."""
+    def call(route, body):
+        r = client.post(route, json=body); j = r.get_json() or {}
+        if r.status_code >= 400 or j.get('error'): raise RuntimeError(j.get('error') or f'{route} failed')
+        return j
+    base = os.path.splitext(os.path.basename(src))[0]
+    pdf = call('/process_file', {'filepath': src})
+    if pdf.get('needs_password'): raise RuntimeError('It has a password')
+    pdf = pdf['pdf_path']
+    def save(path, suffix=''):
+        dst = get_unique_filename(os.path.join(out_dir, base + suffix + '.pdf'))
+        shutil.copyfile(path, dst); return dst
+    if action == 'convert': return save(pdf)
+    if action == 'compress':
+        return save(call('/shrink', {'filepath': pdf, 'target_mb': opt.get('target_mb'), 'level': opt.get('level', 'balanced')})['new_file'])
+    if action == 'watermark':
+        j = call('/watermark', {'files': [pdf], 'kind': 'text', 'text': opt.get('text') or 'CONFIDENTIAL', 'color': opt.get('color') or '#c0392b',
+                                'opacity': opt.get('opacity', 30), 'size': 'medium', 'angle': 'diagonal', 'on_top': True})
+        return save(j['files'][0])
+    if action == 'number': return save(call('/number_pages', {'filepath': pdf, 'start_num': 1})['new_file'])
+    if action == 'headfoot': return save(call('/header_footer', {'filepath': pdf, 'header': opt.get('header', ''), 'footer': opt.get('footer', '')})['new_file'])
+    if action == 'ocr': return save(call('/ocr', {'filepath': pdf}).get('new_file') or pdf)
+    if action == 'rotate':
+        doc = fitz.open(pdf)
+        for pg in doc: pg.set_rotation((pg.rotation + int(opt.get('angle', 90))) % 360)
+        tmp = _temp_out(pdf, 'brot', str(opt)); doc.save(tmp, garbage=3); doc.close(); return save(tmp)
+    if action == 'scrub':
+        doc = fitz.open(pdf); doc.scrub(); doc.set_metadata({})
+        tmp = _temp_out(pdf, 'bscrub'); doc.save(tmp, garbage=4, deflate=True, clean=True); doc.close(); return save(tmp)
+    if action == 'protect':
+        if not opt.get('password'): raise RuntimeError('No password given')
+        doc = fitz.open(pdf); dst = get_unique_filename(os.path.join(out_dir, base + '.pdf'))
+        doc.save(dst, encryption=fitz.PDF_ENCRYPT_AES_256, user_pw=opt['password'], owner_pw=opt['password']); doc.close(); return dst
+    if action in ('docx', 'xlsx', 'pptx', 'png', 'txt', 'html'):
+        j = call('/export', {'filepath': pdf, 'original_path': os.path.join(out_dir, os.path.basename(src)), 'format': action})
+        return j.get('path') or out_dir
+    raise RuntimeError('Unknown action')
+
+def _batch_run(job, files, action, opt, out_dir):
+    client = app.test_client()
+    for i, f in enumerate(files):
+        if job['cancel']: break
+        job['current'] = os.path.basename(f)
+        try: job['outputs'].append(_batch_one(client, f, action, opt, out_dir))
+        except Exception as e: job['errors'].append(f"{os.path.basename(f)}: {e}")
+        job['done'] = i + 1
+    job['finished'] = True
+
+@app.route('/batch_start', methods=['POST'])
+def batch_start():
+    d = request.json
+    first = (d.get('files') or [''])[0]
+    out_dir = d.get('out_dir') or os.path.join(first if os.path.isdir(first) else os.path.dirname(first), 'MyPDFKit output')
+    skip = os.path.normcase(os.path.abspath(out_dir))
+    files = []
+    for f in d.get('files', []):
+        if os.path.isdir(f):
+            for root, _, names in os.walk(f):
+                if d.get('subfolders') is False and root != f: continue
+                if os.path.normcase(os.path.abspath(root)).startswith(skip) or 'MyPDFKit output' in root: continue
+                files += [os.path.join(root, n) for n in sorted(names) if os.path.splitext(n)[1].lower() in OPENABLE_EXT]
+        elif os.path.isfile(f): files.append(f)
+    if not files: return jsonify({"error": "There are no files there that MyPDFKit can open"}), 400
+    os.makedirs(out_dir, exist_ok=True)
+    jid = uuid.uuid4().hex
+    BATCH[jid] = job = {"total": len(files), "done": 0, "current": '', "errors": [], "outputs": [], "finished": False, "cancel": False, "out_dir": out_dir}
+    threading.Thread(target=_batch_run, args=(job, files, d['action'], d.get('options') or {}, out_dir), daemon=True).start()
+    return jsonify({"id": jid, "total": len(files), "out_dir": out_dir})
+
+@app.route('/batch_status', methods=['POST'])
+def batch_status():
+    job = BATCH.get(request.json['id'])
+    if not job: return jsonify({"error": "No such job"}), 404
+    if request.json.get('cancel'): job['cancel'] = True
+    return jsonify({k: v for k, v in job.items() if k != 'outputs'} | {"saved": len(job['outputs'])})
+
+# ---------- measurements kept on the page ----------
+@app.route('/add_measure', methods=['POST'])
+def add_measure():
+    """A measurement as standard annotations: the line or outline plus its label (other readers show it)."""
+    d = request.json; fp = d['filepath']
+    try:
+        doc = fitz.open(fp); page = doc[int(d['page'])]; un = page.derotation_matrix
+        pts = [fitz.Point(p) * un for p in d['points']]
+        color = parse_color(d.get('color') or '#e8527a')
+        if d['kind'] == 'distance':
+            a = page.add_line_annot(pts[0], pts[-1]); a.set_line_ends(fitz.PDF_ANNOT_LE_BUTT, fitz.PDF_ANNOT_LE_BUTT)
+        elif d['kind'] == 'area':
+            a = page.add_polygon_annot(pts)
+        else:
+            a = page.add_polyline_annot(pts)
+        a.set_colors(stroke=color); a.set_border(width=1.5)
+        a.set_info(title=os.environ.get('USERNAME', ''), content=d.get('label', ''), subject='Measurement'); a.update()
+        lp = fitz.Point(d['label_at']) * un
+        t = page.add_freetext_annot(fitz.Rect(lp.x, lp.y - 9, lp.x + 7 * len(d.get('label', '')) + 12, lp.y + 7), d.get('label', ''),
+                                    fontsize=9, text_color=color, fill_color=(1, 1, 1), rotate=page.rotation)
+        t.set_info(subject='Measurement'); t.update()
+        out = _temp_out(fp, 'meas', json.dumps(d))
+        doc.save(out, garbage=3, deflate=True); doc.close()
+        return jsonify({"success": True, "new_file": out})
+    except Exception as e: return jsonify({"error": str(e)}), 500
+
 @app.route('/formats', methods=['GET'])
 def formats():
     return jsonify({"extensions": [e[1:] for e in OPENABLE_EXT]})

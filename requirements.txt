@@ -14,3 +14,5 @@ winrt-Windows.Storage.Streams
 winrt-Windows.Globalization
 winrt-Windows.Foundation
 winrt-Windows.Foundation.Collections
+pyhanko
+cryptography

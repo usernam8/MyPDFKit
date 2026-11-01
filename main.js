@@ -125,6 +125,15 @@ function setupAutoUpdate() {
   ipcMain.on('install-update', () => { killServer(); autoUpdater.quitAndInstall(true, true); });
 }
 ipcMain.handle('app-version', () => app.getVersion());
+ipcMain.handle('user-data', () => app.getPath('userData'));
+ipcMain.handle('pick-folder', async () => {
+  const r = await dialog.showOpenDialog(win, { properties: ['openDirectory'], title: 'Pick a folder' });
+  return r.canceled ? null : r.filePaths[0];
+});
+ipcMain.handle('pick-files', async () => {
+  const r = await dialog.showOpenDialog(win, { properties: ['openFile', 'multiSelections'], title: 'Pick files' });
+  return r.canceled ? [] : r.filePaths;
+});
 
 // ---------- printing ----------
 // The renderer's print window picks the pages and settings (and shows the preview); the page pictures

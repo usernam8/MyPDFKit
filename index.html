@@ -483,6 +483,85 @@
     .pp-right .field input.bad { border-color:var(--danger); }
     .pp-right .dialog-actions { margin-top:auto; padding-top:10px; }
     .btn:disabled { opacity:.45; cursor:default; }
+    /* side by side */
+    #side-view { display:none; position:relative; width:42%; min-width:260px; max-width:70%; flex:none; flex-direction:column; background:var(--canvas); border-left:1px solid var(--line); }
+    #side-view.open { display:flex; }
+    .sv-resize { position:absolute; left:-4px; top:0; bottom:0; width:8px; cursor:col-resize; z-index:5; }
+    .sv-head { display:flex; align-items:center; gap:8px; height:38px; padding:0 8px 0 12px; border-bottom:1px solid var(--line); background:var(--panel); font-size:12px; color:var(--dim); white-space:nowrap; }
+    .sv-head .ico { width:15px; height:15px; flex:none; }
+    .sv-name { color:var(--text); overflow:hidden; text-overflow:ellipsis; }
+    .sv-sync { display:flex; align-items:center; gap:5px; cursor:pointer; }
+    .sv-body { flex:1; overflow:auto; padding:14px 16px; }
+    .col-page { position:relative; margin:0 auto 14px; background:#fff; box-shadow:0 2px 10px rgba(0,0,0,.4); }
+    .col-page canvas { display:block; width:100%; height:100%; }
+    .col-page .col-num { position:absolute; left:50%; bottom:-13px; transform:translateX(-50%); font-size:10px; color:var(--dim); }
+    .col-page .col-copy { position:absolute; right:8px; top:8px; display:none; align-items:center; gap:4px; height:26px; padding:0 9px; border:0; border-radius:6px; background:var(--accent); color:var(--accent-ink); font:600 11px Segoe UI, sans-serif; cursor:pointer; box-shadow:0 2px 8px rgba(0,0,0,.3); }
+    .col-page:hover .col-copy { display:flex; }
+    .col-page .col-copy .ico { width:13px; height:13px; }
+    #side-view .col-page { cursor:grab; }
+    /* bookmarks */
+    #bookmarks-panel { display:none; width:220px; flex:none; flex-direction:column; background:#202124; border-right:1px solid var(--line); z-index:50; }
+    html.bm-open #bookmarks-panel { display:flex; }
+    .bm-head { display:flex; align-items:center; gap:4px; padding:10px 8px 8px 14px; font-size:12px; font-weight:600; color:var(--dim); text-transform:uppercase; letter-spacing:.04em; }
+    .bm-head .spacer { flex:1; }
+    #bm-list { flex:1; overflow-y:auto; padding:0 6px 12px; }
+    .bm-row { display:flex; align-items:center; gap:4px; min-height:28px; padding:2px 4px 2px 0; border-radius:5px; cursor:pointer; font-size:12.5px; color:var(--text); }
+    .bm-row:hover { background:var(--raised); }
+    .bm-row.here { background:var(--accent-soft); }
+    .bm-title { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .bm-pg { color:var(--dim); font-size:11px; }
+    .bm-act { display:none; gap:1px; }
+    .bm-row:hover .bm-act { display:flex; }
+    .bm-row:hover .bm-pg { display:none; }
+    .bm-act button { width:20px; height:20px; padding:0; border:0; border-radius:4px; background:transparent; color:var(--dim); cursor:pointer; font-size:11px; }
+    .bm-act button:hover { background:var(--line); color:var(--text); }
+    .bm-empty { padding:10px 10px; color:var(--dim); font-size:12px; line-height:1.5; }
+    .bm-title-edit { flex:1; height:22px; background:var(--raised); border:1px solid var(--accent); border-radius:4px; color:var(--text); font:inherit; padding:0 5px; }
+    /* dark pages */
+    html.dark-pages #pdf-canvas, html.dark-pages .thumb-img, html.dark-pages .col-page canvas { filter:invert(.88) hue-rotate(180deg); }
+    html.dark-pages #canvas-wrapper, html.dark-pages .col-page { background:#1e1e1e; }
+    /* reading view */
+    #reader { position:fixed; inset:0; z-index:3500; display:none; flex-direction:column; background:#18191c; }
+    #reader.open { display:flex; }
+    .rd-head { display:flex; align-items:center; gap:10px; height:44px; padding:0 150px 0 16px; background:#1c1d20; border-bottom:1px solid var(--line); color:var(--dim); font-size:12.5px; -webkit-app-region:drag; }
+    .rd-head button, .rd-head input { -webkit-app-region:no-drag; }
+    .rd-name { color:var(--text); font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:40%; }
+    .rd-head .spacer { flex:1; }
+    .rd-body { flex:1; overflow:auto; padding:24px 20px 40px; outline:none; }
+    #reader .col-page { margin-bottom:22px; }
+    /* digital signatures */
+    #sig-banner { display:none; position:absolute; left:50%; top:12px; transform:translateX(-50%); z-index:60; align-items:center; gap:10px; max-width:calc(100% - 40px); padding:7px 8px 7px 14px; border-radius:9px; font-size:12.5px; box-shadow:0 6px 20px rgba(0,0,0,.35); white-space:nowrap; }
+    #sig-banner.show { display:flex; }
+    #sig-banner.good { background:#163a24; color:#b7f0c8; border:1px solid #2d6b43; }
+    #sig-banner.warn { background:#3d3215; color:#f5dd9c; border:1px solid #6e5a24; }
+    #sig-banner.bad { background:#451b1b; color:#ffc4c4; border:1px solid #7a2e2e; }
+    #sig-banner span { overflow:hidden; text-overflow:ellipsis; }
+    #sig-banner button { height:24px; padding:0 10px; border-radius:5px; border:1px solid rgba(255,255,255,.2); background:rgba(255,255,255,.08); color:inherit; cursor:pointer; font-size:12px; }
+    body.tool-sigbox #area-glass { display:block; }
+    .sig-list { display:flex; flex-direction:column; gap:10px; margin:6px 0 4px; max-width:460px; }
+    .sig-item { padding:10px 12px; border-radius:7px; background:var(--raised); border-left:3px solid var(--line); font-size:12.5px; line-height:1.55; }
+    .sig-item.good { border-left-color:#3fb26b; } .sig-item.warn { border-left-color:#e0b43c; } .sig-item.bad { border-left-color:#e05252; }
+    .sig-item b { color:var(--text); }
+    .sig-item .dim { color:var(--dim); }
+    /* many files at once */
+    .batch-bar { height:8px; border-radius:4px; background:var(--line); overflow:hidden; margin:10px 0 8px; width:380px; max-width:100%; }
+    .batch-bar div { height:100%; width:0; background:var(--accent); transition:width .25s; }
+    .batch-now { color:var(--dim); font-size:12px; min-height:16px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:380px; }
+    .batch-err { color:#ff9a9a; font-size:12px; margin-top:8px; max-height:120px; overflow:auto; max-width:380px; }
+    /* measure */
+    #measure-layer { position:absolute; inset:0; width:100%; height:100%; z-index:13; display:none; cursor:crosshair; overflow:visible; }
+    body.tool-measure #measure-layer { display:block; }
+    #measure-layer .m-line { fill:none; stroke:#e8527a; stroke-width:2; }
+    #measure-layer .m-area { fill:rgba(232,82,122,.15); stroke:#e8527a; stroke-width:2; }
+    #measure-layer .m-dot { fill:#fff; stroke:#e8527a; stroke-width:1.5; }
+    #measure-layer .m-label { font:600 12px Segoe UI, sans-serif; fill:#fff; paint-order:stroke; stroke:#c0325a; stroke-width:4px; stroke-linejoin:round; }
+    #measure-bar { position:absolute; left:50%; bottom:22px; transform:translateX(-50%); z-index:60; display:none; align-items:center; gap:8px; padding:8px 10px 8px 16px;
+      border-radius:10px; background:#2a2b30; color:var(--text); box-shadow:0 6px 22px rgba(0,0,0,.4); font-size:13px; white-space:nowrap; }
+    #measure-bar.show { display:flex; }
+    #measure-label { margin-right:6px; font-weight:600; }
+    .ms-scale { font-size:11.5px; color:var(--dim); margin:2px 16px 8px; line-height:1.4; }
+    .ms-row { display:flex; gap:6px; margin:0 16px 8px; align-items:center; }
+    .ms-row select { flex:1; }
     .field-check { display:flex; flex-direction:row-reverse; justify-content:flex-end; align-items:center; gap:8px; }
     .field-check label { margin:0; }
     .sig-remember { display:flex; align-items:center; gap:6px; margin-top:10px; font-size:12.5px; color:var(--dim); }
@@ -525,6 +604,15 @@
     <symbol id="i-stamp" viewBox="0 0 24 24"><path d="M9 3h6l-1 8h-4zM4 14h16v4H4zM6 21h12"/></symbol>
     <symbol id="i-table" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="1"/><path d="M3 10h18M3 14.5h18M9 5v14M15 5v14"/></symbol>
     <symbol id="i-watermark" viewBox="0 0 24 24"><path d="M6 3h8l5 5v13H6zM9 17l6-6M9 13l2-2"/></symbol>
+    <symbol id="i-columns" viewBox="0 0 24 24"><rect x="3" y="4" width="7.5" height="16" rx="1"/><rect x="13.5" y="4" width="7.5" height="16" rx="1"/></symbol>
+    <symbol id="i-insert" viewBox="0 0 24 24"><path d="M6 3h8l5 5v13H6zM14 3v5h5M12 11v7M8.5 14.5h7"/></symbol>
+    <symbol id="i-resize" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="1"/><path d="M9 15l6-6M11 9h4v4"/></symbol>
+    <symbol id="i-bookmark" viewBox="0 0 24 24"><path d="M7 3h10v18l-5-4-5 4z"/></symbol>
+    <symbol id="i-cert" viewBox="0 0 24 24"><path d="M5 4h14v11H5zM8 8h8M8 11h5"/><circle cx="16" cy="17" r="2.5"/><path d="M14.5 19l-.5 3 2-1 2 1-.5-3"/></symbol>
+    <symbol id="i-batch" viewBox="0 0 24 24"><path d="M8 3h9l3 3v11H8zM5 6v15h11"/></symbol>
+    <symbol id="i-book" viewBox="0 0 24 24"><path d="M3 5c3-1 6-1 9 1 3-2 6-2 9-1v14c-3-1-6-1-9 1-3-2-6-2-9-1zM12 6v14"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></symbol>
+    <symbol id="i-ruler" viewBox="0 0 24 24"><path d="M3 16L16 3l5 5L8 21zM7 12l2 2M10 9l2 2M13 6l2 2"/></symbol>
     <symbol id="i-trash" viewBox="0 0 24 24"><path d="M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13M10 11v6M14 11v6"/></symbol>
     <symbol id="i-save" viewBox="0 0 24 24"><path d="M5 4h11l3 3v13H5zM8 4v5h7V4M8 20v-6h8v6"/></symbol>
     <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 14L4 9l5-5M4 9h9a6 6 0 0 1 0 12h-3"/></symbol>
@@ -597,13 +685,15 @@
     <span id="doc-name"></span>
     <span class="menu-spacer"></span>
     <label class="find"><svg class="ico"><use href="#i-search"/></svg><input id="find-box" placeholder="Find text" spellcheck="false" title="Enter: next match, Shift+Enter: previous, Esc: clear"><span id="find-count"></span><span class="find-nav"><button id="find-prev" title="Previous match (Shift+Enter)" disabled><svg class="ico"><use href="#i-up"/></svg></button><button id="find-next" title="Next match (Enter)" disabled><svg class="ico"><use href="#i-down"/></svg></button><button id="find-close" title="Clear (Esc)"><svg class="ico"><use href="#i-plus"/></svg></button></span></label>
+    <button id="btn-side" class="icon-tool" title="Show another file side by side"><svg class="ico"><use href="#i-columns"/></svg></button>
+    <button id="btn-read" class="icon-tool" title="Reading view (F11)"><svg class="ico"><use href="#i-book"/></svg></button>
     <button id="btn-print" class="icon-tool" title="Print (Ctrl+P)"><svg class="ico"><use href="#i-print"/></svg></button>
     <button id="update-pill" title="A new version is downloaded. Restart to use it."><svg class="ico"><use href="#i-rotate"/></svg>Update ready · Restart</button>
     <button id="btn-top-undo" class="icon-tool" title="Undo last action"><svg class="ico"><use href="#i-undo"/></svg></button>
     <button id="btn-save-modified" class="icon-tool" title="Save as a new PDF next to the original (Ctrl+S)"><svg class="ico"><use href="#i-save"/></svg></button>
   </div>
 
-  <div id="tools-view"><div class="tv-inner"><input id="tool-search" placeholder="Find any tool" spellcheck="false"><div id="recent-files"><div class="rf-head"><span>Recent</span><button id="rf-clear">Clear</button></div><div class="rf-list"></div></div><div class="tv-grid"><button class="tool-card" data-tool="create"><span class="tc-ico"><svg class="ico"><use href="#i-extract"/></svg></span><span>Create a PDF</span></button><button class="tool-card" data-tool="merge"><span class="tc-ico"><svg class="ico"><use href="#i-merge"/></svg></span><span>Combine files</span></button><button class="tool-card" data-tool="blank"><span class="tc-ico"><svg class="ico"><use href="#i-plus"/></svg></span><span>Blank page</span></button><button class="tool-card" data-tool="edit"><span class="tc-ico"><svg class="ico"><use href="#i-ibeam"/></svg></span><span>Edit a PDF</span></button><button class="tool-card" data-tool="headfoot"><span class="tc-ico"><svg class="ico"><use href="#i-headfoot"/></svg></span><span>Header and footer</span></button><button class="tool-card" data-tool="number"><span class="tc-ico"><svg class="ico"><use href="#i-hash"/></svg></span><span>Add page numbers</span></button><button class="tool-card" data-tool="convert"><span class="tc-ico"><svg class="ico"><use href="#i-convert"/></svg></span><span>Convert to PDF</span></button><button class="tool-card" data-tool="export"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>Export a PDF</span></button><button class="tool-card" data-tool="toword"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>PDF to Word</span></button><button class="tool-card" data-tool="toexcel"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>PDF to Excel</span></button><button class="tool-card" data-tool="toppt"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>PDF to PowerPoint</span></button><button class="tool-card" data-tool="compress"><span class="tc-ico"><svg class="ico"><use href="#i-compress"/></svg></span><span>Compress a PDF</span></button><button class="tool-card" data-tool="split"><span class="tc-ico"><svg class="ico"><use href="#i-split"/></svg></span><span>Split a PDF</span></button><button class="tool-card" data-tool="delpages"><span class="tc-ico"><svg class="ico"><use href="#i-trash"/></svg></span><span>Delete pages</span></button><button class="tool-card" data-tool="fillform"><span class="tc-ico"><svg class="ico"><use href="#i-ibeam"/></svg></span><span>Fill a form</span></button><button class="tool-card" data-tool="compare"><span class="tc-ico"><svg class="ico"><use href="#i-compare"/></svg></span><span>Compare files</span></button><button class="tool-card" data-tool="redact"><span class="tc-ico"><svg class="ico"><use href="#i-redact"/></svg></span><span>Redact</span></button><button class="tool-card" data-tool="comment"><span class="tc-ico"><svg class="ico"><use href="#i-comment"/></svg></span><span>Comment</span></button><button class="tool-card" data-tool="template"><span class="tc-ico"><svg class="ico"><use href="#i-table"/></svg></span><span>Fill from spreadsheet</span></button><button class="tool-card" data-tool="watermark"><span class="tc-ico"><svg class="ico"><use href="#i-watermark"/></svg></span><span>Watermark</span></button><button class="tool-card" data-tool="exportall"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>Export all files</span></button><button class="tool-card" data-tool="extract"><span class="tc-ico"><svg class="ico"><use href="#i-extract"/></svg></span><span>Extract pages</span></button><button class="tool-card" data-tool="ocr"><span class="tc-ico"><svg class="ico"><use href="#i-scan"/></svg></span><span>Recognize text (OCR)</span></button><button class="tool-card" data-tool="print"><span class="tc-ico"><svg class="ico"><use href="#i-print"/></svg></span><span>Print</span></button><button class="tool-card" data-tool="protect"><span class="tc-ico"><svg class="ico"><use href="#i-lock"/></svg></span><span>Protect a PDF</span></button><button class="tool-card" data-tool="sign"><span class="tc-ico"><svg class="ico"><use href="#i-signature"/></svg></span><span>Fill and sign</span></button></div></div></div>
+  <div id="tools-view"><div class="tv-inner"><input id="tool-search" placeholder="Find any tool" spellcheck="false"><div id="recent-files"><div class="rf-head"><span>Recent</span><button id="rf-clear">Clear</button></div><div class="rf-list"></div></div><div class="tv-grid"><button class="tool-card" data-tool="create"><span class="tc-ico"><svg class="ico"><use href="#i-extract"/></svg></span><span>Create a PDF</span></button><button class="tool-card" data-tool="merge"><span class="tc-ico"><svg class="ico"><use href="#i-merge"/></svg></span><span>Combine files</span></button><button class="tool-card" data-tool="blank"><span class="tc-ico"><svg class="ico"><use href="#i-plus"/></svg></span><span>Blank page</span></button><button class="tool-card" data-tool="edit"><span class="tc-ico"><svg class="ico"><use href="#i-ibeam"/></svg></span><span>Edit a PDF</span></button><button class="tool-card" data-tool="headfoot"><span class="tc-ico"><svg class="ico"><use href="#i-headfoot"/></svg></span><span>Header and footer</span></button><button class="tool-card" data-tool="number"><span class="tc-ico"><svg class="ico"><use href="#i-hash"/></svg></span><span>Add page numbers</span></button><button class="tool-card" data-tool="convert"><span class="tc-ico"><svg class="ico"><use href="#i-convert"/></svg></span><span>Convert to PDF</span></button><button class="tool-card" data-tool="export"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>Export a PDF</span></button><button class="tool-card" data-tool="toword"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>PDF to Word</span></button><button class="tool-card" data-tool="toexcel"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>PDF to Excel</span></button><button class="tool-card" data-tool="toppt"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>PDF to PowerPoint</span></button><button class="tool-card" data-tool="compress"><span class="tc-ico"><svg class="ico"><use href="#i-compress"/></svg></span><span>Compress a PDF</span></button><button class="tool-card" data-tool="split"><span class="tc-ico"><svg class="ico"><use href="#i-split"/></svg></span><span>Split a PDF</span></button><button class="tool-card" data-tool="delpages"><span class="tc-ico"><svg class="ico"><use href="#i-trash"/></svg></span><span>Delete pages</span></button><button class="tool-card" data-tool="fillform"><span class="tc-ico"><svg class="ico"><use href="#i-ibeam"/></svg></span><span>Fill a form</span></button><button class="tool-card" data-tool="compare"><span class="tc-ico"><svg class="ico"><use href="#i-compare"/></svg></span><span>Compare files</span></button><button class="tool-card" data-tool="redact"><span class="tc-ico"><svg class="ico"><use href="#i-redact"/></svg></span><span>Redact</span></button><button class="tool-card" data-tool="comment"><span class="tc-ico"><svg class="ico"><use href="#i-comment"/></svg></span><span>Comment</span></button><button class="tool-card" data-tool="template"><span class="tc-ico"><svg class="ico"><use href="#i-table"/></svg></span><span>Fill from spreadsheet</span></button><button class="tool-card" data-tool="watermark"><span class="tc-ico"><svg class="ico"><use href="#i-watermark"/></svg></span><span>Watermark</span></button><button class="tool-card" data-tool="sidebyside"><span class="tc-ico"><svg class="ico"><use href="#i-columns"/></svg></span><span>Side by side</span></button><button class="tool-card" data-tool="insert"><span class="tc-ico"><svg class="ico"><use href="#i-insert"/></svg></span><span>Insert pages</span></button><button class="tool-card" data-tool="pagesize"><span class="tc-ico"><svg class="ico"><use href="#i-resize"/></svg></span><span>Page size and margins</span></button><button class="tool-card" data-tool="bookmarks"><span class="tc-ico"><svg class="ico"><use href="#i-bookmark"/></svg></span><span>Bookmarks</span></button><button class="tool-card" data-tool="certsign"><span class="tc-ico"><svg class="ico"><use href="#i-cert"/></svg></span><span>Sign with a digital ID</span></button><button class="tool-card" data-tool="certcheck"><span class="tc-ico"><svg class="ico"><use href="#i-cert"/></svg></span><span>Check signatures</span></button><button class="tool-card" data-tool="batch"><span class="tc-ico"><svg class="ico"><use href="#i-batch"/></svg></span><span>Many files at once</span></button><button class="tool-card" data-tool="read"><span class="tc-ico"><svg class="ico"><use href="#i-book"/></svg></span><span>Reading view</span></button><button class="tool-card" data-tool="measure"><span class="tc-ico"><svg class="ico"><use href="#i-ruler"/></svg></span><span>Measure</span></button><button class="tool-card" data-tool="exportall"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>Export all files</span></button><button class="tool-card" data-tool="extract"><span class="tc-ico"><svg class="ico"><use href="#i-extract"/></svg></span><span>Extract pages</span></button><button class="tool-card" data-tool="ocr"><span class="tc-ico"><svg class="ico"><use href="#i-scan"/></svg></span><span>Recognize text (OCR)</span></button><button class="tool-card" data-tool="print"><span class="tc-ico"><svg class="ico"><use href="#i-print"/></svg></span><span>Print</span></button><button class="tool-card" data-tool="protect"><span class="tc-ico"><svg class="ico"><use href="#i-lock"/></svg></span><span>Protect a PDF</span></button><button class="tool-card" data-tool="sign"><span class="tc-ico"><svg class="ico"><use href="#i-signature"/></svg></span><span>Fill and sign</span></button></div></div></div>
   <div id="main-content">
     <div id="left-sidebar" class="sidebar">
       <div id="side-scroll">
@@ -624,6 +714,8 @@
         <button id="btn-headfoot" class="side-btn"><svg class="ico"><use href="#i-headfoot"/></svg>Header and footer</button>
         <button id="btn-blank" class="side-btn"><svg class="ico"><use href="#i-plus"/></svg>Blank page</button>
         <button id="btn-watermark" class="side-btn" title="A watermark or background on every page"><svg class="ico"><use href="#i-watermark"/></svg>Watermark</button>
+        <button id="btn-pagesize" class="side-btn" title="Change the paper size, trim or add white margins"><svg class="ico"><use href="#i-resize"/></svg>Page size and margins</button>
+        <button id="btn-insert" class="side-btn" title="Add pages from another file"><svg class="ico"><use href="#i-insert"/></svg>Insert pages</button>
         <button id="btn-redact" class="side-btn" title="Black out text or pictures for good"><svg class="ico"><use href="#i-redact"/></svg>Redact</button>
         <button id="btn-ocr" class="side-btn" title="Find the words in scanned pages so you can search, copy and export them"><svg class="ico"><use href="#i-scan"/></svg>Recognize text (OCR)</button>
         </div>
@@ -631,6 +723,8 @@
         <div class="section-title">Sign</div>
         <button id="btn-add-sig" class="side-btn"><svg class="ico"><use href="#i-signature"/></svg>Signature</button>
         <input type="file" id="img-upload" style="display:none" accept="image/*">
+        <button id="btn-cert-sign" class="side-btn" title="Sign with a digital ID: anyone can check it's yours and that nothing changed since"><svg class="ico"><use href="#i-cert"/></svg>Sign with a digital ID</button>
+        <button id="btn-cert-check" class="side-btn" title="See who signed this PDF and whether it changed since"><svg class="ico"><use href="#i-cert"/></svg>Check signatures</button>
         </div>
         <div class="pane" data-pane="convert">
         <div class="section-title">Convert and combine</div>
@@ -640,6 +734,7 @@
         <button id="btn-export" class="side-btn" title="Word, Excel, PowerPoint, images, web page or text"><svg class="ico"><use href="#i-docup"/></svg>Export a PDF</button>
         <button id="btn-export-all" class="side-btn" title="Export every file in this tab at once"><svg class="ico"><use href="#i-docup"/></svg>Export all files</button>
         <button id="btn-template" class="side-btn" title="Make one filled copy per row of an Excel or CSV file"><svg class="ico"><use href="#i-table"/></svg>Fill from spreadsheet</button>
+        <button id="btn-batch" class="side-btn" title="Do one thing to many files at once, or a whole folder"><svg class="ico"><use href="#i-batch"/></svg>Many files at once</button>
         <button id="btn-compare" class="side-btn" title="Show what changed between two versions"><svg class="ico"><use href="#i-compare"/></svg>Compare files</button>
         </div>
       </div>
@@ -650,6 +745,10 @@
     <div id="workspace">
       <div id="toast-message"></div>
 
+      <div id="bookmarks-panel"><div class="bm-head"><span>Bookmarks</span><span class="spacer"></span>
+        <button id="bm-add" class="mini-btn" title="Bookmark this page"><svg class="ico"><use href="#i-plus"/></svg>Add</button>
+        <button id="bm-auto" class="mini-btn" title="Make bookmarks from the headings">Auto</button></div>
+        <div id="bm-list"></div></div>
       <div id="thumbnail-sidebar"></div>
 
       <div id="workspace-center">
@@ -661,6 +760,7 @@
       <button id="btn-highlight" class="tool-btn" title="Highlight"><svg class="ico"><use href="#i-highlighter"/></svg><span>Highlight</span></button>
       <button id="btn-draw" class="tool-btn" title="Draw with the pen"><svg class="ico"><use href="#i-pen"/></svg><span>Draw</span></button>
       <button id="btn-comment" class="tool-btn" title="Comments and markup: notes, boxes, arrows, strike out, stamps"><svg class="ico"><use href="#i-comment"/></svg><span>Comment</span></button>
+      <button id="btn-measure" class="tool-btn" title="Measure distances, paths and areas"><svg class="ico"><use href="#i-ruler"/></svg><span>Measure</span></button>
       <button class="tool-btn" data-proxy="btn-add-sig" title="Sign"><svg class="ico"><use href="#i-signature"/></svg><span>Sign</span></button>
       <span class="palette-sep"></span>
       <button id="btn-palette-undo" class="tool-btn" title="Undo (Ctrl+Z)"><svg class="ico"><use href="#i-undo"/></svg><span>Undo</span></button>
@@ -669,9 +769,12 @@
           <div id="more-menu">
             <button id="btn-add-img" class="side-btn"><svg class="ico"><use href="#i-image"/></svg>Add image</button>
             <button id="btn-crop" class="side-btn"><svg class="ico"><use href="#i-crop"/></svg>Crop page</button>
+            <button id="btn-insert-more" class="side-btn"><svg class="ico"><use href="#i-insert"/></svg>Insert pages</button>
             <button id="btn-save-page" class="side-btn" title="Save this page as its own PDF"><svg class="ico"><use href="#i-extract"/></svg>Extract page</button>
             <button id="btn-delete-page" class="side-btn"><svg class="ico"><use href="#i-trash"/></svg>Delete page</button>
           </div>
+          <div id="sig-banner"></div>
+          <div id="measure-bar"><span id="measure-label"></span><button id="measure-keep" class="btn quiet">Keep on page</button><button id="measure-clear" class="btn quiet">Clear</button></div>
           <div id="redact-bar"><span id="redact-count"></span><button id="redact-find" class="btn quiet">Find words...</button><button id="redact-cancel" class="btn quiet">Cancel</button><button id="redact-apply" class="btn danger-btn">Apply</button></div>
           <div id="drop-message">
             <div class="drop-box">
@@ -694,12 +797,29 @@
             <div id="find-layer"></div>
             <div id="form-layer"></div>
             <div id="area-glass"><div id="area-rubber"></div></div>
+            <svg id="measure-layer"></svg>
           </div>
           </div>
       </div>
+      <div id="side-view"><div class="sv-resize" title="Drag to resize"></div>
+        <div class="sv-head"><svg class="ico"><use href="#i-columns"/></svg><span class="sv-name"></span><span class="sv-page"></span><span class="spacer"></span>
+          <label class="sv-sync" title="Turn to the same page as the file on the left"><input type="checkbox" id="sv-sync"> Follow pages</label>
+          <button class="mini-btn sv-close" title="Close">&#x2715;</button></div>
+        <div class="sv-body"></div></div>
     </div>
 
     <div id="tool-pop">
+      <div id="panel-measure" style="display:none;">
+        <div class="tool-header active"><svg class="ico"><use href="#i-ruler"/></svg>Measure</div>
+        <div class="mk-grid">
+          <button class="ms-mode mk-mode selected" data-mode="distance" title="Click two points"><svg class="ico"><use href="#i-ruler"/></svg>Distance</button>
+          <button class="ms-mode mk-mode" data-mode="path" title="Click points, double-click to finish"><svg class="ico"><use href="#i-arrow"/></svg>Path</button>
+          <button class="ms-mode mk-mode" data-mode="area" title="Click the corners, double-click to finish"><svg class="ico"><use href="#i-box"/></svg>Area</button>
+        </div>
+        <div class="ms-scale"><span id="ms-scale-text"></span></div>
+        <div class="ms-row"><select id="ms-unit" class="ribbon-select" title="Units"><option value="in">inches</option><option value="ft">feet</option><option value="mm">mm</option><option value="cm">cm</option><option value="m">meters</option></select>
+          <button id="ms-calibrate" class="mini-btn" title="Draw a line of known length to set the drawing's scale">Set scale...</button></div>
+      </div>
       <div id="panel-markup" style="display:none;">
         <div class="tool-header active"><svg class="ico"><use href="#i-comment"/></svg>Comment</div>
         <div class="mk-grid">
@@ -805,6 +925,8 @@
 
     <div id="right-rail">
       <button class="rail-btn" id="rail-pages" title="Page thumbnails"><svg class="ico"><use href="#i-pages"/></svg></button>
+      <button class="rail-btn" id="rail-bookmarks" title="Bookmarks"><svg class="ico"><use href="#i-bookmark"/></svg></button>
+      <button class="rail-btn" id="rail-dark" title="Dark pages (easier on the eyes at night)"><svg class="ico"><use href="#i-moon"/></svg></button>
       <div id="page-nav">
         <input id="page-input" title="Go to page" spellcheck="false">
         <span id="page-total">/ 1</span>
@@ -2323,19 +2445,19 @@
     });
 
     document.getElementById('btn-compress').addEventListener('click', async () => {
-      if(!currentTempPdf) return;
-      await syncEditsToPython();
-      showToast("Compressing...");
-      fetch('http://127.0.0.1:5000/compress_pdf', {
-        method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ filepath: currentTempPdf })
-      }).then(res=>res.json()).then(data => {
-        if(data.success) {
-           fileQueue.find(f => f.originalPath === currentActiveFile).pdfPath = data.new_file;
-           currentTempPdf = data.new_file;
-           showToast("Compressed");
-        } else { showToast(data.error, true); }
-      });
+      if (!await needDoc()) return;
+      const now = fs.statSync(currentTempPdf).size, mb = now / 1048576;
+      const v = await askDialog(`Make it smaller (now ${mb >= 1 ? mb.toFixed(1) + ' MB' : Math.max(1, Math.round(now / 1024)) + ' KB'})`, [
+        { key: 'level', label: 'How', type: 'select', init: true, options: [['balanced', 'Smaller, still sharp (recommended)'], ['strong', 'As small as possible'], ['light', 'Keep full quality, just tidy up'], ['size', 'Under a size, e.g. for email']],
+          onchange: (el, inp) => { inp.target_mb.parentElement.style.display = el.value === 'size' ? '' : 'none'; } },
+        { key: 'target_mb', label: 'Under (MB)', type: 'number', min: 0.1, max: 2000, step: 0.1, value: mb > 10 ? 10 : Math.max(0.1, +(mb / 2).toFixed(1)) },
+      ], 'Make smaller');
+      if (!v) return;
+      showToast('Making it smaller...');
+      pushHistory();
+      const d = await api('shrink', { filepath: currentTempPdf, level: v.level === 'size' ? 'balanced' : v.level, target_mb: v.level === 'size' ? +v.target_mb : null });
+      if (d.success && d.new_file === currentTempPdf) { pdfHistory.pop(); return showToast(d.message); }
+      await takeNewFile(d, d.message ? d.message + '. Save to keep it' : '');
     });
     
     document.getElementById('btn-add-img').addEventListener('click', () => { document.getElementById('img-upload').click(); });
@@ -2474,6 +2596,7 @@
     async function generateThumbnails() {
         const sidebar = document.getElementById('thumbnail-sidebar');
         sidebar.innerHTML = '';
+        refreshBookmarks();
         
         if (!currentPdfDoc || currentPdfDoc.numPages <= 1) {
             sidebar.style.display = 'none';
@@ -2607,24 +2730,30 @@
         sidebar.appendChild(bar);
         updatePageSelection();
 
-        // 2. Spin off the actual image rendering asynchronously
-        setTimeout(async () => {
-            for (let i = 1; i <= currentPdfDoc.numPages; i++) {
-                try {
-                    const page = await currentPdfDoc.getPage(i);
-                    const viewport = page.getViewport({ scale: 0.25 }); 
-                    const canvas = document.createElement('canvas');
-                    const ctx = canvas.getContext('2d');
-                    canvas.width = viewport.width;
-                    canvas.height = viewport.height;
-                    await page.render({ canvasContext: ctx, viewport: viewport }).promise;
-                    
-                    const imgEl = document.getElementById(`thumb-img-${i}`);
-                    if (imgEl) { imgEl.src = canvas.toDataURL('image/jpeg', 0.7); imgEl.parentElement.style.minHeight = '0'; }   // fit the page's shape (wide pages too)
-                } catch(err) { }
-            }
-        }, 50);
+        // 2. Draw only the thumbnails that come into view, so a file of hundreds of pages opens at once
+        const gen = ++thumbGen, doc = currentPdfDoc;
+        if (thumbObserver) thumbObserver.disconnect();
+        const io = thumbObserver = new IntersectionObserver(entries => entries.forEach(async en => {
+            if (!en.isIntersecting) return;
+            io.unobserve(en.target);
+            const i = +en.target.dataset.pageIndex + 1;
+            try {
+                const page = await doc.getPage(i);
+                if (gen !== thumbGen) return;
+                const v1 = page.getViewport({ scale: 1 });
+                const viewport = page.getViewport({ scale: 220 / Math.max(v1.width, v1.height * 0.8) });
+                const canvas = document.createElement('canvas');
+                canvas.width = viewport.width; canvas.height = viewport.height;
+                await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+                const imgEl = document.getElementById(`thumb-img-${i}`);
+                if (!imgEl || gen !== thumbGen) return;
+                canvas.toBlob(b => { if (!b) return; if (imgEl.src.startsWith('blob:')) URL.revokeObjectURL(imgEl.src); imgEl.src = URL.createObjectURL(b); }, 'image/jpeg', 0.8);
+                imgEl.parentElement.style.minHeight = '0';   // fit the page's shape (wide pages too)
+            } catch (err) { }
+        }), { root: sidebar, rootMargin: '800px 0px' });
+        sidebar.querySelectorAll('.thumb-wrapper').forEach(w => io.observe(w));
     }
+    let thumbGen = 0, thumbObserver = null;
 
     async function reorderPdfPages(newOrder) {
         if (isReordering) return;
@@ -2662,6 +2791,7 @@
       document.getElementById('page-nav').style.display = 'flex';
       
       const pdfData = new Uint8Array(fs.readFileSync(pdfPath));
+      showSignatureBanner(pdfPath, pdfData);
       pdfjsLib.getDocument({data: pdfData}).promise.then(function(pdf) {
         currentPdfDoc = pdf; 
         pageNum = Math.min(Math.max(1, targetPage), pdf.numPages); 
@@ -2670,10 +2800,15 @@
       });
     }
 
+    // flipping pages quickly: only the last page asked for gets drawn, and a page still drawing is dropped
+    let renderTicket = 0, mainRenderTask = null;
     function renderPage(num) {
+      const ticket = ++renderTicket;
       drawnStrokes = []; 
       
       currentPdfDoc.getPage(num).then(function(page) {
+        if (ticket !== renderTicket) return;
+        if (mainRenderTask) { mainRenderTask.cancel(); mainRenderTask = null; }
         const workspaceCenter = document.getElementById('workspace-center');
         const unscaled = page.getViewport({ scale: 1.0 });
 
@@ -2713,9 +2848,11 @@
         const penCtx = penCanvas.getContext('2d');
         penCtx.scale(ratio, ratio);
 
-        page.render({ canvasContext: pdfCtx, viewport: viewport, annotationMode: pdfjsLib.AnnotationMode.ENABLE_FORMS });
+        mainRenderTask = page.render({ canvasContext: pdfCtx, viewport: viewport, annotationMode: pdfjsLib.AnnotationMode.ENABLE_FORMS });
+        mainRenderTask.promise.catch(() => {}).finally(() => { mainRenderTask = null; });
         showPageExtras(num);
         document.getElementById('page-input').value = num;
+        pageChanged(num);
         document.getElementById('page-total').textContent = '/ ' + currentPdfDoc.numPages;
         document.getElementById('zoom-label').textContent = Math.round(zoomLevel * 100) + '%';
 
@@ -2868,7 +3005,8 @@
     function switchTool(toolId, toolName) {
       document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active'));
       if(document.getElementById(toolId)) document.getElementById(toolId).classList.add('active');
-      if (currentTool !== toolName && (currentTool === 'redact' || currentTool === 'markup')) {   // leaving an area tool
+      if (currentTool !== toolName && currentTool === 'measure') clearMeasure();
+      if (currentTool !== toolName && (currentTool === 'redact' || currentTool === 'markup' || currentTool === 'sigbox')) {   // leaving an area tool
         areaDone = null;
         if (currentTool === 'redact') { pendingRedactions = {}; document.querySelectorAll('.redact-mark').forEach(m => m.remove()); }
       }
@@ -3173,7 +3311,7 @@
     // Tool options pop up beside the tool's button: picking a color closes them, so does clicking
     // anywhere else. Clicking the tool's button again brings them back (or hides them).
     const toolPop = document.getElementById('tool-pop');
-    const POP_FOR = { 'btn-highlight': 'hl', 'btn-draw': 'pen', 'btn-text': 'text', 'btn-add-text': 'text', 'btn-comment': 'markup' };
+    const POP_FOR = { 'btn-highlight': 'hl', 'btn-draw': 'pen', 'btn-text': 'text', 'btn-add-text': 'text', 'btn-comment': 'markup', 'btn-measure': 'measure' };
     let popFor = null;   // id of the button the popover belongs to
     function showToolPop(id) {
       const which = POP_FOR[id];
@@ -3181,6 +3319,7 @@
       panelText.style.display = which === 'text' ? 'block' : 'none';
       panelDraw.style.display = which === 'hl' || which === 'pen' ? 'block' : 'none';
       document.getElementById('panel-markup').style.display = which === 'markup' ? 'block' : 'none';
+      document.getElementById('panel-measure').style.display = which === 'measure' ? 'block' : 'none';
       document.getElementById('opts-hl').style.display = which === 'hl' ? 'block' : 'none';
       document.getElementById('opts-pen').style.display = which === 'pen' ? 'block' : 'none';
       toolPop.classList.add('open'); popFor = id;
@@ -3233,7 +3372,7 @@
           else { el = document.createElement('input'); el.type = f.type || 'text'; el.placeholder = f.hint || ''; if (f.min !== undefined) { el.min = f.min; el.max = f.max; el.step = f.step || 1; } }
           if (f.type === 'checkbox') { el.checked = !!f.value; row.classList.add('field-check'); }
           else if (f.value !== undefined) el.value = f.value;
-          if (f.onchange) el.addEventListener('change', () => f.onchange(el, inputs));
+          if (f.onchange) { el.addEventListener('change', () => f.onchange(el, inputs)); if (f.init) setTimeout(() => f.onchange(el, inputs)); }
           inputs[f.key] = el; row.append(el); dlg.append(row);
         });
         const act = document.createElement('div'); act.className = 'dialog-actions';
@@ -3324,6 +3463,663 @@
       showToast(targets.length > 1 ? `Added to all ${targets.length} files. Save or Convert all to keep them` : 'Added. Save to keep it');
     }
     document.getElementById('btn-watermark').addEventListener('click', doWatermark);
+
+    // ---------- pages in a scrolling column (side by side, reading view) ----------
+    // Every page gets a placeholder of its shape at once; only pages near the screen are drawn, and pages
+    // far away give their pictures back, so even very long files scroll smoothly.
+    function pageColumn(box, doc, { width, onPage, decorate } = {}) {
+      box.innerHTML = '';
+      const slots = [], drawn = new Map();
+      let w = width(), alive = true, lastPage = 0;
+      const io = new IntersectionObserver(entries => entries.forEach(en => {
+        const n = +en.target.dataset.n;
+        if (en.isIntersecting) draw(n); else forget(n);
+      }), { root: box, rootMargin: '120% 0px' });
+      async function draw(n) {
+        if (drawn.has(n) || !alive) return;
+        const slot = slots[n - 1], job = { task: null };
+        drawn.set(n, job);
+        const page = await doc.getPage(n);
+        if (drawn.get(n) !== job) return;
+        const v1 = page.getViewport({ scale: 1 });
+        const vp = page.getViewport({ scale: w * devicePixelRatio / v1.width });
+        const c = document.createElement('canvas'); c.width = Math.ceil(vp.width); c.height = Math.ceil(vp.height);
+        job.task = page.render({ canvasContext: c.getContext('2d'), viewport: vp, annotationMode: pdfjsLib.AnnotationMode.ENABLE });
+        try { await job.task.promise; } catch (e) { return; }
+        if (drawn.get(n) !== job) return;
+        slot.querySelector('canvas')?.remove(); slot.prepend(c);
+      }
+      function forget(n) {
+        const job = drawn.get(n); if (!job) return;
+        if (job.task) job.task.cancel();
+        drawn.delete(n); slots[n - 1].querySelector('canvas')?.remove();
+      }
+      const size = slot => { slot.style.width = w + 'px'; slot.style.height = w * slot.dataset.ar + 'px'; };
+      const ready = (async () => {
+        const first = (await doc.getPage(1)).getViewport({ scale: 1 });
+        for (let n = 1; n <= doc.numPages; n++) {   // every page's shape first (as the first page's), then the real ones
+          const s = document.createElement('div'); s.className = 'col-page'; s.dataset.n = n; s.dataset.ar = first.height / first.width;
+          s.innerHTML = `<span class="col-num">${n}</span>`;
+          size(s); if (decorate) decorate(s, n);
+          box.append(s); slots.push(s);
+        }
+        slots.forEach(s => io.observe(s));
+        for (let n = 2; n <= doc.numPages && alive; n++) {
+          const v = (await doc.getPage(n)).getViewport({ scale: 1 });
+          const ar = v.height / v.width;
+          if (Math.abs(ar - slots[n - 1].dataset.ar) > 0.001) { slots[n - 1].dataset.ar = ar; size(slots[n - 1]); }
+        }
+      })();
+      const current = () => {   // the page that fills the middle of the view
+        const mid = box.getBoundingClientRect().top + box.clientHeight / 2;
+        let best = 1;
+        for (const s of slots) { const r = s.getBoundingClientRect(); if (r.top <= mid) best = +s.dataset.n; else break; }
+        return best;
+      };
+      box.onscroll = () => { const n = current(); if (n !== lastPage) { lastPage = n; onPage && onPage(n); } };
+      return {
+        ready, current,
+        scrollTo: async (n, smooth) => { await ready; const s = slots[n - 1]; if (s) box.scrollTo({ top: s.offsetTop - 14, behavior: smooth ? 'smooth' : 'auto' }); },
+        setWidth: nw => {
+          const n = current(); w = nw;
+          slots.forEach(size); [...drawn.keys()].forEach(forget);
+          slots.forEach(s => { io.unobserve(s); io.observe(s); });
+          const s = slots[n - 1]; if (s) box.scrollTop = s.offsetTop - 14;
+        },
+        destroy: () => { alive = false; io.disconnect(); [...drawn.keys()].forEach(forget); box.innerHTML = ''; box.onscroll = null; },
+      };
+    }
+
+    // a file on this PC as a PDF path the viewer can show (other formats are converted first)
+    async function pdfPathFor(path) {
+      if (/\.pdf$/i.test(path)) {
+        const d = await api('process_file', { filepath: path });
+        if (d.needs_password) { showToast('That PDF has a password. Open it in a tab first', true); return null; }
+        return d.pdf_path || path;
+      }
+      showToast('Opening it...');
+      const d = await api('process_file', { filepath: path });
+      if (!d.pdf_path) { showToast(d.error || "Couldn't open that file", true); return null; }
+      return d.pdf_path;
+    }
+    // pick one of this tab's other files, or a file on the PC: { path (a PDF), name }
+    async function pickSourceFile(title, okLabel, extra = []) {
+      const others = fileQueue.filter(f => f.status === 'ready' && f.originalPath !== currentActiveFile);
+      const v = await askDialog(title, [{ key: 'f', label: 'File', type: 'select',
+        options: others.map((f, i) => [String(i), f.name]).concat([['pc', 'A file on this PC...']], extra) }], okLabel);
+      if (!v) return null;
+      if (v.f === 'pc') {
+        const p = await pickFile(); if (!p) return null;
+        const pdf = await pdfPathFor(p); return pdf ? { path: pdf, name: p.split(/[\\/]/).pop() } : null;
+      }
+      if (extra.some(e => e[0] === v.f)) return { choice: v.f };
+      const f = others[+v.f]; return { path: f.pdfPath, name: f.name };
+    }
+
+    // ---------- side by side ----------
+    let side = null;   // { col, doc, path, name }
+    async function openSideBySide() {
+      if (!await needDoc()) return;
+      const pick = await pickSourceFile('Show next to this file', 'Show', [['self', 'This same file (to see two places at once)']]);
+      if (!pick) return;
+      const self = pick.choice === 'self';
+      showSide(self ? currentTempPdf : pick.path, self ? (fileQueue.find(f => f.originalPath === currentActiveFile) || {}).name : pick.name);
+    }
+    async function showSide(path, name) {
+      closeSide(true);
+      const view = document.getElementById('side-view'), body = view.querySelector('.sv-body');
+      const doc = await pdfjsLib.getDocument({ data: new Uint8Array(fs.readFileSync(path)) }).promise;
+      view.classList.add('open');
+      view.querySelector('.sv-name').textContent = name || 'File';
+      view.querySelector('.sv-name').title = name || '';
+      const pageText = n => view.querySelector('.sv-page').textContent = `Page ${n} of ${doc.numPages}`;
+      const col = pageColumn(body, doc, {
+        width: () => Math.max(160, body.clientWidth - 34),
+        onPage: pageText,
+        decorate: (slot, n) => {
+          slot.draggable = true;
+          slot.title = 'Drag onto the pages on the left to copy it in';
+          slot.addEventListener('dragstart', e => { e.dataTransfer.setData('application/x-mypdf-page', JSON.stringify({ path, page: n })); e.dataTransfer.effectAllowed = 'copy'; });
+          const b = document.createElement('button'); b.className = 'col-copy'; b.title = 'Copy this page into the file on the left, after the page showing there';
+          b.innerHTML = '<svg class="ico"><use href="#i-plus"/></svg>Copy in';
+          b.addEventListener('click', e => { e.stopPropagation(); insertPagesFrom(path, [n], pageNum); });
+          slot.append(b);
+        },
+      });
+      pageText(1);
+      side = { col, doc, path, name };
+      renderPage(pageNum);   // the main page fits the narrower space
+      if (document.getElementById('sv-sync').checked) col.scrollTo(pageNum);
+    }
+    function closeSide(keepMain) {
+      if (!side) return;
+      side.col.destroy(); side.doc.destroy(); side = null;
+      document.getElementById('side-view').classList.remove('open');
+      if (!keepMain && currentPdfDoc) renderPage(pageNum);
+    }
+    document.querySelector('#side-view .sv-close').addEventListener('click', () => closeSide());
+    document.getElementById('btn-side').addEventListener('click', () => side ? closeSide() : openSideBySide());
+    document.getElementById('sv-sync').addEventListener('change', e => { if (e.target.checked && side) side.col.scrollTo(pageNum); });
+    (() => {   // drag the panel's edge to make it wider or narrower
+      const view = document.getElementById('side-view'); let x0 = null, w0 = 0;
+      view.querySelector('.sv-resize').addEventListener('mousedown', e => { x0 = e.clientX; w0 = view.offsetWidth; e.preventDefault(); });
+      window.addEventListener('mousemove', e => { if (x0 !== null) view.style.width = Math.max(260, w0 + x0 - e.clientX) + 'px'; });
+      window.addEventListener('mouseup', () => {
+        if (x0 === null) return; x0 = null;
+        if (side) side.col.setWidth(Math.max(160, view.querySelector('.sv-body').clientWidth - 34));
+        if (currentPdfDoc) renderPage(pageNum);
+      });
+    })();
+    // things that follow the page on screen
+    function pageChanged(num) {
+      if (side && document.getElementById('sv-sync').checked && side.doc.numPages >= num) side.col.scrollTo(num, true);
+      document.querySelectorAll('.bm-row').forEach(r => r.classList.toggle('here', +r.dataset.page === num));
+      if (num !== lastShownPage && currentTool === 'measure') clearMeasure();
+      lastShownPage = num;
+    }
+    let lastShownPage = 0;
+
+    // ---------- insert pages from another file ----------
+    async function insertPagesFrom(source, pages, at) {
+      await syncEditsToPython();
+      pushHistory();
+      const d = await api('insert_pages', { filepath: currentTempPdf, source, pages, at });
+      if (d.success) pageNum = at + 1;
+      await takeNewFile(d, d.success ? `Added ${d.count} ${d.count === 1 ? 'page' : 'pages'}. Ctrl+Z takes ${d.count === 1 ? 'it' : 'them'} out` : '');
+    }
+    async function doInsertPages() {
+      if (!await needDoc()) return;
+      const pick = await pickSourceFile('Insert pages from', 'Next');
+      if (!pick) return;
+      const src = await pdfjsLib.getDocument({ data: new Uint8Array(fs.readFileSync(pick.path)) }).promise;
+      const count = src.numPages; src.destroy();
+      const n = currentPdfDoc.numPages;
+      const v = await askDialog(`Insert from ${pick.name}`, [
+        { key: 'which', label: 'Pages', type: 'select', init: true, options: [['all', count === 1 ? 'Its page' : `All ${count} pages`], ['some', 'Some pages...']],
+          onchange: (el, inp) => { inp.list.parentElement.style.display = el.value === 'some' ? '' : 'none'; } },
+        { key: 'list', label: `Which (1 to ${count})`, hint: 'e.g. 1-3, 5' },
+        { key: 'where', label: 'Put them', type: 'select', init: true, options: [['after', `After this page (${pageNum})`], ['start', 'At the start'], ['end', 'At the end'], ['before', 'Before page...']],
+          onchange: (el, inp) => { inp.at.parentElement.style.display = el.value === 'before' ? '' : 'none'; } },
+        { key: 'at', label: `Before page (1 to ${n})`, type: 'number', min: 1, max: n, value: pageNum },
+      ], 'Insert');
+      if (!v) return;
+      let pages = null;
+      if (v.which === 'some') { pages = parsePages(v.list || '', count); if (!pages) return showToast(`Type pages from 1 to ${count}, like 1-3, 5`, true); }
+      const at = { after: pageNum, start: 0, end: n, before: Math.max(1, Math.min(n, +v.at || 1)) - 1 }[v.where];
+      insertPagesFrom(pick.path, pages, at);
+    }
+    document.getElementById('btn-insert').addEventListener('click', () => doInsertPages());
+    document.getElementById('btn-insert-more').addEventListener('click', () => doInsertPages());
+    // files dragged from Explorer, or pages from the side-by-side view, dropped between the thumbnails
+    (() => {
+      const bar = document.getElementById('thumbnail-sidebar');
+      const ours = e => e.dataTransfer.types.includes('Files') || e.dataTransfer.types.includes('application/x-mypdf-page');
+      const spot = e => {
+        const w = e.target.closest('.thumb-wrapper');
+        if (!w) return { at: currentPdfDoc.numPages, w: null };
+        const r = w.getBoundingClientRect(), after = e.clientY > r.top + r.height / 2;
+        return { at: +w.dataset.pageIndex + (after ? 1 : 0), w, after };
+      };
+      const unmark = () => document.querySelectorAll('.thumb-wrapper').forEach(x => x.classList.remove('drag-over', 'drag-over-bottom'));
+      bar.addEventListener('dragover', e => {
+        if (!ours(e)) return;
+        e.preventDefault(); e.stopPropagation(); e.dataTransfer.dropEffect = 'copy';
+        unmark(); const s = spot(e); if (s.w) s.w.classList.add(s.after ? 'drag-over-bottom' : 'drag-over');
+      }, true);
+      bar.addEventListener('dragleave', e => { if (!bar.contains(e.relatedTarget)) unmark(); });
+      bar.addEventListener('drop', async e => {
+        if (!ours(e)) return;
+        e.preventDefault(); e.stopPropagation(); unmark();
+        const { at } = spot(e);
+        const page = e.dataTransfer.getData('application/x-mypdf-page');
+        if (page) { const p = JSON.parse(page); return insertPagesFrom(p.path, [p.page], at); }
+        const paths = [...e.dataTransfer.files].map(f => webUtils.getPathForFile(f)).filter(Boolean);
+        for (const p of paths.reverse()) {   // each at the same spot, last first, so they end up in order
+          const pdf = await pdfPathFor(p);
+          if (pdf) await insertPagesFrom(pdf, null, at);
+        }
+      }, true);
+    })();
+
+    // ---------- page size and margins ----------
+    async function doPageSize() {
+      if (!await needDoc()) return;
+      const picked = selectedPages.size ? [...selectedPages] : null, n = currentPdfDoc.numPages;
+      const show = (inp, mode) => {
+        for (const k of ['paper', 'orient', 'fit']) inp[k].parentElement.style.display = mode === 'paper' ? '' : 'none';
+        inp.margin.parentElement.style.display = mode === 'paper' ? 'none' : '';
+        inp.margin.previousElementSibling.textContent = mode === 'trim' ? 'White space to leave around the content' : 'Margin to add';
+      };
+      const v = await askDialog('Page size and margins', [
+        { key: 'mode', label: 'Do', type: 'select', init: true, options: [['paper', 'Change the paper size'], ['trim', 'Trim the white margins'], ['margin', 'Add white margins']], onchange: (el, inp) => show(inp, el.value) },
+        { key: 'paper', label: 'Paper', type: 'select', options: Object.keys(PAPER).map(p => [p, p]), value: /^(en-US|en-CA|es-MX)/.test(navigator.language) ? 'Letter' : 'A4' },
+        { key: 'orient', label: 'Orientation', type: 'select', options: [['auto', 'Same as each page'], ['portrait', 'Portrait'], ['landscape', 'Landscape']] },
+        { key: 'fit', label: 'Content', type: 'select', options: [['fit', 'Grow or shrink to fit the paper'], ['actual', 'Keep its actual size, centered']] },
+        { key: 'margin', label: 'Margin', type: 'select', value: '18', options: [['0', 'None'], ['9', 'Small (1/8 inch)'], ['18', 'Medium (1/4 inch)'], ['36', 'Large (1/2 inch)'], ['72', '1 inch']] },
+        { key: 'pages', label: 'Pages', type: 'select', value: picked ? 'picked' : 'all', options: [['all', n === 1 ? 'The page' : `All ${n} pages`], ['current', `This page (${pageNum})`]].concat(picked ? [['picked', `The ${picked.length} picked ${picked.length === 1 ? 'page' : 'pages'}`]] : []) },
+      ], 'Apply');
+      if (!v) return;
+      showToast('Changing the pages...');
+      pushHistory();
+      const d = await api('page_size', { filepath: currentTempPdf, mode: v.mode, paper: v.paper, orient: v.orient, fit: v.fit, margin: +v.margin,
+        pages: v.pages === 'current' ? [pageNum] : v.pages === 'picked' ? picked : null });
+      await takeNewFile(d, d.message || 'Done. Ctrl+Z puts it back');
+    }
+    document.getElementById('btn-pagesize').addEventListener('click', doPageSize);
+
+    // ---------- bookmarks ----------
+    let bookmarks = [];
+    const railBm = document.getElementById('rail-bookmarks');
+    function openBookmarks(on) {
+      on = on === undefined ? !rootEl.classList.contains('bm-open') : on;
+      rootEl.classList.toggle('bm-open', on); railBm.classList.toggle('active', on); remember('bm-open', on);
+      if (on) refreshBookmarks();
+      if (currentPdfDoc) renderPage(pageNum);
+    }
+    railBm.addEventListener('click', () => openBookmarks());
+    try { if (localStorage.getItem('bm-open') === '1') { rootEl.classList.add('bm-open'); railBm.classList.add('active'); } } catch (e) {}
+    async function refreshBookmarks() {
+      if (!rootEl.classList.contains('bm-open') || !currentTempPdf) return;
+      const path = currentTempPdf, d = await api('toc', { filepath: path });
+      if (path !== currentTempPdf) return;
+      bookmarks = d.toc || []; drawBookmarks();
+    }
+    function drawBookmarks() {
+      const list = document.getElementById('bm-list'); list.innerHTML = '';
+      if (!bookmarks.length) { list.innerHTML = '<div class="bm-empty">No bookmarks yet. Add one for this page, or press Auto to make them from the headings.</div>'; return; }
+      bookmarks.forEach((b, i) => {
+        const row = document.createElement('div'); row.className = 'bm-row' + (b.page === pageNum ? ' here' : ''); row.dataset.page = b.page;
+        row.style.paddingLeft = (6 + (b.level - 1) * 14) + 'px';
+        row.innerHTML = `<span class="bm-title"></span><span class="bm-pg">${b.page}</span><span class="bm-act">
+          <button data-a="out" title="Move left (one level up)">&#8592;</button><button data-a="in" title="Move right (under the one above)">&#8594;</button>
+          <button data-a="ren" title="Rename">&#9998;</button><button data-a="del" title="Delete">&#x2715;</button></span>`;
+        row.querySelector('.bm-title').textContent = b.title; row.title = `${b.title} (page ${b.page})`;
+        row.addEventListener('click', async e => {
+          const a = e.target.closest('button')?.dataset.a;
+          if (!a) { await syncEditsToPython(); pageNum = Math.min(b.page, currentPdfDoc.numPages); return renderPage(pageNum); }
+          e.stopPropagation();
+          if (a === 'del') bookmarks.splice(i, 1);
+          else if (a === 'out') { if (b.level === 1) return; b.level--; for (let k = i + 1; k < bookmarks.length && bookmarks[k].level > b.level + 1; k++) bookmarks[k].level--; }
+          else if (a === 'in') { const max = i ? bookmarks[i - 1].level + 1 : 1; if (b.level >= max) return; b.level++; }
+          else if (a === 'ren') return renameBookmark(row, b);
+          saveBookmarks();
+        });
+        row.addEventListener('dblclick', e => { e.stopPropagation(); renameBookmark(row, b); });
+        list.append(row);
+      });
+    }
+    function renameBookmark(row, b) {
+      const t = row.querySelector('.bm-title'), inp = document.createElement('input');
+      inp.className = 'bm-title-edit'; inp.value = b.title; t.replaceWith(inp); inp.focus(); inp.select();
+      let done = false;
+      const finish = ok => { if (done) return; done = true; if (ok && inp.value.trim() && inp.value.trim() !== b.title) { b.title = inp.value.trim(); saveBookmarks(); } else drawBookmarks(); };
+      inp.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') finish(true); if (e.key === 'Escape') finish(false); });
+      inp.addEventListener('blur', () => finish(true));
+      inp.addEventListener('click', e => e.stopPropagation());
+    }
+    async function saveBookmarks() {
+      await syncEditsToPython();
+      pushHistory();
+      await takeNewFile(await api('set_toc', { filepath: currentTempPdf, toc: bookmarks }));
+    }
+    document.getElementById('bm-add').addEventListener('click', async () => {
+      if (!await needDoc()) return;
+      // the biggest words on the page make a good name
+      const tc = await (await currentPdfDoc.getPage(pageNum)).getTextContent();
+      const sized = tc.items.filter(it => it.str.trim()).map(it => ({ s: it.str.trim(), h: Math.hypot(it.transform[2], it.transform[3]) }));
+      const top = sized.sort((a, b) => b.h - a.h)[0];
+      const v = await askDialog(`Bookmark page ${pageNum}`, [{ key: 't', label: 'Name', value: top ? top.s.slice(0, 80) : `Page ${pageNum}` }], 'Add');
+      if (!v || !v.t.trim()) return;
+      let i = bookmarks.findIndex(b => b.page > pageNum); if (i < 0) i = bookmarks.length;
+      const level = i ? Math.min(bookmarks[i - 1].level, 1) : 1;
+      bookmarks.splice(i, 0, { level, title: v.t.trim(), page: pageNum });
+      saveBookmarks();
+    });
+    document.getElementById('bm-auto').addEventListener('click', async () => {
+      if (!await needDoc()) return;
+      const d = await api('auto_toc', { filepath: currentTempPdf });
+      if (!d.toc || !d.toc.length) return showToast("Couldn't find headings in this PDF. Add bookmarks by hand instead", true);
+      if (bookmarks.length && !await askDialog(`Replace the ${bookmarks.length} bookmarks with ${d.toc.length} made from the headings?`, [], 'Replace')) return;
+      bookmarks = d.toc; await saveBookmarks();
+      showToast(`Made ${d.toc.length} bookmarks from the headings`);
+    });
+
+    // ---------- dark pages ----------
+    const railDark = document.getElementById('rail-dark');
+    const setDark = on => { rootEl.classList.toggle('dark-pages', on); railDark.classList.toggle('active', on); remember('dark-pages', on); };
+    railDark.addEventListener('click', () => setDark(!rootEl.classList.contains('dark-pages')));
+    try { if (localStorage.getItem('dark-pages') === '1') setDark(true); } catch (e) {}
+
+    // ---------- reading view ----------
+    let reader = null;
+    async function openReader() {
+      if (!await needDoc()) return;
+      let el = document.getElementById('reader');
+      if (!el) {
+        el = document.createElement('div'); el.id = 'reader';
+        el.innerHTML = `<div class="rd-head"><svg class="ico"><use href="#i-book"/></svg><span class="rd-name"></span><span class="rd-page"></span><span class="spacer"></span>
+          <button class="icon-tool rd-out" title="Smaller (-)"><svg class="ico"><use href="#i-zout"/></svg></button>
+          <button class="icon-tool rd-in" title="Bigger (+)"><svg class="ico"><use href="#i-zin"/></svg></button>
+          <button class="icon-tool rd-dark" title="Dark pages"><svg class="ico"><use href="#i-moon"/></svg></button>
+          <button class="btn quiet rd-exit" title="Back to editing (Esc)">Exit reading view</button></div><div class="rd-body"></div>`;
+        document.body.append(el);
+        el.querySelector('.rd-exit').onclick = closeReader;
+        el.querySelector('.rd-dark').onclick = () => setDark(!rootEl.classList.contains('dark-pages'));
+        el.querySelector('.rd-in').onclick = () => zoomReader(1.15);
+        el.querySelector('.rd-out').onclick = () => zoomReader(1 / 1.15);
+      }
+      const body = el.querySelector('.rd-body'), doc = currentPdfDoc;
+      el.querySelector('.rd-name').textContent = (fileQueue.find(f => f.originalPath === currentActiveFile) || {}).name || '';
+      el.classList.add('open');
+      const pageText = n => el.querySelector('.rd-page').textContent = `Page ${n} of ${doc.numPages}`;
+      let zoom = 1;
+      try { zoom = +localStorage.getItem('reader-zoom') || 1; } catch (e) {}
+      const width = () => Math.min(body.clientWidth - 40, 860) * zoom;
+      reader = { el, zoom, col: pageColumn(body, doc, { width, onPage: n => { reader.page = n; pageText(n); } }), page: pageNum, width };
+      pageText(pageNum);
+      reader.col.scrollTo(pageNum);
+      body.tabIndex = -1; body.focus();
+    }
+    function zoomReader(f) {
+      if (!reader) return;
+      const z = Math.max(0.4, Math.min(3, reader.zoom * f)); reader.zoom = z;
+      try { localStorage.setItem('reader-zoom', z); } catch (e) {}
+      const body = reader.el.querySelector('.rd-body');
+      reader.col.setWidth(Math.min(body.clientWidth - 40, 860) * z);
+    }
+    async function closeReader() {
+      if (!reader) return;
+      const n = reader.page || pageNum;
+      reader.col.destroy(); reader.el.classList.remove('open'); reader = null;
+      if (n !== pageNum) { pageNum = n; renderPage(n); }
+    }
+    document.getElementById('btn-read').addEventListener('click', openReader);
+    document.addEventListener('keydown', e => {
+      if (e.key === 'F11') { e.preventDefault(); return reader ? closeReader() : openReader(); }
+      if (!reader) return;
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeReader(); }
+      else if ((e.key === '+' || e.key === '=') && !e.ctrlKey) zoomReader(1.15);
+      else if (e.key === '-' && !e.ctrlKey) zoomReader(1 / 1.15);
+    }, true);
+    window.addEventListener('resize', () => { if (reader) reader.col.setWidth(reader.width()); if (side) side.col.setWidth(Math.max(160, document.querySelector('#side-view .sv-body').clientWidth - 34)); });
+
+    // ---------- digital IDs and certificate signatures ----------
+    const loadIds = () => { try { return JSON.parse(localStorage.getItem('digital-ids')) || []; } catch (e) { return []; } };
+    const saveIds = ids => { try { localStorage.setItem('digital-ids', JSON.stringify(ids)); } catch (e) {} };
+    async function makeDigitalId() {
+      const v = await askDialog('Make your digital ID', [
+        { key: 'name', label: 'Your name (shown in the signature)', value: '' },
+        { key: 'email', label: 'Email (optional)' },
+        { key: 'org', label: 'Company (optional)' },
+        { key: 'pw', label: 'Password to protect it', type: 'password' },
+        { key: 'pw2', label: 'Password again', type: 'password' },
+        { key: 'note', label: 'It is saved on this PC. People you send PDFs to can check nothing changed after you signed; to have their PDF reader trust it fully, they add your ID once.', type: 'hidden' },
+      ], 'Make it');
+      if (!v) return null;
+      if (!v.name.trim()) { showToast('Enter your name', true); return null; }
+      if (!v.pw || v.pw !== v.pw2) { showToast(v.pw ? "The passwords don't match" : 'Choose a password', true); return null; }
+      const dir = require('path').join(await ipcRenderer.invoke('user-data'), 'digital-ids');
+      const out = require('path').join(dir, v.name.trim().replace(/[\\/:*?"<>|]+/g, '-') + ' ' + Date.now() + '.pfx');
+      const d = await api('cert_make', { name: v.name.trim(), email: v.email.trim(), org: v.org.trim(), password: v.pw, out });
+      if (!d.success) { showToast(d.error || "Couldn't make it", true); return null; }
+      const ids = loadIds(); ids.push({ path: d.path, name: v.name.trim() + (v.email.trim() ? ` <${v.email.trim()}>` : '') }); saveIds(ids);
+      showToast('Your digital ID is ready');
+      return { path: d.path, password: v.pw };
+    }
+    async function doCertSign() {
+      if (!await needDoc()) return;
+      let ids = loadIds().filter(x => fs.existsSync(x.path)); saveIds(ids);
+      let id = null;
+      if (!ids.length) {
+        const first = await askDialog('Sign with a digital ID', [{ key: 'how', label: "You don't have a digital ID on this PC yet", type: 'select',
+          options: [['new', 'Make my own digital ID'], ['file', 'Use an ID file I have (.pfx or .p12)']] }], 'Next');
+        if (!first) return;
+        if (first.how === 'new') { id = await makeDigitalId(); if (!id) return; }
+        else { const p = await pickFile('.pfx,.p12'); if (!p) return; ids = [{ path: p, name: p.split(/[\\/]/).pop() }]; }
+      }
+      const v = await askDialog('Sign with a digital ID', [
+        ...(id ? [] : [{ key: 'id', label: 'Digital ID', type: 'select', init: true, options: ids.map((x, i) => [String(i), x.name]).concat([['new', 'Make a new digital ID...'], ['file', 'Use an ID file (.pfx or .p12)...']]),
+          onchange: (el, inp) => { inp.password.parentElement.style.display = el.value === 'new' ? 'none' : ''; } },
+          { key: 'password', label: "The ID's password", type: 'password' }]),
+        { key: 'reason', label: 'Reason (optional)', hint: 'e.g. I approve this document' },
+        { key: 'location', label: 'Place (optional)', hint: 'e.g. Los Angeles' },
+        { key: 'box', label: 'Signature box', type: 'select', options: [['box', 'Show it on the page (drag where it goes)'], ['none', "Don't show a box"]] },
+      ], 'Sign');
+      if (!v) return;
+      if (!id) {
+        if (v.id === 'new') { id = await makeDigitalId(); if (!id) return; }
+        else if (v.id === 'file') {
+          const p = await pickFile('.pfx,.p12'); if (!p) return;
+          const pw = await askDialog('Password of this digital ID', [{ key: 'pw', label: 'Password', type: 'password' }], 'OK'); if (!pw) return;
+          id = { path: p, password: pw.pw };
+        } else id = { path: ids[+v.id].path, password: v.password };
+        const info = await api('cert_info', { pfx: id.path, password: id.password });
+        if (info.error) return showToast(info.error, true);
+        const all = loadIds(); if (!all.some(x => x.path === id.path)) { all.push({ path: id.path, name: info.name }); saveIds(all); }
+      }
+      const sign = async (rect, page) => {
+        showToast('Signing...');
+        const d = await api('sign_cert', { filepath: currentTempPdf, original_path: currentActiveFile, pfx: id.path, password: id.password,
+          page, rect, reason: v.reason.trim(), location: v.location.trim() });
+        if (!d.success) return showToast(d.error || "Couldn't sign", true);
+        showToast(d.message);
+        fileQueue.push({ name: d.path.split(/[\\/]/).pop(), originalPath: d.path, pdfPath: null, status: 'pending' });
+        renderQueueUI(); backgroundProcessQueue(); processAndLoad(d.path);
+      };
+      if (v.box === 'none') return sign(null, 0);
+      goTab('edit');
+      switchTool('btn-pointer', 'sigbox');
+      showToast('Drag a box where the signature goes');
+      areaDone = (rect) => {
+        if (rect[2] - rect[0] < 30 || rect[3] - rect[1] < 15) return showToast('Drag a bigger box', true);
+        areaDone = null; switchTool('btn-pointer', 'pointer');
+        sign(rect, pageNum - 1);
+      };
+    }
+    function sigVerdict(s) {
+      if (!s.intact) return ['bad', 'The file was changed after this signature, so it no longer matches'];
+      if (s.changed_after) return ['warn', 'The signature is good, but the file was changed after it was signed'];
+      if (!s.trusted) return ['warn', "The signature is good and nothing changed since, but the signer's ID isn't one this PC knows"];
+      return ['good', 'The signature is good and nothing changed since'];
+    }
+    async function checkSignatures(path) {
+      if (!path) { if (!await needDoc()) return; path = (fileQueue.find(f => f.originalPath === currentActiveFile) || {}).originalPath; }
+      if (!/\.pdf$/i.test(path || '')) return showToast("Only a PDF file can carry signatures. This one isn't saved as a PDF yet", true);
+      const d = await api('verify_signatures', { filepath: path, own_ids: loadIds().map(x => x.path) });
+      if (d.error) return showToast(d.error, true);
+      if (!d.signatures.length) return showToast("This PDF has no digital signatures");
+      const bd = document.createElement('div'); bd.className = 'backdrop';
+      bd.innerHTML = `<div class="dialog"><h3>Signatures in this PDF</h3><div class="sig-list"></div><div class="dialog-actions"><button class="btn primary">OK</button></div></div>`;
+      const list = bd.querySelector('.sig-list');
+      d.signatures.forEach(s => {
+        const [kind, text] = sigVerdict(s);
+        const it = document.createElement('div'); it.className = 'sig-item ' + kind;
+        it.innerHTML = `<b></b><div class="t"></div><div class="dim"></div>`;
+        it.querySelector('b').textContent = `Signed by ${s.signer}`;
+        it.querySelector('.t').textContent = text;
+        it.querySelector('.dim').textContent = [s.time, s.reason && `Reason: ${s.reason}`, `ID issued by: ${s.issuer}`].filter(Boolean).join(' · ');
+        list.append(it);
+      });
+      const close = () => bd.remove();
+      bd.querySelector('button').onclick = close;
+      bd.addEventListener('keydown', e => { if (e.key === 'Escape' || e.key === 'Enter') close(); });
+      document.body.append(bd); bd.querySelector('button').focus();
+    }
+    const sigChecked = new Map();   // path+time -> signatures
+    async function showSignatureBanner(pdfPath, bytes) {
+      const banner = document.getElementById('sig-banner'), f = fileQueue.find(x => x.originalPath === currentActiveFile);
+      banner.classList.remove('show');
+      if (!f || pdfPath !== f.originalPath || !/\.pdf$/i.test(pdfPath)) return;   // only for the file as it was opened
+      if (Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength).indexOf('/ByteRange') < 0) return;
+      const key = pdfPath + fs.statSync(pdfPath).mtimeMs;
+      let sigs = sigChecked.get(key);
+      if (!sigs) { const d = await api('verify_signatures', { filepath: pdfPath, own_ids: loadIds().map(x => x.path) }); sigs = d.signatures || []; sigChecked.set(key, sigs); }
+      if (!sigs.length || currentTempPdf !== pdfPath) return;
+      const verdicts = sigs.map(sigVerdict), worst = verdicts.find(v => v[0] === 'bad') || verdicts.find(v => v[0] === 'warn') || verdicts[0];
+      banner.className = 'show ' + worst[0];
+      banner.innerHTML = `<span></span><button>Details</button><button class="sb-x" title="Hide">&#x2715;</button>`;
+      banner.querySelector('.sb-x').onclick = () => banner.classList.remove('show');
+      banner.querySelector('span').textContent = (sigs.length === 1 ? `Signed by ${sigs[0].signer}. ` : `${sigs.length} signatures. `) + worst[1].replace(/^The signature is good, but /, 'But ');
+      banner.querySelector('button').onclick = () => checkSignatures(pdfPath);
+    }
+    document.getElementById('btn-cert-sign').addEventListener('click', doCertSign);
+    document.getElementById('btn-cert-check').addEventListener('click', () => checkSignatures());
+
+    // ---------- the same thing to many files ----------
+    const BATCH_ACTIONS = [['compress', 'Make them smaller'], ['shrink', 'Make each smaller than a size'], ['watermark', 'Add a text watermark'], ['number', 'Add page numbers'],
+      ['headfoot', 'Add a header or footer'], ['ocr', 'Recognize text (OCR)'], ['rotate', 'Turn every page'], ['scrub', 'Remove hidden information'],
+      ['protect', 'Protect with a password'], ['convert', 'Convert to PDF'], ['docx', 'Export to Word'], ['xlsx', 'Export to Excel'], ['pptx', 'Export to PowerPoint'], ['txt', 'Export to text']];
+    const BATCH_FIELDS = { shrink: ['target_mb'], watermark: ['text'], headfoot: ['header', 'footer'], rotate: ['angle'], protect: ['password'] };
+    async function doBatch() {
+      const inTab = fileQueue.map(f => f.originalPath);
+      const v = await askDialog('Do one thing to many files', [
+        { key: 'src', label: 'Files', type: 'select', options: (inTab.length ? [['tab', `The ${inTab.length} ${inTab.length === 1 ? 'file' : 'files'} in this tab`]] : []).concat([['folder', 'Every file in a folder...'], ['pick', 'Pick files...']]) },
+        { key: 'action', label: 'Do', type: 'select', init: true, options: BATCH_ACTIONS,
+          onchange: (el, inp) => { for (const k of ['target_mb', 'text', 'header', 'footer', 'angle', 'password']) inp[k].parentElement.style.display = (BATCH_FIELDS[el.value] || []).includes(k) ? '' : 'none'; } },
+        { key: 'target_mb', label: 'Under (MB)', type: 'number', min: 0.1, max: 2000, step: 0.1, value: 5 },
+        { key: 'text', label: 'Watermark text', value: 'CONFIDENTIAL' },
+        { key: 'header', label: 'Header', hint: 'Use {page} and {pages} for page numbers' },
+        { key: 'footer', label: 'Footer', value: 'Page {page} of {pages}' },
+        { key: 'angle', label: 'Turn', type: 'select', options: [['90', 'Right (clockwise)'], ['270', 'Left'], ['180', 'Upside down']] },
+        { key: 'password', label: 'Password', type: 'password' },
+      ], 'Start');
+      if (!v) return;
+      let files;
+      if (v.src === 'tab') files = inTab;
+      else if (v.src === 'folder') { const dir = await ipcRenderer.invoke('pick-folder'); if (!dir) return; files = [dir]; }
+      else { files = await ipcRenderer.invoke('pick-files'); if (!files || !files.length) return; }
+      const action = v.action === 'shrink' ? 'compress' : v.action;
+      const options = { target_mb: v.action === 'shrink' ? +v.target_mb : null, level: 'balanced', text: v.text, header: v.header, footer: v.footer, angle: +v.angle, password: v.password };
+      if (action === 'protect' && !v.password) return showToast('Enter a password', true);
+      const job = await api('batch_start', { files, action, options });
+      if (job.error) return showToast(job.error, true);
+      const label = BATCH_ACTIONS.find(a => a[0] === v.action)[1];
+      const bd = document.createElement('div'); bd.className = 'backdrop';
+      bd.innerHTML = `<div class="dialog"><h3></h3><div class="batch-bar"><div></div></div><div class="batch-now"></div><div class="batch-err"></div>
+        <div class="dialog-actions"><button class="btn quiet b-stop">Stop</button><button class="btn primary b-open" style="display:none">Open the folder</button><button class="btn b-close" style="display:none">Close</button></div></div>`;
+      bd.querySelector('h3').textContent = `${label}: ${job.total} ${job.total === 1 ? 'file' : 'files'}`;
+      document.body.append(bd);
+      let stop = false;
+      bd.querySelector('.b-stop').onclick = () => { stop = true; bd.querySelector('.b-stop').disabled = true; };
+      bd.querySelector('.b-close').onclick = () => bd.remove();
+      bd.querySelector('.b-open').onclick = () => { require('electron').shell.openPath(job.out_dir); bd.remove(); };
+      while (true) {
+        const st = await api('batch_status', { id: job.id, cancel: stop });
+        bd.querySelector('.batch-bar div').style.width = (100 * st.done / st.total) + '%';
+        bd.querySelector('.batch-now').textContent = st.finished ? `Done: ${st.saved} saved in "${job.out_dir.split(/[\\/]/).pop()}"${st.done < st.total ? ` (stopped after ${st.done})` : ''}` : `${st.done + 1} of ${st.total}: ${st.current}`;
+        bd.querySelector('.batch-err').textContent = st.errors.length ? `Skipped: ${st.errors.join('; ')}` : '';
+        if (st.finished) break;
+        await new Promise(r => setTimeout(r, 400));
+      }
+      bd.querySelector('.b-stop').style.display = 'none';
+      bd.querySelector('.b-open').style.display = ''; bd.querySelector('.b-close').style.display = '';
+      bd.querySelector('.b-open').focus();
+    }
+    document.getElementById('btn-batch').addEventListener('click', doBatch);
+
+    // ---------- measure ----------
+    // Lengths come from the page's own size (72 points to the inch) unless a scale is set by drawing a line
+    // of known length; the scale is kept per file.
+    const UNIT_PER_INCH = { in: 1, ft: 1 / 12, mm: 25.4, cm: 2.54, m: 0.0254 };
+    let measureMode = 'distance', mPts = [], mHover = null, mDone = null;
+    const mFile = () => fileQueue.find(f => f.originalPath === currentActiveFile) || {};
+    const mScale = () => mFile().measure || { inPerPt: 1 / 72, unit: document.getElementById('ms-unit').value || 'in' };
+    function mLen(pts) { let L = 0; for (let i = 1; i < pts.length; i++) L += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]); return L; }
+    function mArea(pts) { let A = 0; for (let i = 0; i < pts.length; i++) { const [x1, y1] = pts[i], [x2, y2] = pts[(i + 1) % pts.length]; A += x1 * y2 - x2 * y1; } return Math.abs(A) / 2; }
+    function mFmt(kind, pts) {
+      const s = mScale(), k = s.inPerPt * UNIT_PER_INCH[s.unit];
+      const num = v => v >= 100 ? v.toFixed(0) : v >= 10 ? v.toFixed(1) : v.toFixed(2);
+      if (kind === 'area') return `${num(mArea(pts) * k * k)} sq ${s.unit}`;
+      return `${num(mLen(pts) * k)} ${s.unit}`;
+    }
+    function updateScaleText() {
+      const s = mScale(), f = mFile();
+      document.getElementById('ms-unit').value = s.unit;
+      document.getElementById('ms-scale-text').textContent = f.measure ? `Scale set: 1 inch on the page = ${(72 * f.measure.inPerPt * UNIT_PER_INCH[s.unit]).toPrecision(3)} ${s.unit}` : 'Actual size of the page (no drawing scale set)';
+    }
+    function drawMeasure() {
+      const svg = document.getElementById('measure-layer'), k = currentRenderScale;
+      const pts = mDone ? mDone.pts : mPts.concat(mHover ? [mHover] : []);
+      const kind = mDone ? mDone.kind : measureMode;
+      if (!pts.length) { svg.innerHTML = ''; return; }
+      const P = pts.map(p => `${p[0] * k},${p[1] * k}`).join(' ');
+      const closed = kind === 'area' && pts.length > 2;
+      let html = closed ? `<polygon class="m-area" points="${P}"/>` : `<polyline class="m-line" points="${P}"/>`;
+      html += pts.map(p => `<circle class="m-dot" cx="${p[0] * k}" cy="${p[1] * k}" r="3.5"/>`).join('');
+      if (pts.length > 1 && kind !== 'calibrate') {
+        const at = closed ? [pts.reduce((a, p) => a + p[0], 0) / pts.length, pts.reduce((a, p) => a + p[1], 0) / pts.length] : pts[pts.length - 1];
+        html += `<text class="m-label" x="${at[0] * k + (closed ? 0 : 10)}" y="${at[1] * k - (closed ? 0 : 10)}" text-anchor="${closed ? 'middle' : 'start'}">${mFmt(kind, pts)}</text>`;
+      }
+      svg.innerHTML = html;
+    }
+    function clearMeasure() { mPts = []; mHover = null; mDone = null; document.getElementById('measure-bar').classList.remove('show'); drawMeasure(); }
+    async function finishMeasure() {
+      let pts = mPts.slice();
+      // a double-click lands two clicks on the same spot: keep one
+      pts = pts.filter((p, i) => !i || Math.hypot(p[0] - pts[i - 1][0], p[1] - pts[i - 1][1]) > 0.5);
+      const kind = measureMode, need = kind === 'area' ? 3 : 2;
+      mPts = []; mHover = null;
+      if (pts.length < need) { drawMeasure(); return; }
+      if (kind === 'calibrate') {
+        const len = mLen(pts);
+        const v = await askDialog('How long is that line in real life?', [{ key: 'n', label: 'Length', type: 'number', min: 0, step: 'any', value: '' },
+          { key: 'u', label: 'Units', type: 'select', value: mScale().unit, options: [['in', 'inches'], ['ft', 'feet'], ['mm', 'mm'], ['cm', 'cm'], ['m', 'meters']] }], 'Set scale');
+        measureMode = document.querySelector('.ms-mode.selected')?.dataset.mode || 'distance';
+        drawMeasure();
+        if (!v || !(+v.n > 0)) return;
+        const f = mFile(); f.measure = { inPerPt: (+v.n / UNIT_PER_INCH[v.u]) / len, unit: v.u };
+        updateScaleText(); showToast('Scale set. Measurements now use it');
+        return;
+      }
+      mDone = { kind, pts, label: mFmt(kind, pts) };
+      drawMeasure();
+      document.getElementById('measure-label').textContent = (kind === 'area' ? 'Area: ' : kind === 'path' ? 'Length: ' : 'Distance: ') + mDone.label +
+        (kind === 'area' ? ` (around: ${mFmt('path', pts.concat([pts[0]]))})` : '');
+      document.getElementById('measure-bar').classList.add('show');
+    }
+    function startMeasure() {
+      if (!currentTempPdf) return showToast('Open a file first', true);
+      goTab('edit'); switchTool('btn-measure', 'measure'); updateScaleText();
+    }
+    document.getElementById('btn-measure').addEventListener('click', () => { switchTool('btn-measure', 'measure'); updateScaleText(); });
+    document.querySelectorAll('.ms-mode').forEach(b => b.addEventListener('click', () => {
+      measureMode = b.dataset.mode; clearMeasure();
+      document.querySelectorAll('.ms-mode').forEach(x => x.classList.toggle('selected', x === b));
+      setTimeout(hideToolPop, 120);
+    }));
+    document.getElementById('ms-unit').addEventListener('change', e => { const f = mFile(); if (f.measure) f.measure.unit = e.target.value; updateScaleText(); drawMeasure(); });
+    document.getElementById('ms-calibrate').addEventListener('click', () => { measureMode = 'calibrate'; clearMeasure(); hideToolPop(); showToast('Click both ends of something whose real length you know'); });
+    (() => {
+      const svg = document.getElementById('measure-layer');
+      const at = e => { const r = svg.getBoundingClientRect(); return [(e.clientX - r.left) / currentRenderScale, (e.clientY - r.top) / currentRenderScale]; };
+      svg.addEventListener('mousedown', e => {
+        if (e.button !== 0) return;
+        e.preventDefault();
+        if (mDone) clearMeasure();
+        mPts.push(at(e));
+        if ((measureMode === 'distance' || measureMode === 'calibrate') && mPts.length === 2) finishMeasure(); else drawMeasure();
+      });
+      svg.addEventListener('dblclick', e => { e.preventDefault(); if (measureMode === 'path' || measureMode === 'area') finishMeasure(); });
+      svg.addEventListener('mousemove', e => { if (!mPts.length || mDone) return; mHover = at(e); drawMeasure(); });
+      svg.addEventListener('mouseleave', () => { mHover = null; drawMeasure(); });
+      document.addEventListener('keydown', e => {
+        if (currentTool !== 'measure' || /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) return;
+        if (e.key === 'Escape') clearMeasure();
+        if (e.key === 'Enter' && mPts.length) finishMeasure();
+      });
+    })();
+    document.getElementById('measure-clear').addEventListener('click', clearMeasure);
+    document.getElementById('measure-keep').addEventListener('click', async () => {
+      if (!mDone) return;
+      const m = mDone, pts = m.pts;
+      const label_at = m.kind === 'area' ? [pts.reduce((a, p) => a + p[0], 0) / pts.length - 20, pts.reduce((a, p) => a + p[1], 0) / pts.length]
+        : [pts[pts.length - 1][0] + 6, pts[pts.length - 1][1] - 6];
+      await syncEditsToPython();
+      pushHistory();
+      const d = await api('add_measure', { filepath: currentTempPdf, page: pageNum - 1, kind: m.kind, points: pts, label: m.label, label_at });
+      clearMeasure();
+      await takeNewFile(d, 'Measurement added to the page');
+    });
 
     // ---------- compare two files ----------
     async function doCompare() {
@@ -3470,7 +4266,8 @@
       merge: () => document.getElementById('btn-merge').click(), convert: () => document.getElementById('btn-process-all').click(),
       compress: () => document.getElementById('btn-compress').click(), split: () => document.getElementById('btn-split').click(),
       number: () => document.getElementById('btn-number').click(), delpages: showPageDelete,
-      exportall: doExportAll, extract: showPagePicking, ocr: doOcr, print: doPrint, fillform: startFilling, compare: doCompare, redact: startRedacting, comment: () => startMarkup(), template: doTemplate, watermark: doWatermark, edit: () => goTab('edit'), sign: () => { goTab('sign'); }
+      exportall: doExportAll, extract: showPagePicking, ocr: doOcr, print: doPrint, fillform: startFilling, compare: doCompare, redact: startRedacting, comment: () => startMarkup(), template: doTemplate, watermark: doWatermark, sidebyside: openSideBySide, insert: () => doInsertPages(), pagesize: doPageSize,
+      bookmarks: () => { goTab('edit'); openBookmarks(true); }, certsign: doCertSign, certcheck: () => checkSignatures(), batch: doBatch, read: openReader, measure: startMeasure, edit: () => goTab('edit'), sign: () => { goTab('sign'); }
     };
     // Delete pages: bring up the page thumbnails with their trash buttons showing for a moment
     async function showPageDelete() {

@@ -284,7 +284,7 @@ def page_info():
         for a in page.annots() or []:   # comments and markup, with what they say (shown on hover)
             text = (a.info.get('content') or '').strip()
             r = a.rect * page.rotation_matrix
-            notes.append({"xref": a.xref, "kind": a.type[1], "rect": [r.x0, r.y0, r.x1, r.y1], "text": text,
+            notes.append({"xref": a.xref, "kind": a.type[1], "rect": [r.x0, r.y0, r.x1, r.y1], "text": text, "subject": a.info.get('subject') or '',
                           "author": a.info.get('title') or ''})
         info = {"fields": _page_fields(page), "paragraphs": _paragraphs(page), "notes": notes}
         doc.close()
@@ -1187,6 +1187,49 @@ def _add_pen_shape(doc, page, outline, rgb, opacity, center=None, widths=None, i
         data = json.dumps({"p": [[round(x, 2), round(y, 2)] for x, y in center], "w": [round(w, 3) for w in widths], "t": tip or 'fountain'})
         doc.xref_set_key(a.xref, 'MyPDFKitInk', fitz.get_pdf_str(data))
     return a
+
+# ---------- shapes ----------
+LINE_SHAPES = {'line': (fitz.PDF_ANNOT_LE_NONE, fitz.PDF_ANNOT_LE_NONE), 'arrow': (fitz.PDF_ANNOT_LE_NONE, fitz.PDF_ANNOT_LE_CLOSED_ARROW),
+               'darrow': (fitz.PDF_ANNOT_LE_CLOSED_ARROW, fitz.PDF_ANNOT_LE_CLOSED_ARROW)}
+
+def _add_shape(doc, page, d, x_off=0, y_off=0):
+    pts = [(float(p[0]) + x_off, float(p[1]) + y_off) for p in d['points']]
+    rgb = parse_color(d.get('color') or '#111111')
+    fill = parse_color(d['fill']) if d.get('fill') else None
+    if d['kind'] in LINE_SHAPES:
+        a = page.add_line_annot(pts[0], pts[-1])
+        a.set_line_ends(*LINE_SHAPES[d['kind']])
+        a.set_colors(stroke=rgb, fill=rgb)
+    else:
+        if len(pts) > 2 and pts[0] == pts[-1]: pts = pts[:-1]
+        a = page.add_polygon_annot(pts)
+        a.set_colors(stroke=rgb, fill=fill)
+    a.set_border(width=max(0.25, float(d.get('size') or 1)))
+    a.set_opacity(float(d.get('opacity', 1)))
+    a.set_info(subject='Shape', title=os.environ.get('USERNAME', ''))
+    a.update()
+    keep = {k: d.get(k) for k in ('kind', 'box', 'color', 'fill', 'size', 'opacity')}
+    doc.xref_set_key(a.xref, 'MyPDFKitShape', fitz.get_pdf_str(json.dumps(keep)))
+    return a
+
+@app.route('/take_shape', methods=['POST'])
+def take_shape():
+    """A shape saved earlier comes out of the file so it can be moved, resized or recolored again."""
+    d = request.json; fp = d['filepath']
+    try:
+        doc = fitz.open(fp); page = doc[int(d['page'])]
+        for a in page.annots() or []:
+            if a.xref != int(d['xref']): continue
+            t, v = doc.xref_get_key(a.xref, 'MyPDFKitShape')
+            if t != 'string': break
+            shape = json.loads(v)
+            page.delete_annot(a)
+            out = _temp_out(fp, 'tshape', json.dumps(d))
+            doc.save(out, garbage=3, deflate=True); doc.close()
+            return jsonify({"success": True, "shape": shape, "new_file": out})
+        doc.close()
+        return jsonify({"success": True, "shape": None})
+    except Exception as e: return jsonify({"error": str(e)}), 500
 
 # ---------- the eraser, on pen strokes already in the file ----------
 def _dense(pts, step):
@@ -2218,8 +2261,9 @@ def burn_edits():
         hl_groups = {} 
         pens = []
 
-        polys = []
+        polys, shapes = [], []
         for draw in data.get('drawings', []):
+            if draw.get('type') == 'shape': shapes.append(draw); continue
             if draw.get('outline'):   # pens whose line gets thicker and thinner: the shape of the ink
                 polys.append(draw); continue
             if len(draw['points']) > 1:
@@ -2262,6 +2306,12 @@ def burn_edits():
                 doc.xref_set_key(annot.xref, 'MyPDFKitTip', '/' + re.sub(r'[^a-z]', '', str(draw.get('type') or 'pen')))
             except Exception as e:
                 print(f"Skipped pen: {e}")
+
+        for draw in shapes:   # drawn with the Shapes tool: standard PDF shapes, which MyPDFKit can open for editing again
+            try:
+                _add_shape(doc, page, draw, x_off, y_off)
+            except Exception as e:
+                print(f"Skipped shape: {e}")
 
         for draw in polys:
             try:

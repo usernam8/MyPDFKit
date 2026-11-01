@@ -197,7 +197,13 @@
     .tip:hover { transform:translateY(10px); }
     .tip.selected { transform:translateY(2px); }
     .tip svg { width:100%; height:100%; display:block; }
-    .size-row { display:flex; align-items:center; justify-content:space-between; margin:6px 12px; padding:4px 2px 8px; border-bottom:1px solid var(--line); }
+    .size-row { margin:6px 12px; padding:4px 2px 8px; border-bottom:1px solid var(--line); }
+    .size-dots { display:flex; align-items:center; justify-content:space-between; }
+    .size-slide { display:flex; align-items:center; gap:8px; margin-top:6px; }
+    .size-slide input { flex:1; min-width:60px; }
+    .size-val { min-width:44px; text-align:right; font-size:11.5px; color:var(--dim); font-variant-numeric:tabular-nums; }
+    .sig-tools .size-row { display:flex; align-items:center; gap:6px; }
+    .sig-tools .size-slide { margin:0; } .sig-tools .size-slide input { width:90px; flex:none; }
     .size-btn { width:36px; height:30px; border:0; border-radius:50%; background:transparent; cursor:pointer; display:flex; align-items:center; justify-content:center; }
     .size-btn span { display:block; width:18px; border-radius:3px; background:var(--accent); }
     .size-btn.selected { box-shadow:inset 0 0 0 1.5px var(--danger, #e05252); }
@@ -657,6 +663,21 @@
     #speak-bar .pen-ibtn.big { width:36px; height:36px; border-radius:50%; background:var(--accent); color:var(--accent-ink); }
     #sp-now { max-width:360px; min-width:120px; margin:0 8px; font-size:12px; color:var(--dim); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     #sp-voice { max-width:150px; }
+    /* shapes */
+    body.tool-shape #event-glass { z-index:10; pointer-events:auto; cursor:crosshair; }
+    body.tool-shape #text-layer { pointer-events:none !important; }
+    .shape-grid { display:grid; grid-template-columns:repeat(6, 1fr); gap:2px; margin:6px 12px 8px; }
+    .shape-btn { height:30px; border:1px solid transparent; border-radius:5px; background:transparent; color:var(--text); cursor:pointer; padding:0; display:flex; align-items:center; justify-content:center; }
+    .shape-btn:hover { background:var(--raised); }
+    .shape-btn.selected { border-color:var(--accent); background:var(--accent-soft); color:var(--accent); }
+    .shape-btn svg { width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:1.5; stroke-linejoin:round; }
+    .sh-label { margin:8px 16px 4px; font-size:11.5px; color:var(--dim); }
+    #shape-fill .ink-dot.none { background:linear-gradient(135deg, transparent 45%, #e05252 45%, #e05252 55%, transparent 55%), var(--raised); }
+    #shape-sel { position:absolute; z-index:12; display:none; border:1px dashed #2f6fd0; pointer-events:none; }
+    #shape-sel.show { display:block; }
+    #shape-sel.line { border-color:transparent; }
+    .sh-h { position:absolute; width:10px; height:10px; margin:-6px 0 0 -6px; background:#fff; border:1.5px solid #2f6fd0; border-radius:50%; pointer-events:auto; }
+    .sh-del { position:absolute; right:-12px; top:-30px; width:22px; height:22px; border:0; border-radius:50%; background:#e05252; color:#fff; font:700 11px Segoe UI, sans-serif; cursor:pointer; pointer-events:auto; box-shadow:0 2px 6px rgba(0,0,0,.3); }
     .field-check { display:flex; flex-direction:row-reverse; justify-content:flex-end; align-items:center; gap:8px; }
     .field-check label { margin:0; }
     .sig-remember { display:flex; align-items:center; gap:6px; margin-top:10px; font-size:12.5px; color:var(--dim); }
@@ -805,7 +826,7 @@
     <button id="btn-save-modified" class="icon-tool" title="Save as a new PDF next to the original (Ctrl+S)"><svg class="ico"><use href="#i-save"/></svg></button>
   </div>
 
-  <div id="tools-view"><div class="tv-inner"><input id="tool-search" placeholder="Find any tool" spellcheck="false"><div id="recent-files"><div class="rf-head"><span>Recent</span><button id="rf-clear">Clear</button></div><div class="rf-list"></div></div><div class="tv-grid"><button class="tool-card" data-tool="create"><span class="tc-ico"><svg class="ico"><use href="#i-extract"/></svg></span><span>Create a PDF</span></button><button class="tool-card" data-tool="merge"><span class="tc-ico"><svg class="ico"><use href="#i-merge"/></svg></span><span>Combine files</span></button><button class="tool-card" data-tool="blank"><span class="tc-ico"><svg class="ico"><use href="#i-plus"/></svg></span><span>Blank page</span></button><button class="tool-card" data-tool="edit"><span class="tc-ico"><svg class="ico"><use href="#i-ibeam"/></svg></span><span>Edit a PDF</span></button><button class="tool-card" data-tool="headfoot"><span class="tc-ico"><svg class="ico"><use href="#i-headfoot"/></svg></span><span>Header and footer</span></button><button class="tool-card" data-tool="number"><span class="tc-ico"><svg class="ico"><use href="#i-hash"/></svg></span><span>Add page numbers</span></button><button class="tool-card" data-tool="convert"><span class="tc-ico"><svg class="ico"><use href="#i-convert"/></svg></span><span>Convert to PDF</span></button><button class="tool-card" data-tool="export"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>Export a PDF</span></button><button class="tool-card" data-tool="toword"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>PDF to Word</span></button><button class="tool-card" data-tool="toexcel"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>PDF to Excel</span></button><button class="tool-card" data-tool="toppt"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>PDF to PowerPoint</span></button><button class="tool-card" data-tool="compress"><span class="tc-ico"><svg class="ico"><use href="#i-compress"/></svg></span><span>Compress a PDF</span></button><button class="tool-card" data-tool="split"><span class="tc-ico"><svg class="ico"><use href="#i-split"/></svg></span><span>Split a PDF</span></button><button class="tool-card" data-tool="delpages"><span class="tc-ico"><svg class="ico"><use href="#i-trash"/></svg></span><span>Delete pages</span></button><button class="tool-card" data-tool="fillform"><span class="tc-ico"><svg class="ico"><use href="#i-ibeam"/></svg></span><span>Fill a form</span></button><button class="tool-card" data-tool="compare"><span class="tc-ico"><svg class="ico"><use href="#i-compare"/></svg></span><span>Compare files</span></button><button class="tool-card" data-tool="redact"><span class="tc-ico"><svg class="ico"><use href="#i-redact"/></svg></span><span>Redact</span></button><button class="tool-card" data-tool="comment"><span class="tc-ico"><svg class="ico"><use href="#i-comment"/></svg></span><span>Comment</span></button><button class="tool-card" data-tool="template"><span class="tc-ico"><svg class="ico"><use href="#i-table"/></svg></span><span>Fill from spreadsheet</span></button><button class="tool-card" data-tool="watermark"><span class="tc-ico"><svg class="ico"><use href="#i-watermark"/></svg></span><span>Watermark</span></button><button class="tool-card" data-tool="sidebyside"><span class="tc-ico"><svg class="ico"><use href="#i-columns"/></svg></span><span>Side by side</span></button><button class="tool-card" data-tool="insert"><span class="tc-ico"><svg class="ico"><use href="#i-insert"/></svg></span><span>Insert pages</span></button><button class="tool-card" data-tool="pagesize"><span class="tc-ico"><svg class="ico"><use href="#i-resize"/></svg></span><span>Page size and margins</span></button><button class="tool-card" data-tool="bookmarks"><span class="tc-ico"><svg class="ico"><use href="#i-bookmark"/></svg></span><span>Bookmarks</span></button><button class="tool-card" data-tool="certsign"><span class="tc-ico"><svg class="ico"><use href="#i-cert"/></svg></span><span>Sign with a digital ID</span></button><button class="tool-card" data-tool="certcheck"><span class="tc-ico"><svg class="ico"><use href="#i-cert"/></svg></span><span>Check signatures</span></button><button class="tool-card" data-tool="batch"><span class="tc-ico"><svg class="ico"><use href="#i-batch"/></svg></span><span>Many files at once</span></button><button class="tool-card" data-tool="read"><span class="tc-ico"><svg class="ico"><use href="#i-book"/></svg></span><span>Reading view</span></button><button class="tool-card" data-tool="measure"><span class="tc-ico"><svg class="ico"><use href="#i-ruler"/></svg></span><span>Measure</span></button><button class="tool-card" data-tool="stamps"><span class="tc-ico"><svg class="ico"><use href="#i-stamp"/></svg></span><span>Stamps and initials</span></button><button class="tool-card" data-tool="prepare"><span class="tc-ico"><svg class="ico"><use href="#i-fields"/></svg></span><span>Prepare for signing</span></button><button class="tool-card" data-tool="translate"><span class="tc-ico"><svg class="ico"><use href="#i-translate"/></svg></span><span>Translate</span></button><button class="tool-card" data-tool="speak"><span class="tc-ico"><svg class="ico"><use href="#i-speaker"/></svg></span><span>Read aloud</span></button><button class="tool-card" data-tool="exportall"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>Export all files</span></button><button class="tool-card" data-tool="extract"><span class="tc-ico"><svg class="ico"><use href="#i-extract"/></svg></span><span>Extract pages</span></button><button class="tool-card" data-tool="ocr"><span class="tc-ico"><svg class="ico"><use href="#i-scan"/></svg></span><span>Recognize text (OCR)</span></button><button class="tool-card" data-tool="print"><span class="tc-ico"><svg class="ico"><use href="#i-print"/></svg></span><span>Print</span></button><button class="tool-card" data-tool="protect"><span class="tc-ico"><svg class="ico"><use href="#i-lock"/></svg></span><span>Protect a PDF</span></button><button class="tool-card" data-tool="sign"><span class="tc-ico"><svg class="ico"><use href="#i-signature"/></svg></span><span>Fill and sign</span></button></div></div></div>
+  <div id="tools-view"><div class="tv-inner"><input id="tool-search" placeholder="Find any tool" spellcheck="false"><div id="recent-files"><div class="rf-head"><span>Recent</span><button id="rf-clear">Clear</button></div><div class="rf-list"></div></div><div class="tv-grid"><button class="tool-card" data-tool="create"><span class="tc-ico"><svg class="ico"><use href="#i-extract"/></svg></span><span>Create a PDF</span></button><button class="tool-card" data-tool="merge"><span class="tc-ico"><svg class="ico"><use href="#i-merge"/></svg></span><span>Combine files</span></button><button class="tool-card" data-tool="blank"><span class="tc-ico"><svg class="ico"><use href="#i-plus"/></svg></span><span>Blank page</span></button><button class="tool-card" data-tool="edit"><span class="tc-ico"><svg class="ico"><use href="#i-ibeam"/></svg></span><span>Edit a PDF</span></button><button class="tool-card" data-tool="headfoot"><span class="tc-ico"><svg class="ico"><use href="#i-headfoot"/></svg></span><span>Header and footer</span></button><button class="tool-card" data-tool="number"><span class="tc-ico"><svg class="ico"><use href="#i-hash"/></svg></span><span>Add page numbers</span></button><button class="tool-card" data-tool="convert"><span class="tc-ico"><svg class="ico"><use href="#i-convert"/></svg></span><span>Convert to PDF</span></button><button class="tool-card" data-tool="export"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>Export a PDF</span></button><button class="tool-card" data-tool="toword"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>PDF to Word</span></button><button class="tool-card" data-tool="toexcel"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>PDF to Excel</span></button><button class="tool-card" data-tool="toppt"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>PDF to PowerPoint</span></button><button class="tool-card" data-tool="compress"><span class="tc-ico"><svg class="ico"><use href="#i-compress"/></svg></span><span>Compress a PDF</span></button><button class="tool-card" data-tool="split"><span class="tc-ico"><svg class="ico"><use href="#i-split"/></svg></span><span>Split a PDF</span></button><button class="tool-card" data-tool="delpages"><span class="tc-ico"><svg class="ico"><use href="#i-trash"/></svg></span><span>Delete pages</span></button><button class="tool-card" data-tool="fillform"><span class="tc-ico"><svg class="ico"><use href="#i-ibeam"/></svg></span><span>Fill a form</span></button><button class="tool-card" data-tool="compare"><span class="tc-ico"><svg class="ico"><use href="#i-compare"/></svg></span><span>Compare files</span></button><button class="tool-card" data-tool="redact"><span class="tc-ico"><svg class="ico"><use href="#i-redact"/></svg></span><span>Redact</span></button><button class="tool-card" data-tool="comment"><span class="tc-ico"><svg class="ico"><use href="#i-comment"/></svg></span><span>Comment</span></button><button class="tool-card" data-tool="template"><span class="tc-ico"><svg class="ico"><use href="#i-table"/></svg></span><span>Fill from spreadsheet</span></button><button class="tool-card" data-tool="watermark"><span class="tc-ico"><svg class="ico"><use href="#i-watermark"/></svg></span><span>Watermark</span></button><button class="tool-card" data-tool="sidebyside"><span class="tc-ico"><svg class="ico"><use href="#i-columns"/></svg></span><span>Side by side</span></button><button class="tool-card" data-tool="insert"><span class="tc-ico"><svg class="ico"><use href="#i-insert"/></svg></span><span>Insert pages</span></button><button class="tool-card" data-tool="pagesize"><span class="tc-ico"><svg class="ico"><use href="#i-resize"/></svg></span><span>Page size and margins</span></button><button class="tool-card" data-tool="bookmarks"><span class="tc-ico"><svg class="ico"><use href="#i-bookmark"/></svg></span><span>Bookmarks</span></button><button class="tool-card" data-tool="certsign"><span class="tc-ico"><svg class="ico"><use href="#i-cert"/></svg></span><span>Sign with a digital ID</span></button><button class="tool-card" data-tool="certcheck"><span class="tc-ico"><svg class="ico"><use href="#i-cert"/></svg></span><span>Check signatures</span></button><button class="tool-card" data-tool="batch"><span class="tc-ico"><svg class="ico"><use href="#i-batch"/></svg></span><span>Many files at once</span></button><button class="tool-card" data-tool="read"><span class="tc-ico"><svg class="ico"><use href="#i-book"/></svg></span><span>Reading view</span></button><button class="tool-card" data-tool="measure"><span class="tc-ico"><svg class="ico"><use href="#i-ruler"/></svg></span><span>Measure</span></button><button class="tool-card" data-tool="shapes"><span class="tc-ico"><svg class="ico"><use href="#i-shapes"/></svg></span><span>Shapes</span></button><button class="tool-card" data-tool="stamps"><span class="tc-ico"><svg class="ico"><use href="#i-stamp"/></svg></span><span>Stamps and initials</span></button><button class="tool-card" data-tool="prepare"><span class="tc-ico"><svg class="ico"><use href="#i-fields"/></svg></span><span>Prepare for signing</span></button><button class="tool-card" data-tool="translate"><span class="tc-ico"><svg class="ico"><use href="#i-translate"/></svg></span><span>Translate</span></button><button class="tool-card" data-tool="speak"><span class="tc-ico"><svg class="ico"><use href="#i-speaker"/></svg></span><span>Read aloud</span></button><button class="tool-card" data-tool="exportall"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>Export all files</span></button><button class="tool-card" data-tool="extract"><span class="tc-ico"><svg class="ico"><use href="#i-extract"/></svg></span><span>Extract pages</span></button><button class="tool-card" data-tool="ocr"><span class="tc-ico"><svg class="ico"><use href="#i-scan"/></svg></span><span>Recognize text (OCR)</span></button><button class="tool-card" data-tool="print"><span class="tc-ico"><svg class="ico"><use href="#i-print"/></svg></span><span>Print</span></button><button class="tool-card" data-tool="protect"><span class="tc-ico"><svg class="ico"><use href="#i-lock"/></svg></span><span>Protect a PDF</span></button><button class="tool-card" data-tool="sign"><span class="tc-ico"><svg class="ico"><use href="#i-signature"/></svg></span><span>Fill and sign</span></button></div></div></div>
   <div id="main-content">
     <div id="left-sidebar" class="sidebar">
       <div id="side-scroll">
@@ -885,6 +906,7 @@
       <button id="btn-highlight" class="tool-btn" title="Highlight"><svg class="ico"><use href="#i-highlighter"/></svg><span>Highlight</span></button>
       <button id="btn-draw" class="tool-btn" title="Draw with the pen"><svg class="ico"><use href="#i-pen"/></svg><span>Draw</span></button>
       <button id="btn-comment" class="tool-btn" title="Comments and markup: notes, boxes, arrows, strike out, stamps"><svg class="ico"><use href="#i-comment"/></svg><span>Comment</span></button>
+      <button id="btn-shape" class="tool-btn" title="Shapes: lines, arrows, boxes, circles, stars, speech bubbles..."><svg class="ico"><use href="#i-shapes"/></svg><span>Shapes</span></button>
       <button id="btn-measure" class="tool-btn" title="Measure distances, paths and areas"><svg class="ico"><use href="#i-ruler"/></svg><span>Measure</span></button>
       <button class="tool-btn" data-proxy="btn-add-sig" title="Sign"><svg class="ico"><use href="#i-signature"/></svg><span>Sign</span></button>
       <span class="palette-sep"></span>
@@ -938,6 +960,7 @@
             <div id="area-glass"><div id="area-rubber"></div></div>
             <svg id="measure-layer"></svg>
             <svg id="lasso-layer"></svg>
+            <div id="shape-sel"><button class="sh-del" title="Delete (Delete key)">&#x2715;</button></div>
             <div id="ink-sel"><div class="is-bar"></div><span class="is-h" data-c="nw"></span><span class="is-h" data-c="ne"></span><span class="is-h" data-c="sw"></span><span class="is-h" data-c="se"></span></div>
           </div>
           </div>
@@ -950,6 +973,14 @@
     </div>
 
     <div id="tool-pop">
+      <div id="panel-shape" style="display:none;">
+        <div class="tool-header active"><svg class="ico"><use href="#i-shapes"/></svg>Shapes</div>
+        <div class="shape-grid" id="shape-grid"></div>
+        <div class="sh-label">Outline</div><div class="ink-colors" id="shape-line"></div>
+        <div class="sh-label">Fill</div><div class="ink-colors" id="shape-fill"></div>
+        <div class="sh-label">Outline width</div><div class="size-row" id="shape-width"></div>
+        <div class="slider-container"><label>Opacity</label><input type="range" id="shape-opacity" min="10" max="100" value="100"></div>
+      </div>
       <div id="panel-measure" style="display:none;">
         <div class="tool-header active"><svg class="ico"><use href="#i-ruler"/></svg>Measure</div>
         <div class="mk-grid">
@@ -2641,7 +2672,7 @@
     }
     function newStroke(tip, at, opts = {}) {
       const set = opts.set || pen.tips[tip];
-      const base = TIPS[tip].sizes[set.size] * (opts.scale || 1);
+      const base = (set.w ?? TIPS[tip].sizes[set.size]) * (opts.scale || 1);
       const s = { type: tip, color: set.color, size: base, opacity: tip === 'highlighter' ? 1 : TIPS[tip].alpha * (set.opacity / 100), points: [at], t: performance.now() };
       if (inkPressure !== null && tip !== 'highlighter') { s.widths = [base * pressureWidth(inkPressure)]; s.pressure = true; }
       else if (TIPS[tip].variable) s.widths = [TIPS[tip].variable === 'brush' ? base * 0.35 : base * 0.8];
@@ -2686,6 +2717,7 @@
       return L.concat(cap(P[n - 1], W[n - 1] / 2, fe + Math.PI / 2), R.reverse(), cap(P[0], W[0] / 2, fs - Math.PI / 2));
     }
     function drawInk(ctx, s, k) {
+      if (s.shape) return drawShape(ctx, s, k);
       ctx.save();
       ctx.globalAlpha = s.opacity; ctx.fillStyle = ctx.strokeStyle = s.color;
       if (s.widths) {
@@ -2711,6 +2743,7 @@
       ctx.restore();
     }
     const inkForPdf = s => {
+      if (s.shape) return { type: 'shape', kind: s.shape.kind, box: s.shape.box, points: s.points, color: s.color, fill: s.fill || null, size: s.size, opacity: s.opacity };
       const o = { type: s.type, color: s.color, size: s.size, opacity: s.opacity, points: s.points };
       if (s.widths) { o.outline = inkOutline(s); o.widths = s.widths; }
       return o;
@@ -2721,6 +2754,8 @@
       const d = { tip: 'pen', lastTip: 'pen', eraser: false, eraseMode: 'stroke', eraseSize: 1, tips: {} };
       for (const t of Object.keys(TIPS)) d.tips[t] = { color: t === 'highlighter' ? '#ffeb3b' : t === 'brush' ? '#2f6fd0' : '#111111', size: t === 'marker' || t === 'highlighter' ? 2 : 1, opacity: 100 };
       try { const s = JSON.parse(localStorage.getItem('pen-settings')); if (s) { Object.assign(d, s, { tips: Object.assign(d.tips, s.tips || {}) }); d.eraser = false; } } catch (e) {}
+      for (const t of Object.keys(TIPS)) if (d.tips[t].w === undefined) d.tips[t].w = TIPS[t].sizes[d.tips[t].size];   // sizes are points now
+      if (d.eraseW === undefined) d.eraseW = ERASER_SIZES[d.eraseSize] || 6;
       return d;
     })();
     const savePen = () => { try { localStorage.setItem('pen-settings', JSON.stringify(pen)); } catch (e) {} };
@@ -2738,15 +2773,28 @@
       });
       paint(); return paint;
     }
-    function buildSizeRow(box, sizes, getSize, onPick, color) {
+    // a size: five quick picks, and a slider for anything in between (a tad thicker, a tad thinner)
+    function buildSizeRow(box, sizes, getW, setW, color, range) {
       box.innerHTML = '';
-      const max = Math.max(...sizes);
-      sizes.forEach((v, i) => {
+      const max = Math.max(...sizes), [lo, hi] = range || [sizes[0] * 0.5, max * 1.6];
+      const step = hi > 20 ? 0.5 : hi > 6 ? 0.1 : 0.05;
+      const dots = document.createElement('div'); dots.className = 'size-dots';
+      sizes.forEach(v => {
         const b = document.createElement('button'); b.className = 'size-btn'; b.title = `${v} pt`;
         b.innerHTML = `<span style="height:${Math.max(1.5, 2 + 10 * v / max)}px"></span>`;
-        b.addEventListener('click', () => onPick(i)); box.append(b);
+        b.addEventListener('click', () => { setW(v); paint(); }); dots.append(b);
       });
-      const paint = () => box.querySelectorAll('.size-btn').forEach((b, i) => { b.classList.toggle('selected', i === getSize()); b.firstChild.style.background = color(); });
+      const slide = document.createElement('div'); slide.className = 'size-slide';
+      slide.innerHTML = `<input type="range" min="${lo}" max="${hi}" step="${step}" title="Drag for any size in between"><span class="size-val"></span>`;
+      const input = slide.querySelector('input'), val = slide.querySelector('.size-val');
+      input.addEventListener('input', () => { setW(+input.value); paint(); });
+      box.append(dots, slide);
+      const paint = () => {
+        const w = getW();
+        dots.querySelectorAll('.size-btn').forEach((b, i) => { b.classList.toggle('selected', Math.abs(sizes[i] - w) < 1e-6); b.firstChild.style.background = color(); });
+        if (document.activeElement !== input) input.value = w;
+        val.textContent = (w < 10 ? w.toFixed(w < 1 ? 2 : 1) : w.toFixed(0)) + ' pt';
+      };
       paint(); return paint;
     }
     function buildColors(box, colors, getColor, onPick, custom) {
@@ -2774,12 +2822,12 @@
       () => ({ tip: pen.eraser ? 'eraser' : pen.tip, colorOf: t => pen.tips[t].color }), t => selectTip(t), true);
     let paintSizes, paintColors;
     function rebuildPenOpts() {
-      paintSizes = buildSizeRow(document.getElementById('size-row'), TIPS[pen.tip].sizes, () => pen.tips[pen.tip].size,
-        i => { pen.tips[pen.tip].size = i; savePen(); paintPen(); }, () => pen.tips[pen.tip].color === '#ffffff' ? '#cfcfcf' : pen.tips[pen.tip].color);
+      paintSizes = buildSizeRow(document.getElementById('size-row'), TIPS[pen.tip].sizes, () => pen.tips[pen.tip].w,
+        w => { pen.tips[pen.tip].w = w; savePen(); paintTips(); }, () => pen.tips[pen.tip].color === '#ffffff' ? '#cfcfcf' : pen.tips[pen.tip].color);
       paintColors = buildColors(document.getElementById('ink-colors'), pen.tip === 'highlighter' ? HL_COLORS : INK_COLORS, () => pen.tips[pen.tip].color,
         (c, custom) => { pen.tips[pen.tip].color = c; savePen(); paintPen(); if (!custom) setTimeout(hideToolPop, 150); }, true);
     }
-    const paintErase = buildSizeRow(document.getElementById('erase-size-row'), ERASER_SIZES, () => pen.eraseSize, i => { pen.eraseSize = i; savePen(); paintPen(); }, () => '#8a8f98');
+    const paintErase = buildSizeRow(document.getElementById('erase-size-row'), ERASER_SIZES, () => pen.eraseW, w => { pen.eraseW = w; savePen(); }, () => '#8a8f98', [1.5, 48]);
     function paintPen() {
       paintTips(); paintSizes(); paintColors(); paintErase();
       penPanel.classList.toggle('erasing', pen.eraser);
@@ -2808,7 +2856,7 @@
 
     // the eraser: strokes not saved yet go at once; pen strokes already in the file go when the mouse is let go
     let erasing = null;
-    const eraserRadius = () => ERASER_SIZES[pen.eraseSize] / 2 + 1;
+    const eraserRadius = () => pen.eraseW / 2 + 1;
     function densify(s, step) {   // a stroke with points no further apart than step (widths follow)
       const P = s.points, W = s.widths, out = [P[0]], ow = W ? [W[0]] : null;
       for (let i = 1; i < P.length; i++) {
@@ -2826,7 +2874,7 @@
         const d = densify(s, Math.max(0.4, r / 3));
         if (!d.points.some(q => near(d, q))) return [s];
         changed = true;
-        if (pen.eraseMode === 'stroke') return [];
+        if (pen.eraseMode === 'stroke' || s.shape) return [];
         const pieces = []; let run = null;
         d.points.forEach((q, i) => {
           if (near(d, q)) { if (run && run.points.length > 1) pieces.push(run); run = null; return; }
@@ -2865,6 +2913,263 @@
       if (pageNotes.some(n => ['Ink', 'Polygon'].includes(n.kind))) await eraseSaved({ mode: 'all' });
       showToast('Erased the drawing on this page. Ctrl+Z brings it back');
     });
+
+    // ---------- shapes: drag one out, then move, resize, recolor ----------
+    // Each shape is a box plus a kind; its outline is worked out from the box, so resizing never distorts the
+    // line width. They're kept with the pen strokes (undo, lasso and save all work the same way).
+    const LINE_KINDS = ['line', 'arrow', 'darrow'];
+    const SHAPES = [['line', 'Line'], ['arrow', 'Arrow'], ['darrow', 'Double arrow'], ['rect', 'Rectangle'], ['roundrect', 'Rounded rectangle'], ['oval', 'Oval'],
+      ['triangle', 'Triangle'], ['rtriangle', 'Right triangle'], ['diamond', 'Diamond'], ['parallelogram', 'Parallelogram'], ['trapezoid', 'Trapezoid'], ['pentagon', 'Pentagon'],
+      ['hexagon', 'Hexagon'], ['octagon', 'Octagon'], ['star4', '4-point star'], ['star5', 'Star'], ['star6', '6-point star'], ['plus', 'Plus'],
+      ['aright', 'Arrow right'], ['aleft', 'Arrow left'], ['aup', 'Arrow up'], ['adown', 'Arrow down'], ['bubble', 'Speech bubble'], ['roundbubble', 'Round speech bubble'],
+      ['cloud', 'Cloud'], ['heart', 'Heart'], ['check', 'Check mark'], ['cross', 'Cross']];
+    function shapeOutline(kind, box) {   // points in page units; closed shapes repeat their first point
+      const [bx0, by0, bx1, by1] = box;
+      if (LINE_KINDS.includes(kind)) return [[bx0, by0], [bx1, by1]];
+      const x0 = Math.min(bx0, bx1), y0 = Math.min(by0, by1), w = Math.abs(bx1 - bx0), h = Math.abs(by1 - by0);
+      const U = pts => pts.map(([u, v]) => [x0 + u * w, y0 + v * h]);
+      const ring = p => p.concat([p[0]]);
+      const poly = (n, a0) => Array.from({ length: n }, (_, i) => { const a = a0 + i * 2 * Math.PI / n; return [0.5 + 0.5 * Math.cos(a), 0.5 + 0.5 * Math.sin(a)]; });
+      const star = (n, inner) => Array.from({ length: n * 2 }, (_, i) => { const a = -Math.PI / 2 + i * Math.PI / n, r = i % 2 ? inner : 0.5; return [0.5 + r * Math.cos(a), 0.5 + r * Math.sin(a)]; });
+      const ell = (cx, cy, rx, ry, n = 72) => Array.from({ length: n }, (_, i) => { const a = i * 2 * Math.PI / n; return [cx + rx * Math.cos(a), cy + ry * Math.sin(a)]; });
+      switch (kind) {
+        case 'rect': return ring(U([[0, 0], [1, 0], [1, 1], [0, 1]]));
+        case 'roundrect': {
+          const r = Math.min(w, h) * 0.18, pts = [];
+          [[x0 + w - r, y0 + r, -Math.PI / 2], [x0 + w - r, y0 + h - r, 0], [x0 + r, y0 + h - r, Math.PI / 2], [x0 + r, y0 + r, Math.PI]].forEach(([cx, cy, a0]) => {
+            for (let i = 0; i <= 8; i++) { const a = a0 + i * Math.PI / 16; pts.push([cx + r * Math.cos(a), cy + r * Math.sin(a)]); }
+          });
+          return ring(pts);
+        }
+        case 'oval': return ring(U(ell(0.5, 0.5, 0.5, 0.5)));
+        case 'triangle': return ring(U([[0.5, 0], [1, 1], [0, 1]]));
+        case 'rtriangle': return ring(U([[0, 0], [1, 1], [0, 1]]));
+        case 'diamond': return ring(U([[0.5, 0], [1, 0.5], [0.5, 1], [0, 0.5]]));
+        case 'parallelogram': return ring(U([[0.25, 0], [1, 0], [0.75, 1], [0, 1]]));
+        case 'trapezoid': return ring(U([[0.22, 0], [0.78, 0], [1, 1], [0, 1]]));
+        case 'pentagon': return ring(U(poly(5, -Math.PI / 2)));
+        case 'hexagon': return ring(U(poly(6, 0)));
+        case 'octagon': return ring(U(poly(8, Math.PI / 8)));
+        case 'star4': return ring(U(star(4, 0.17)));
+        case 'star5': return ring(U(star(5, 0.2)));
+        case 'star6': return ring(U(star(6, 0.27)));
+        case 'plus': return ring(U([[0.33, 0], [0.67, 0], [0.67, 0.33], [1, 0.33], [1, 0.67], [0.67, 0.67], [0.67, 1], [0.33, 1], [0.33, 0.67], [0, 0.67], [0, 0.33], [0.33, 0.33]]));
+        case 'aright': return ring(U([[0, 0.3], [0.6, 0.3], [0.6, 0], [1, 0.5], [0.6, 1], [0.6, 0.7], [0, 0.7]]));
+        case 'aleft': return ring(U([[1, 0.3], [0.4, 0.3], [0.4, 0], [0, 0.5], [0.4, 1], [0.4, 0.7], [1, 0.7]]));
+        case 'aup': return ring(U([[0.3, 1], [0.3, 0.4], [0, 0.4], [0.5, 0], [1, 0.4], [0.7, 0.4], [0.7, 1]]));
+        case 'adown': return ring(U([[0.3, 0], [0.3, 0.6], [0, 0.6], [0.5, 1], [1, 0.6], [0.7, 0.6], [0.7, 0]]));
+        case 'bubble': return ring(U([[0, 0], [1, 0], [1, 0.75], [0.42, 0.75], [0.18, 1], [0.24, 0.75], [0, 0.75]]));
+        case 'roundbubble': {
+          const e = ell(0.5, 0.4, 0.5, 0.4), out = [];
+          e.forEach(([u, v], i) => {   // a tail out of the lower left
+            const a = i * 360 / 72;
+            if (a > 112 && a < 128) { if (!out.tail) { out.push([0.12, 1]); out.tail = true; } return; }
+            out.push([u, v]);
+          });
+          return ring(U(out));
+        }
+        case 'cloud': return ring(U(Array.from({ length: 96 }, (_, i) => { const a = i * 2 * Math.PI / 96, r = 0.86 + 0.14 * Math.abs(Math.sin(a * 4.5)); return [0.5 + 0.5 * r * Math.cos(a), 0.5 + 0.5 * r * Math.sin(a)]; })));
+        case 'heart': return ring(U(Array.from({ length: 80 }, (_, i) => { const t = i * 2 * Math.PI / 80, x = 16 * Math.sin(t) ** 3, y = 13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t); return [0.5 + x / 34, 0.47 - y / 32]; })));
+        case 'check': return ring(U([[0, 0.55], [0.14, 0.42], [0.38, 0.66], [0.86, 0.05], [1, 0.18], [0.38, 0.92]]));
+        case 'cross': return ring(U([[0.15, 0], [0.5, 0.35], [0.85, 0], [1, 0.15], [0.65, 0.5], [1, 0.85], [0.85, 1], [0.5, 0.65], [0.15, 1], [0, 0.85], [0.35, 0.5], [0, 0.15]]));
+      }
+      return ring(U([[0, 0], [1, 0], [1, 1], [0, 1]]));
+    }
+    function shapeIcon(kind) {
+      const pts = shapeOutline(kind, LINE_KINDS.includes(kind) ? [3, 17, 17, 3] : [2, 3, 18, 17]);
+      let d = 'M' + pts.map(p => p.map(n => n.toFixed(1)).join(' ')).join('L');
+      if (kind === 'arrow' || kind === 'darrow') d += 'M12 3L17 3L17 8';
+      if (kind === 'darrow') d += 'M3 12L3 17L8 17';
+      return `<svg viewBox="0 0 20 20"><path d="${d}"/></svg>`;
+    }
+    function drawShape(ctx, s, k) {
+      const P = s.points; if (!P || P.length < 2) return;
+      ctx.save(); ctx.globalAlpha = s.opacity; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+      ctx.lineWidth = s.size * k; ctx.strokeStyle = s.color;
+      ctx.beginPath(); P.forEach((p, i) => i ? ctx.lineTo(p[0] * k, p[1] * k) : ctx.moveTo(p[0] * k, p[1] * k));
+      if (LINE_KINDS.includes(s.shape.kind)) {
+        ctx.stroke();
+        const head = (a, b) => {   // a filled arrowhead at b, pointing away from a
+          const L = Math.max(6, s.size * 3.5) * k, an = Math.atan2(b[1] - a[1], b[0] - a[0]);
+          ctx.beginPath(); ctx.moveTo(b[0] * k, b[1] * k);
+          ctx.lineTo(b[0] * k - L * Math.cos(an - 0.45), b[1] * k - L * Math.sin(an - 0.45));
+          ctx.lineTo(b[0] * k - L * Math.cos(an + 0.45), b[1] * k - L * Math.sin(an + 0.45)); ctx.closePath();
+          ctx.fillStyle = s.color; ctx.fill(); ctx.stroke();
+        };
+        if (s.shape.kind !== 'line') head(P[0], P[1]);
+        if (s.shape.kind === 'darrow') head(P[1], P[0]);
+      } else {
+        ctx.closePath();
+        if (s.fill) { ctx.fillStyle = s.fill; ctx.fill(); }
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+    const shapeSet = (() => { const d = { kind: 'rect', color: '#2f6fd0', fill: null, size: 1.5, opacity: 100 }; try { Object.assign(d, JSON.parse(localStorage.getItem('shape-settings')) || {}); } catch (e) {} return d; })();
+    const saveShapeSet = () => { try { localStorage.setItem('shape-settings', JSON.stringify(shapeSet)); } catch (e) {} };
+    function makeShape(kind, box) {
+      const s = { type: 'shape', shape: { kind, box }, color: shapeSet.color, fill: LINE_KINDS.includes(kind) ? null : shapeSet.fill, size: shapeSet.size, opacity: shapeSet.opacity / 100 };
+      s.points = shapeOutline(kind, box); return s;
+    }
+    const reshape = s => { s.points = shapeOutline(s.shape.kind, s.shape.box); };
+    let selShape = null, shapeDrag = null;
+    // the selected shape gets its own copy first, so undo still has it as it was
+    function ownShape() {
+      saveCanvasState();
+      const c = Object.assign({}, selShape, { shape: Object.assign({}, selShape.shape, { box: selShape.shape.box.slice() }), points: selShape.points.map(p => p.slice()) });
+      drawnStrokes = drawnStrokes.map(x => x === selShape ? c : x); selShape = c; hasUnsavedEdits = true;
+    }
+    function selectShape(s) {
+      selShape = s; const el = document.getElementById('shape-sel');
+      if (!el) return;
+      el.querySelectorAll('.sh-h').forEach(h => h.remove());
+      if (!s) { el.classList.remove('show'); return; }
+      const k = currentRenderScale, [a, b, c, d] = s.shape.box, line = LINE_KINDS.includes(s.shape.kind);
+      const x0 = Math.min(a, c), y0 = Math.min(b, d), x1 = Math.max(a, c), y1 = Math.max(b, d);
+      Object.assign(el.style, { left: x0 * k + 'px', top: y0 * k + 'px', width: (x1 - x0) * k + 'px', height: (y1 - y0) * k + 'px' });
+      el.classList.toggle('line', line); el.classList.add('show');
+      const handles = line ? [['p0', a, b], ['p1', c, d]]
+        : [['nw', x0, y0], ['n', (x0 + x1) / 2, y0], ['ne', x1, y0], ['e', x1, (y0 + y1) / 2], ['se', x1, y1], ['s', (x0 + x1) / 2, y1], ['sw', x0, y1], ['w', x0, (y0 + y1) / 2]];
+      for (const [id, x, y] of handles) {
+        const h = document.createElement('span'); h.className = 'sh-h'; h.dataset.h = id;
+        h.style.left = (x - x0) * k + 'px'; h.style.top = (y - y0) * k + 'px';
+        h.style.cursor = line ? 'move' : { nw: 'nwse-resize', se: 'nwse-resize', ne: 'nesw-resize', sw: 'nesw-resize', n: 'ns-resize', s: 'ns-resize', e: 'ew-resize', w: 'ew-resize' }[id];
+        h.addEventListener('mousedown', e => { if (e.button) return; e.stopPropagation(); e.preventDefault(); ownShape(); shapeDrag = { mode: 'handle', h: id, box: selShape.shape.box.slice(), start: null, ratio: (x1 - x0) / ((y1 - y0) || 1) }; });
+        el.append(h);
+      }
+      paintShapePanel();
+    }
+    function shapeAt(p) {   // the topmost shape under the pointer (inside it, or near its line)
+      for (let i = drawnStrokes.length - 1; i >= 0; i--) {
+        const s = drawnStrokes[i]; if (!s.shape) continue;
+        const pad = Math.max(4, s.size);
+        if (LINE_KINDS.includes(s.shape.kind)) {
+          const [a, b] = s.points, L = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+          const t = Math.max(0, Math.min(1, ((p[0] - a[0]) * (b[0] - a[0]) + (p[1] - a[1]) * (b[1] - a[1])) / L / L));
+          if (Math.hypot(p[0] - a[0] - t * (b[0] - a[0]), p[1] - a[1] - t * (b[1] - a[1])) <= pad) return s;
+        } else {
+          const [a, b, c, d] = s.shape.box;
+          if (p[0] >= Math.min(a, c) - pad && p[0] <= Math.max(a, c) + pad && p[1] >= Math.min(b, d) - pad && p[1] <= Math.max(b, d) + pad) return s;
+        }
+      }
+      return null;
+    }
+    async function shapeDown(p, e) {
+      const hit = shapeAt(p);
+      if (hit) { selectShape(hit); ownShape(); shapeDrag = { mode: 'move', start: p, box: selShape.shape.box.slice() }; return; }
+      // a shape saved in the file earlier: take it back out to edit it
+      const saved = pageNotes.find(n => n.subject === 'Shape' && p[0] >= n.rect[0] - 3 && p[0] <= n.rect[2] + 3 && p[1] >= n.rect[1] - 3 && p[1] <= n.rect[3] + 3);
+      if (saved) {
+        await syncEditsToPython();
+        pushHistory();
+        const d = await api('take_shape', { filepath: currentTempPdf, page: pageNum - 1, xref: saved.xref });
+        if (!d.success || !d.shape) { pdfHistory.pop(); if (!d.success) showToast(d.error || "Couldn't open that shape", true); return; }
+        await takeNewFile(d);
+        await currentPdfDoc.getPage(pageNum); await new Promise(r => setTimeout(r, 30));
+        const sh = d.shape, s = { type: 'shape', shape: { kind: sh.kind, box: sh.box }, color: sh.color, fill: sh.fill, size: sh.size, opacity: sh.opacity };
+        reshape(s); drawnStrokes = [s]; undoStack = []; redoStack = []; updateInkButtons(); hasUnsavedEdits = true; redrawCanvases();
+        selectShape(s); return;
+      }
+      selectShape(null);
+      saveCanvasState();
+      const s = makeShape(shapeSet.kind, [p[0], p[1], p[0], p[1]]);
+      drawnStrokes.push(s); selShape = s;
+      shapeDrag = { mode: 'new', start: p };
+      hideToolPop();
+    }
+    function shapeMove(p, e) {
+      const d = shapeDrag, s = selShape; if (!s) return;
+      const line = LINE_KINDS.includes(s.shape.kind);
+      if (d.mode === 'new') {
+        let x = p[0], y = p[1];
+        if (e.shiftKey) {   // Shift: even sides (squares, circles), or lines at 45-degree steps
+          if (line) { const an = Math.round(Math.atan2(y - d.start[1], x - d.start[0]) / (Math.PI / 4)) * Math.PI / 4, L = Math.hypot(x - d.start[0], y - d.start[1]); x = d.start[0] + L * Math.cos(an); y = d.start[1] + L * Math.sin(an); }
+          else { const m = Math.max(Math.abs(x - d.start[0]), Math.abs(y - d.start[1])); x = d.start[0] + Math.sign(x - d.start[0] || 1) * m; y = d.start[1] + Math.sign(y - d.start[1] || 1) * m; }
+        }
+        s.shape.box = line ? [d.start[0], d.start[1], x, y] : [Math.min(d.start[0], x), Math.min(d.start[1], y), Math.max(d.start[0], x), Math.max(d.start[1], y)];
+      } else if (d.mode === 'move') {
+        const dx = p[0] - d.start[0], dy = p[1] - d.start[1], b = d.box;
+        s.shape.box = [b[0] + dx, b[1] + dy, b[2] + dx, b[3] + dy];
+      } else {   // a handle
+        const b = d.box.slice(), h = d.h;
+        if (h === 'p0') { b[0] = p[0]; b[1] = p[1]; } else if (h === 'p1') { b[2] = p[0]; b[3] = p[1]; }
+        else {
+          if (h.includes('w')) b[0] = Math.min(p[0], b[2] - 2); if (h.includes('e')) b[2] = Math.max(p[0], b[0] + 2);
+          if (h.includes('n')) b[1] = Math.min(p[1], b[3] - 2); if (h.includes('s')) b[3] = Math.max(p[1], b[1] + 2);
+          if (e.shiftKey && h.length === 2) {   // Shift on a corner keeps the shape's proportions
+            const w = b[2] - b[0], hh = w / d.ratio;
+            if (h.includes('n')) b[1] = b[3] - hh; else b[3] = b[1] + hh;
+          }
+        }
+        s.shape.box = b;
+      }
+      reshape(s); redrawCanvases(); selectShape(s);
+    }
+    function shapeUp() {
+      const d = shapeDrag; shapeDrag = null; const s = selShape; if (!s) return;
+      const [a, b, c, e] = s.shape.box;
+      if (d.mode === 'new' && Math.hypot(c - a, e - b) < 4) {   // a click, not a drag: a shape of a standard size there
+        const w = LINE_KINDS.includes(s.shape.kind) ? 100 : 90, h = LINE_KINDS.includes(s.shape.kind) ? 0 : (['rect', 'roundrect', 'bubble', 'aright', 'aleft', 'parallelogram', 'trapezoid'].includes(s.shape.kind) ? 60 : 90);
+        s.shape.box = LINE_KINDS.includes(s.shape.kind) ? [a, b, a + w, b] : [a - w / 2, b - h / 2, a + w / 2, b + h / 2];
+        reshape(s);
+      }
+      hasUnsavedEdits = true; redrawCanvases(); selectShape(s);
+    }
+    function deleteShape() {
+      if (!selShape) return;
+      saveCanvasState(); drawnStrokes = drawnStrokes.filter(x => x !== selShape); hasUnsavedEdits = true; selectShape(null); redrawCanvases();
+    }
+    window.addEventListener('mousemove', e => {   // dragging a shape or one of its handles, wherever the pointer goes
+      if (!shapeDrag) return;
+      const r = document.getElementById('canvas-wrapper').getBoundingClientRect();
+      shapeMove([(e.clientX - r.left) / currentRenderScale, (e.clientY - r.top) / currentRenderScale], e);
+    });
+    document.querySelector('#shape-sel .sh-del').addEventListener('mousedown', e => { e.stopPropagation(); e.preventDefault(); deleteShape(); });
+    document.addEventListener('keydown', e => {
+      if (!selShape || currentTool !== 'shape' || /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName) || document.activeElement.isContentEditable) return;
+      if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); deleteShape(); }
+      else if (e.key === 'Escape') selectShape(null);
+      else if (e.key.startsWith('Arrow')) {   // nudge: 1 point, 10 with Shift
+        e.preventDefault(); ownShape();
+        const n = e.shiftKey ? 10 : 1, dx = e.key === 'ArrowLeft' ? -n : e.key === 'ArrowRight' ? n : 0, dy = e.key === 'ArrowUp' ? -n : e.key === 'ArrowDown' ? n : 0, b = selShape.shape.box;
+        selShape.shape.box = [b[0] + dx, b[1] + dy, b[2] + dx, b[3] + dy]; reshape(selShape); redrawCanvases(); selectShape(selShape);
+      }
+    });
+    // the panel: picking a kind, colors, width and opacity (applied to the selected shape too)
+    let paintShapeLine, paintShapeFill, paintShapeWidth;
+    function applyToShape(fn) { if (!selShape) return; ownShape(); fn(selShape); reshape(selShape); redrawCanvases(); selectShape(selShape); }
+    (() => {
+      const grid = document.getElementById('shape-grid');
+      for (const [k, name] of SHAPES) {
+        const b = document.createElement('button'); b.className = 'shape-btn'; b.dataset.k = k; b.title = name; b.innerHTML = shapeIcon(k);
+        b.addEventListener('click', () => {
+          shapeSet.kind = k; saveShapeSet(); selectShape(null); paintShapePanel(); setTimeout(hideToolPop, 150);   // the next drag draws one
+        });
+        grid.append(b);
+      }
+      paintShapeLine = buildColors(document.getElementById('shape-line'), INK_COLORS, () => (selShape ? selShape.color : shapeSet.color),
+        c => { shapeSet.color = c; saveShapeSet(); applyToShape(s => { s.color = c; }); paintShapePanel(); }, true);
+      const fillBox = document.getElementById('shape-fill');
+      paintShapeFill = buildColors(fillBox, INK_COLORS.concat(['#fff4c2', '#dbeafe', '#dcfce7']), () => ((selShape ? selShape.fill : shapeSet.fill) || 'none'),
+        c => { shapeSet.fill = c; saveShapeSet(); applyToShape(s => { if (!LINE_KINDS.includes(s.shape.kind)) s.fill = c; }); paintShapePanel(); }, true);
+      const none = document.createElement('button'); none.className = 'ink-dot none'; none.title = 'No fill'; none.dataset.c = 'none';
+      none.addEventListener('click', () => { shapeSet.fill = null; saveShapeSet(); applyToShape(s => { s.fill = null; }); paintShapePanel(); });
+      fillBox.prepend(none);
+      paintShapeWidth = buildSizeRow(document.getElementById('shape-width'), [0.75, 1.5, 3, 5, 8], () => (selShape ? selShape.size : shapeSet.size),
+        w => { shapeSet.size = w; saveShapeSet(); if (selShape) { selShape.size = w; hasUnsavedEdits = true; redrawCanvases(); } }, () => '#8a8f98', [0.25, 16]);
+      const op = document.getElementById('shape-opacity');
+      op.addEventListener('pointerdown', () => { if (selShape) ownShape(); });
+      op.addEventListener('input', () => { shapeSet.opacity = +op.value; saveShapeSet(); if (selShape) { selShape.opacity = +op.value / 100; redrawCanvases(); } });
+    })();
+    function paintShapePanel() {
+      document.querySelectorAll('.shape-btn').forEach(b => b.classList.toggle('selected', b.dataset.k === (selShape ? selShape.shape.kind : shapeSet.kind)));
+      if (paintShapeLine) { paintShapeLine(); paintShapeFill(); paintShapeWidth(); }
+      const noFill = !(selShape ? selShape.fill : shapeSet.fill), fb = document.getElementById('shape-fill');
+      fb.querySelector('.none').classList.toggle('selected', noFill);
+      if (noFill) { const cu = fb.querySelector('.ink-custom'); cu.classList.remove('selected'); cu.style.background = ''; }
+      document.getElementById('shape-opacity').value = selShape ? Math.round(selShape.opacity * 100) : shapeSet.opacity;
+    }
+    document.getElementById('btn-shape').addEventListener('click', () => { switchTool('btn-shape', 'shape'); paintShapePanel(); });
 
     // ---------- snapping rough shapes ----------
     function rdp(P, eps) {   // the few points that keep a line's shape (Ramer-Douglas-Peucker)
@@ -2970,7 +3275,7 @@
     // the selection's own copies, so undo still has the strokes as they were
     function ownSel() {
       saveCanvasState();
-      const copies = inkSel.map(s => Object.assign({}, s, { points: s.points.map(p => p.slice()), widths: s.widths && s.widths.slice() }));
+      const copies = inkSel.map(s => Object.assign({}, s, { points: s.points.map(p => p.slice()), widths: s.widths && s.widths.slice(), shape: s.shape && Object.assign({}, s.shape) }));
       drawnStrokes = drawnStrokes.map(s => { const i = inkSel.indexOf(s); return i < 0 ? s : copies[i]; });
       inkSel = copies; hasUnsavedEdits = true;
     }
@@ -2990,7 +3295,7 @@
         e.stopPropagation(); e.preventDefault();
         const corner = e.target.dataset.c, k = currentRenderScale, x0 = e.clientX, y0 = e.clientY;
         ownSel();
-        const orig = inkSel.map(s => ({ points: s.points.map(p => p.slice()), widths: s.widths && s.widths.slice(), size: s.size }));
+        const orig = inkSel.map(s => ({ points: s.points.map(p => p.slice()), widths: s.widths && s.widths.slice(), size: s.size, box: s.shape && s.shape.box.slice() }));
         const b = inkBox(inkSel);
         const anchor = corner ? [corner.includes('w') ? b[2] : b[0], corner.includes('n') ? b[3] : b[1]] : null;
         const move = ev => {
@@ -3005,6 +3310,11 @@
             s.points = orig[i].points.map(p => corner ? [anchor[0] + (p[0] - anchor[0]) * f, anchor[1] + (p[1] - anchor[1]) * f] : [p[0] + tx, p[1] + ty]);
             if (orig[i].widths) s.widths = orig[i].widths.map(w => w * f);
             s.size = orig[i].size * f;
+            if (s.shape) {   // a shape keeps its own box in step
+              const b0 = orig[i].box, mv = (x, y) => corner ? [anchor[0] + (x - anchor[0]) * f, anchor[1] + (y - anchor[1]) * f] : [x + tx, y + ty];
+              const a = mv(b0[0], b0[1]), c = mv(b0[2], b0[3]);
+              s.shape = Object.assign({}, s.shape, { box: [a[0], a[1], c[0], c[1]] });
+            }
           });
           redrawCanvases(); showInkSel();
         };
@@ -3471,6 +3781,7 @@
       const d = { tip: 'fountain', tips: {} };
       for (const t of SIG_TIPS) d.tips[t] = { color: '#111111', size: 2, opacity: 100 };
       try { const s = JSON.parse(localStorage.getItem('sig-pen')); if (s) Object.assign(d, s, { tips: Object.assign(d.tips, s.tips || {}) }); } catch (e) {}
+      for (const t of SIG_TIPS) if (d.tips[t].w === undefined) d.tips[t].w = TIPS[t].sizes[d.tips[t].size];
       return d;
     })();
     let sigStrokes = [], sigUndo = [], sigRedo = [], sigCur = null;
@@ -3487,8 +3798,8 @@
     let paintSigSizes;
     const paintSigColors = buildColors(document.getElementById('sig-colors'), SIG_COLORS, () => sig.tips[sig.tip].color, c => { sig.tips[sig.tip].color = c; saveSigPen(); paintSig(); }, false);
     function paintSig() {
-        paintSigSizes = buildSizeRow(document.getElementById('sig-sizes'), TIPS[sig.tip].sizes, () => sig.tips[sig.tip].size,
-          i => { sig.tips[sig.tip].size = i; saveSigPen(); paintSigSizes(); }, () => sig.tips[sig.tip].color);
+        paintSigSizes = buildSizeRow(document.getElementById('sig-sizes'), TIPS[sig.tip].sizes, () => sig.tips[sig.tip].w,
+          w => { sig.tips[sig.tip].w = w; saveSigPen(); }, () => sig.tips[sig.tip].color);
         paintSigTips(); paintSigColors();
     }
     paintSig();
@@ -4060,6 +4371,7 @@
       
       document.body.className = 'tool-' + toolName + (toolName === 'draw' && pen.eraser ? ' erasing' : '') + (toolName === 'draw' && pen.lasso ? ' lassoing' : '');
       if (toolName !== 'draw') clearInkSel();
+      if (toolName !== 'shape') selectShape(null);
       if (toolName !== 'place') { placing = null; document.querySelectorAll('.mark-btn').forEach(b => b.classList.remove('on')); }
       
       if (toolName !== 'edit' && toolName !== 'pointer' && toolName !== 'add') {
@@ -4173,9 +4485,10 @@
           return;
       }
 
+      if (currentTool === 'shape') { shapeDown([clickX / currentRenderScale, clickY / currentRenderScale], e); return; }
       if (currentTool !== 'draw') return;
 
-      saveCanvasState();
+      saveCanvasState(); 
       const at = [clickX / currentRenderScale, clickY / currentRenderScale];
       if (pen.lasso && !stylusErase) { undoStack.pop(); updateInkButtons(); return startLasso(at); }
       if (pen.eraser || stylusErase) { erasing = { path: [at], changed: false }; eraseAt(at); return; }
@@ -4249,6 +4562,7 @@
 
       if (erasing) { finishErase(); return; }
       if (lassoPath) { finishLasso(); return; }
+      if (shapeDrag) { shapeUp(); return; }
       if (isDrawing && currentStroke) {
           finishInk(currentStroke);
           if (pen.snap && snapShape(currentStroke, true)) showToast('Snapped to a clean shape. Ctrl+Z keeps your drawing instead');
@@ -4338,7 +4652,7 @@
     // Tool options pop up beside the tool's button: picking a color closes them, so does clicking
     // anywhere else. Clicking the tool's button again brings them back (or hides them).
     const toolPop = document.getElementById('tool-pop');
-    const POP_FOR = { 'btn-highlight': 'hl', 'btn-draw': 'pen', 'btn-text': 'text', 'btn-add-text': 'text', 'btn-comment': 'markup', 'btn-measure': 'measure' };
+    const POP_FOR = { 'btn-highlight': 'hl', 'btn-draw': 'pen', 'btn-text': 'text', 'btn-add-text': 'text', 'btn-comment': 'markup', 'btn-measure': 'measure', 'btn-shape': 'shape' };
     let popFor = null;   // id of the button the popover belongs to
     function showToolPop(id) {
       const which = POP_FOR[id];
@@ -4347,6 +4661,7 @@
       panelDraw.style.display = which === 'hl' || which === 'pen' ? 'block' : 'none';
       document.getElementById('panel-markup').style.display = which === 'markup' ? 'block' : 'none';
       document.getElementById('panel-measure').style.display = which === 'measure' ? 'block' : 'none';
+      document.getElementById('panel-shape').style.display = which === 'shape' ? 'block' : 'none';
       toolPop.classList.add('open'); popFor = id;
       const b = document.getElementById(id).getBoundingClientRect();
       toolPop.style.left = (b.right + 14) + 'px';
@@ -4636,7 +4951,7 @@
     })();
     // things that follow the page on screen
     function pageChanged(num) {
-      clearInkSel();
+      clearInkSel(); selectShape(null);
       if (side && document.getElementById('sv-sync').checked && side.doc.numPages >= num) side.col.scrollTo(num, true);
       document.querySelectorAll('.bm-row').forEach(r => r.classList.toggle('here', +r.dataset.page === num));
       if (num !== lastShownPage && currentTool === 'measure') clearMeasure();
@@ -5292,7 +5607,7 @@
       compress: () => document.getElementById('btn-compress').click(), split: () => document.getElementById('btn-split').click(),
       number: () => document.getElementById('btn-number').click(), delpages: showPageDelete,
       exportall: doExportAll, extract: showPagePicking, ocr: doOcr, print: doPrint, fillform: startFilling, compare: doCompare, redact: startRedacting, comment: () => startMarkup(), template: doTemplate, watermark: doWatermark, sidebyside: openSideBySide, insert: () => doInsertPages(), pagesize: doPageSize,
-      bookmarks: () => { goTab('edit'); openBookmarks(true); }, certsign: doCertSign, certcheck: () => checkSignatures(), batch: doBatch, read: openReader, measure: startMeasure, stamps: openStamps, prepare: startPrepare, translate: doTranslate, speak: () => startSpeaking(), edit: () => goTab('edit'), sign: () => { goTab('sign'); }
+      bookmarks: () => { goTab('edit'); openBookmarks(true); }, certsign: doCertSign, certcheck: () => checkSignatures(), batch: doBatch, read: openReader, measure: startMeasure, shapes: () => { goTab('edit'); switchTool('btn-shape', 'shape'); }, stamps: openStamps, prepare: startPrepare, translate: doTranslate, speak: () => startSpeaking(), edit: () => goTab('edit'), sign: () => { goTab('sign'); }
     };
     // Delete pages: bring up the page thumbnails with their trash buttons showing for a moment
     async function showPageDelete() {

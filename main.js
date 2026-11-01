@@ -127,18 +127,26 @@ function setupAutoUpdate() {
 ipcMain.handle('app-version', () => app.getVersion());
 
 // ---------- printing ----------
-// The renderer sends page pictures (made by the backend); they go into a hidden window, one per sheet,
-// and Windows' own print dialog takes it from there (printer, copies, pages, paper).
-ipcMain.handle('print-pages', async (_e, pages) => {
+// The renderer's print window picks the pages and settings (and shows the preview); the page pictures
+// (made by the backend) go into a hidden window, one per sheet, laid out the same way as the preview.
+ipcMain.handle('printers', () => win.webContents.getPrintersAsync());
+ipcMain.handle('print-pages', async (_e, pages, opt = {}) => {
   if (!pages || !pages.length) return { error: 'Nothing to print' };
-  const landscape = pages.filter(p => p.w > p.h).length > pages.length / 2;
-  const html = `<!doctype html><meta charset="utf-8"><style>
-    @page { margin: 0; }
+  const landscape = opt.landscape !== undefined ? opt.landscape : pages.filter(p => p.w > p.h).length > pages.length / 2;
+  let [sw, sh] = opt.paperSize || [612, 792];
+  if (landscape) [sw, sh] = [sh, sw];
+  const size = p => {   // the picture's size on the sheet, in points (as in the preview)
+    const fit = Math.min(sw / p.w, sh / p.h);
+    const f = opt.scale === 'actual' ? 1 : opt.scale === 'shrink' ? Math.min(1, fit) : fit;
+    return `width:${p.w * f}pt;height:${p.h * f}pt`;
+  };
+  const html = `<!doctype html><meta charset="utf-8"><title>MyPDFKit</title><style>
+    @page { size: ${sw}pt ${sh}pt; margin: 0; }
     html, body { margin: 0; background: #fff; }
-    .pg { width: 100vw; height: 100vh; display: flex; align-items: center; justify-content: center; page-break-after: always; break-after: page; overflow: hidden; }
+    .pg { width: ${sw}pt; height: ${sh}pt; display: flex; align-items: center; justify-content: center; page-break-after: always; break-after: page; overflow: hidden; }
     .pg:last-child { page-break-after: auto; break-after: auto; }
-    img { max-width: 100%; max-height: 100%; object-fit: contain; }
-  </style>` + pages.map(p => `<div class="pg"><img src="${require('url').pathToFileURL(p.path).href}"></div>`).join('');
+    img { flex: none; ${opt.color === false ? 'filter: grayscale(1);' : ''} }
+  </style>` + pages.map(p => `<div class="pg"><img style="${size(p)}" src="${require('url').pathToFileURL(p.path).href}"></div>`).join('');
   const file = path.join(path.dirname(pages[0].path), 'print.html');
   fs.writeFileSync(file, html);
   const pw = new BrowserWindow({ show: false, parent: win, webPreferences: { sandbox: true } });
@@ -146,7 +154,10 @@ ipcMain.handle('print-pages', async (_e, pages) => {
     await pw.loadFile(file);
     await pw.webContents.executeJavaScript('Promise.all([...document.images].map(i => i.decode().catch(() => {})))');
     // pageSize must be given: Electron 34 otherwise sends an empty page size and no dialog ever opens
-    return await new Promise(resolve => pw.webContents.print({ silent: false, printBackground: true, landscape, pageSize: 'Letter', margins: { marginType: 'none' } },
+    const settings = { silent: !opt.system, printBackground: true, landscape, pageSize: opt.paper || 'Letter', margins: { marginType: 'none' },
+      copies: opt.copies || 1, color: opt.color !== false, duplexMode: opt.duplex || 'simplex' };
+    if (opt.deviceName) settings.deviceName = opt.deviceName;
+    return await new Promise(resolve => pw.webContents.print(settings,
       (ok, reason) => resolve(ok || reason === 'cancelled' || reason === 'Print job canceled' ? { ok } : { error: "Couldn't print: " + reason })));
   } finally {
     pw.destroy();

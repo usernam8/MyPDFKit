@@ -620,6 +620,7 @@
     .mark-btn.wide { font-size:12px; font-weight:500; }
     .mark-btn:hover { border-color:var(--accent); }
     .mark-btn.on { background:var(--accent-soft); border-color:var(--accent); color:var(--accent); }
+    .keep-adding { display:flex; align-items:center; gap:6px; margin:0 0 6px 4px; font-size:12px; color:var(--dim, #9aa0a6); cursor:pointer; }
     body.tool-place #area-glass, body.tool-prepare #area-glass { display:block; }
     body.tool-place #area-glass { cursor:copy; }
     /* lasso selection */
@@ -926,6 +927,7 @@
         <button id="btn-stamps" class="side-btn" title="Your initials, date stamp, company stamps and logos"><svg class="ico"><use href="#i-stamp"/></svg>Stamps and initials</button>
         <button id="btn-prepare" class="side-btn" title="Mark where others sign, initial and date"><svg class="ico"><use href="#i-fields"/></svg>Prepare for signing</button>
         <div class="section-title">Quick marks <span class="dim-note">click one, then the page</span></div>
+        <label class="keep-adding" title="On: each click on the page adds another one until you press Esc. Off: one, then back to the arrow"><input type="checkbox" id="marks-keep"> Keep adding</label>
         <div class="mark-grid">
           <button class="mark-btn" data-mark="check" title="Check mark">&#10003;</button>
           <button class="mark-btn" data-mark="cross" title="Cross">&#10005;</button>
@@ -2072,6 +2074,16 @@
       const at = e => { const r = glass.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
       glass.addEventListener('mousedown', e => {
         if (e.button !== 0 || e.target !== glass) return;
+        if (currentTool === 'place') {
+          glass.style.display = 'none'; const hit = document.elementFromPoint(e.clientX, e.clientY); glass.style.display = '';
+          const item = hit && hit.closest('.pdf-image, .pdf-text, .shape-item, .pdf-shape');
+          if (item) {
+            e.preventDefault(); switchTool('btn-pointer', 'pointer');
+            hit.dispatchEvent(new MouseEvent('mousedown', e));
+            window.addEventListener('mouseup', u => { if (document.elementFromPoint(u.clientX, u.clientY) === hit) hit.click(); }, { once: true });
+            return;
+          }
+        }
         start = at(e); Object.assign(rub.style, { left: start[0] + 'px', top: start[1] + 'px', width: '0px', height: '0px', display: 'block' });
         rub.style.borderColor = currentTool === 'redact' ? '#e03c3c' : '#2f6fd0';
       });
@@ -4003,6 +4015,12 @@
       try { localStorage.setItem('my-name', v.n.trim()); } catch (e) {}
       return v.n.trim();
     }
+    // one mark at a time unless "Keep adding" is on (remembered)
+    try { document.getElementById('marks-keep').checked = localStorage.getItem('marks-keep') === '1'; } catch (e) {}
+    document.getElementById('marks-keep').addEventListener('change', e => {
+      try { localStorage.setItem('marks-keep', e.target.checked ? '1' : '0'); } catch (x) {}
+      if (!e.target.checked && currentTool === 'place') switchTool('btn-pointer', 'pointer');
+    });
     const initialsOf = n => n.split(/\s+/).filter(Boolean).map(w => w[0].toUpperCase()).join('').slice(0, 3);
     document.querySelectorAll('.mark-btn').forEach(b => b.addEventListener('click', async () => {
       const kind = b.dataset.mark;
@@ -4018,8 +4036,8 @@
           make = ini ? (x, y) => { const im = new Image(); im.onload = () => placeImage(ini, 36, 36 * im.height / im.width, x, y); im.src = ini; } : (x, y) => addTextAt(x, y - 8, initialsOf(n), 13);
         } else make = (x, y) => addTextAt(x, y - 7, n, 11);
       }
-      document.querySelectorAll('.mark-btn').forEach(x => x.classList.toggle('on', x === b));
-      startPlacing({ kind, make, repeat: true }, 'Click where it goes, as many times as you like. Esc to stop');
+      const keep = document.getElementById('marks-keep').checked;
+      startPlacing({ kind, make, repeat: keep }, keep ? 'Click where it goes, as many times as you like. Esc to stop' : 'Click where it goes');
       document.querySelectorAll('.mark-btn').forEach(x => x.classList.toggle('on', x === b));
     }));
 

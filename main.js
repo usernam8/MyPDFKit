@@ -25,7 +25,7 @@ const OPENABLE = new RegExp('\\.(' +['pdf', 'doc', 'docx', 'docm', 'dot', 'dotx'
   'dxf', 'dwg', 'dwf', 'dwfx', 'plt', 'hpgl', 'hpg', 'hgl', 'psd', 'psb', 'heic', 'heif', 'avif', 'tga', 'dds', 'pcx', 'jp2', 'j2k', 'emf', 'wmf', 'svgz',
   'ai', 'eps', 'ps', 'stl', 'obj', 'ply', 'off', 'skp', 'rvt', 'rfa', '3dm', 'max', 'blend', 'indd', 'idml', 'cdr', 'afdesign', 'afphoto', 'afpub',
   'sketch', 'fig', 'xd', 'pages', 'numbers', 'key', 'vsd', 'vsdx', 'pub', 'ifc', 'dgn', 'step', 'stp', 'iges', 'igs', 'sldprt', 'sldasm', 'slddrw',
-  'ipt', 'iam', 'f3d', 'c4d', 'fbx', 'dae', '3ds', 'cr2', 'cr3', 'nef', 'arw', 'dng', 'raf', 'orf', 'rw2', 'pef', 'srw', 'clo', 'zprj', 'avt', 'pds', 'eml'].join('|') + ')$', 'i');
+  'ipt', 'iam', 'f3d', 'c4d', 'fbx', 'dae', '3ds', 'cr2', 'cr3', 'nef', 'arw', 'dng', 'raf', 'orf', 'rw2', 'pef', 'srw', 'clo', 'zprj', 'avt', 'pds', 'mdl', 'aama', 'rul', 'zpac', 'zfab', 'zsel', 'bw', 'vsp', 'u3m', 'iba', 'vet', 'mrk', 'tuk', 'eml'].join('|') + ')$', 'i');
 function filesFromArgv(argv) {
   return argv.slice(app.isPackaged ? 1 : 2).filter(a => OPENABLE.test(a) && fs.existsSync(a));
 }
@@ -187,12 +187,12 @@ function killServer() {
     spawn('taskkill', ['/pid', String(serverProc.pid), '/f', '/t'], { windowsHide: true });
   }
 }
-// the backend keeps a hidden Word ready for quick conversions: ask it to close that first (up to 8 seconds)
+// the backend keeps a hidden Word ready for quick conversions: ask it to close that first (up to 15 seconds)
 function closeBackend() {
   return new Promise(resolve => {
     if (!serverProc || serverProc.killed) return resolve();
     const done = () => { killServer(); resolve(); };
-    const req = http.request({ host: '127.0.0.1', port: SERVER_PORT, path: '/shutdown', method: 'POST', timeout: 8000 }, res => { res.resume(); res.on('end', done); });
+    const req = http.request({ host: '127.0.0.1', port: SERVER_PORT, path: '/shutdown', method: 'POST', timeout: 15000 }, res => { res.resume(); res.on('end', done); });
     req.on('error', done); req.on('timeout', () => { req.destroy(); done(); });
     req.end();
   });

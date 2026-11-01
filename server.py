@@ -93,7 +93,8 @@ MODEL_EXT = ('.stl', '.obj', '.ply', '.off')
 PREVIEW_EXT = ('.skp', '.rvt', '.rfa', '.rte', '.3dm', '.max', '.blend', '.indd', '.idml', '.cdr', '.afdesign', '.afphoto', '.afpub', '.sketch',
                '.fig', '.xd', '.pages', '.numbers', '.key', '.vsd', '.vsdx', '.pub', '.ifc', '.dgn', '.step', '.stp', '.iges', '.igs', '.sldprt',
                '.sldasm', '.slddrw', '.ipt', '.iam', '.f3d', '.c4d', '.fbx', '.dae', '.3ds', '.cr2', '.cr3', '.nef', '.arw', '.dng', '.raf', '.orf',
-               '.rw2', '.pef', '.srw', '.clo', '.zprj', '.avt', '.pds', '.mdl', '.aama', '.rul')
+               '.rw2', '.pef', '.srw', '.clo', '.zprj', '.avt', '.pds', '.mdl', '.aama', '.rul',
+               '.zpac', '.zfab', '.zsel', '.bw', '.vsp', '.u3m', '.iba', '.vet', '.mrk', '.tuk')
 MAIL_EXT = ('.eml',)
 DESIGN_EXT = CAD_EXT + PICTURE_EXT + VECTOR_EXT + MODEL_EXT + PREVIEW_EXT + MAIL_EXT
 OPENABLE_EXT = ('.pdf',) + WORD_EXT + EXCEL_EXT + POWERPOINT_EXT + IMAGE_EXT + BOOK_EXT + WEB_EXT + TEXT_EXT + DESIGN_EXT
@@ -163,7 +164,9 @@ KIND_NAME = {'.skp': 'SketchUp', '.rvt': 'Revit', '.rfa': 'Revit', '.rte': 'Revi
              '.step': 'a CAD program', '.stp': 'a CAD program', '.iges': 'a CAD program', '.igs': 'a CAD program', '.sldprt': 'SolidWorks',
              '.sldasm': 'SolidWorks', '.slddrw': 'SolidWorks', '.ipt': 'Inventor', '.iam': 'Inventor', '.f3d': 'Fusion 360', '.c4d': 'Cinema 4D',
              '.fbx': 'a 3D program', '.dae': 'a 3D program', '.3ds': 'a 3D program', '.dwg': 'AutoCAD', '.dwf': 'Design Review',
-             '.clo': 'CLO 3D', '.zprj': 'CLO 3D', '.avt': 'CLO 3D', '.pds': 'Optitex', '.mdl': 'a pattern program', '.aama': 'a pattern program', '.rul': 'a pattern program'}
+             '.clo': 'CLO 3D', '.zprj': 'CLO 3D', '.avt': 'CLO 3D', '.pds': 'Optitex', '.mdl': 'a pattern program', '.aama': 'a pattern program', '.rul': 'a pattern program',
+             '.zpac': 'CLO 3D', '.zfab': 'CLO 3D', '.zsel': 'CLO 3D', '.bw': 'Browzwear VStitcher', '.vsp': 'Browzwear VStitcher', '.u3m': 'a 3D fabric program',
+             '.iba': 'Lectra Modaris', '.vet': 'Lectra Modaris', '.mrk': 'Optitex', '.tuk': 'Tukatech'}
 
 def _program_path(*globs):
     import glob
@@ -458,17 +461,20 @@ def _design_to_pdf(src, dst):
     return _preview_to_pdf(src, dst)
 
 # ---------- Office, kept quick ----------
-# Starting Word takes about a second and shutting it down about two and a half, and the old way did both for
-# every file while the user waited. Now one hidden Word is started when the app starts and kept for the next
-# file (closed after a few idle minutes, or when the app closes), and Excel and PowerPoint shut down in the
-# background after the PDF is handed over. Everything Office runs on one worker thread (COM likes that).
+# Starting an Office app takes about a second and shutting it down a few more, and the old way did both for
+# every file while the user waited. Now hidden Word and Excel are started with the app, PowerPoint on its first
+# file, and each is kept for the next file (closed after 15 idle minutes, or when the app closes). Everything Office runs on one worker thread (COM likes that).
 import queue as _queue, threading as _threading, time as _time
 
 class _OfficeWorker:
-    IDLE_QUIT = 240   # seconds of no use before the hidden Word is closed
+    IDLE_QUIT = 900   # seconds of no use before the hidden Office apps are closed
+
+    # name, how to count what's open in it (never close one that has someone's own files in it)
+    APPS = {'word': ('Word.Application', 'Documents'), 'excel': ('Excel.Application', 'Workbooks'),
+            'ppt': ('PowerPoint.Application', 'Presentations')}
 
     def __init__(self):
-        self.jobs = _queue.Queue(); self.word = None; self.last = 0
+        self.jobs = _queue.Queue(); self.apps = {}; self.last = 0
         _threading.Thread(target=self._run, daemon=True).start()
 
     def _run(self):
@@ -476,34 +482,39 @@ class _OfficeWorker:
         while True:
             try: fn, box = self.jobs.get(timeout=20)
             except _queue.Empty:
-                if self.word is not None and _time.time() - self.last > self.IDLE_QUIT: self._quit_word()
+                if self.apps and _time.time() - self.last > self.IDLE_QUIT: self._quit_all()
                 continue
             try: box['result'] = fn(self)
             except Exception as e: box['error'] = e
             finally:
                 self.last = _time.time()
                 if 'done' in box: box['done'].set()
-                after = box.pop('after', None)   # tidy-up that the caller doesn't need to wait for
-                if after:
-                    try: after()
-                    except Exception: pass
 
-    def get_word(self):
-        w = self.word
-        if w is not None:
-            try: w.Documents.Count   # still running?
-            except Exception: w = None
-        if w is None:
-            w = win32.DispatchEx('Word.Application'); w.Visible = False; w.DisplayAlerts = 0
-            self.word = w
-        return w
+    def get(self, kind):
+        a = self.apps.get(kind)
+        if a is not None:
+            try: getattr(a, self.APPS[kind][1]).Count   # still running?
+            except Exception: a = None
+        if a is None:
+            a = win32.DispatchEx(self.APPS[kind][0])
+            if kind == 'word': a.Visible = False; a.DisplayAlerts = 0
+            elif kind == 'excel': a.Visible = False; a.DisplayAlerts = False; a.ScreenUpdating = False
+            self.apps[kind] = a
+        return a
 
-    def _quit_word(self):
-        w, self.word = self.word, None
-        if w is None: return
+    def get_word(self): return self.get('word')
+
+    def forget(self, kind): self.apps.pop(kind, None)
+
+    def _quit(self, kind):
+        a = self.apps.pop(kind, None)
+        if a is None: return
         try:
-            if w.Documents.Count == 0: w.Quit()   # never close a Word that has someone's documents in it
+            if getattr(a, self.APPS[kind][1]).Count == 0: a.Quit()
         except Exception: pass
+
+    def _quit_all(self):
+        for k in list(self.apps): self._quit(k)
 
     def run(self, fn, timeout=600):
         box = {'done': _threading.Event()}
@@ -516,17 +527,19 @@ class _OfficeWorker:
         self.jobs.put((fn, {}))
 
     def shutdown(self):
-        self.run(lambda o: o._quit_word(), timeout=20)
+        self.run(lambda o: o._quit_all(), timeout=20)
 
 OFFICE = _OfficeWorker()
 
-def _prewarm_word():
-    """Have Word ready before the first Word file comes in (only if Word is installed)."""
+def _prewarm_office():
+    """Have Word, Excel and PowerPoint ready before the first file comes in (the ones installed)."""
+    import winreg
     _time.sleep(3)
-    try:
-        import winreg; winreg.CloseKey(winreg.OpenKey(winreg.HKEY_CLASSES_ROOT, r'Word.Application'))
-    except OSError: return
-    OFFICE.later(lambda o: o.get_word())
+    for kind, (prog, _) in _OfficeWorker.APPS.items():
+        try: winreg.CloseKey(winreg.OpenKey(winreg.HKEY_CLASSES_ROOT, prog))
+        except OSError: continue
+        if kind == 'ppt': continue   # PowerPoint is one shared copy per user: started only when a slide file comes in
+        OFFICE.later(lambda o, k=kind: o.get(k))
 
 def _com_to_pdf(src, dst):
     """Convert a Word/Excel/PowerPoint file to PDF using a private Office instance
@@ -539,40 +552,32 @@ def _com_to_pdf(src, dst):
         d = fitz.open(src); fitz.open('pdf', d.convert_to_pdf()).save(dst, garbage=3, deflate=True); return
     if low.endswith(WEB_EXT): return _web_to_pdf(src, dst)
     if low.endswith(TEXT_EXT): return _text_to_pdf(src, dst)
+    def kept(o, kind, open_):
+        """Open the file in the kept app; if that app went away, start a fresh one once."""
+        try: return open_(o.get(kind))
+        except Exception:
+            o.forget(kind); return open_(o.get(kind))
     if low.endswith(WORD_EXT):
         def word_job(o):
-            w = o.get_word()
-            try: doc = w.Documents.Open(src, ReadOnly=True, AddToRecentFiles=False, Visible=False)
-            except Exception:   # the kept Word went away: start a fresh one once
-                o.word = None; w = o.get_word(); doc = w.Documents.Open(src, ReadOnly=True, AddToRecentFiles=False, Visible=False)
+            doc = kept(o, 'word', lambda w: w.Documents.Open(src, ReadOnly=True, AddToRecentFiles=False, Visible=False))
             try: doc.ExportAsFixedFormat(dst, 17)
             finally: doc.Close(False)
         OFFICE.run(word_job)
     elif low.endswith(EXCEL_EXT):
         def excel_job(o):
-            app_ = win32.DispatchEx('Excel.Application')
-            app_.DisplayAlerts = False
-            box = {'app': app_}
+            wb = kept(o, 'excel', lambda x: x.Workbooks.Open(src, ReadOnly=True, AddToMru=False))
             try:
-                wb = app_.Workbooks.Open(src, ReadOnly=True)
-                try:
-                    try: _widen_cut_off_columns(wb, src)
-                    except Exception as e: print('column fit skipped:', e, file=sys.stderr)
-                    wb.ExportAsFixedFormat(0, dst)
-                finally: wb.Close(False)   # never saved: the user's file stays as it was
-            finally:
-                o.later(lambda o2, a=app_: a.Quit())   # closing Excel takes seconds: done after the PDF is handed over
+                try: _widen_cut_off_columns(wb, src)
+                except Exception as e: print('column fit skipped:', e, file=sys.stderr)
+                wb.ExportAsFixedFormat(0, dst)
+            finally: wb.Close(False)   # never saved: the user's file stays as it was
         OFFICE.run(excel_job)
     elif low.endswith(POWERPOINT_EXT):
         def ppt_job(o):
-            app_ = win32.DispatchEx('PowerPoint.Application')
-            try:
-                # PowerPoint takes Office's -1 / 0 for yes / no (a Python True can't be passed to it)
-                pres = app_.Presentations.Open(src, -1, 0, 0)   # read-only, keep its name, no window
-                try: pres.SaveAs(dst, 32)                       # 32 = PDF
-                finally: pres.Close()
-            finally:
-                o.later(lambda o2, a=app_: a.Quit() if a.Presentations.Count == 0 else None)   # don't close someone's own slides
+            # PowerPoint takes Office's -1 / 0 for yes / no (a Python True can't be passed to it)
+            pres = kept(o, 'ppt', lambda a: a.Presentations.Open(src, -1, 0, 0))   # read-only, keep its name, no window
+            try: pres.SaveAs(dst, 32)                                              # 32 = PDF
+            finally: pres.Close()
         OFFICE.run(ppt_job)
     else:
         raise ValueError("Unsupported format")
@@ -4155,5 +4160,5 @@ def search_pdf():
     except Exception as e: return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
-    _threading.Thread(target=_prewarm_word, daemon=True).start()
+    _threading.Thread(target=_prewarm_office, daemon=True).start()
     app.run(host='127.0.0.1', port=int(os.environ.get('MYPDFKIT_PORT') or 5000), threaded=True)

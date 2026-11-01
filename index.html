@@ -177,7 +177,51 @@
     .dialog p { margin:0 0 18px; color:var(--dim); line-height:1.5; }
     .dialog-actions { display:flex; gap:8px; justify-content:flex-end; align-items:center; margin-top:14px; }
     .dialog-actions .spacer { flex:1; }
-    #sig-canvas { display:block; background:#f2f1ed; border-radius:4px; cursor:crosshair; }
+    #sig-canvas { display:block; width:560px; height:220px; max-width:100%; background:#f7f6f2; border-radius:6px; cursor:crosshair; touch-action:none; }
+    .sig-tools { display:flex; align-items:center; gap:6px; margin:4px 0 10px; flex-wrap:wrap; }
+    .sig-tools .tip-row { margin:0; padding:0; border:0; height:46px; }
+    .sig-tools .tip { width:26px; height:46px; }
+    .sig-tools .size-row { margin:0; padding:0 4px; border:0; gap:2px; }
+    .sig-tools .size-btn { width:26px; }
+    .sig-tools .ink-colors { margin:0; display:flex; gap:5px; }
+    .sig-tools .spacer { flex:1; }
+    /* pen panel, like a phone's: tips standing in a row, sizes, colors */
+    .pen-top { display:flex; align-items:center; gap:2px; padding:6px 10px 2px 16px; font-size:13px; font-weight:600; }
+    .pen-top .spacer { flex:1; }
+    .pen-ibtn { width:30px; height:28px; border:0; border-radius:6px; background:transparent; color:var(--dim); cursor:pointer; display:flex; align-items:center; justify-content:center; }
+    .pen-ibtn:hover:not(:disabled) { background:var(--raised); color:var(--text); }
+    .pen-ibtn:disabled { opacity:.35; cursor:default; }
+    .pen-ibtn .ico { width:17px; height:17px; }
+    .tip-row { display:flex; align-items:flex-end; justify-content:space-between; height:62px; margin:4px 12px 0; padding:0 4px; border-bottom:1px solid var(--line); overflow:hidden; }
+    .tip { width:28px; height:62px; padding:0; border:0; background:transparent; cursor:pointer; transform:translateY(16px); transition:transform .15s; }
+    .tip:hover { transform:translateY(10px); }
+    .tip.selected { transform:translateY(2px); }
+    .tip svg { width:100%; height:100%; display:block; }
+    .size-row { display:flex; align-items:center; justify-content:space-between; margin:6px 12px; padding:4px 2px 8px; border-bottom:1px solid var(--line); }
+    .size-btn { width:36px; height:30px; border:0; border-radius:50%; background:transparent; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+    .size-btn span { display:block; width:18px; border-radius:3px; background:var(--accent); }
+    .size-btn.selected { box-shadow:inset 0 0 0 1.5px var(--danger, #e05252); }
+    .ink-colors { display:grid; grid-template-columns:repeat(6, 1fr); gap:7px; margin:8px 16px 10px; }
+    .ink-dot { width:26px; height:26px; border-radius:50%; border:1px solid rgba(255,255,255,.18); cursor:pointer; padding:0; position:relative; }
+    .ink-dot.selected::after { content:"\2713"; position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font:700 13px Segoe UI, sans-serif; color:#fff; text-shadow:0 0 2px rgba(0,0,0,.8); }
+    .ink-dot.light.selected::after { color:#111; text-shadow:none; }
+    .ink-custom { background:conic-gradient(red, yellow, lime, cyan, blue, magenta, red); overflow:hidden; }
+    .ink-custom input { position:absolute; inset:0; opacity:0; width:100%; height:100%; cursor:pointer; border:0; padding:0; }
+    #eraser-opts { display:none; padding-bottom:10px; }
+    #panel-draw.erasing #eraser-opts { display:block; }
+    #panel-draw.erasing #pen-opts { display:none; }
+    .seg { display:flex; margin:10px 16px 4px; border:1px solid var(--line); border-radius:7px; overflow:hidden; }
+    .seg button { flex:1; height:28px; border:0; background:transparent; color:var(--dim); font:12px Segoe UI, sans-serif; cursor:pointer; }
+    .seg button.selected { background:var(--accent-soft); color:var(--accent); }
+    #erase-page { margin:4px 16px 0; }
+    #eraser-ring { position:absolute; z-index:11; display:none; border:1.5px solid rgba(60,60,60,.8); box-shadow:0 0 0 1px rgba(255,255,255,.8); border-radius:50%; pointer-events:none; transform:translate(-50%, -50%); }
+    body.tool-draw.erasing #event-glass { cursor:none !important; }
+    /* a picture or signature on the page: corner handles resize it */
+    .img-h { position:absolute; width:11px; height:11px; background:#fff; border:1.5px solid var(--page-accent, #2f6fd0); border-radius:2px; display:none; z-index:2; }
+    .pdf-image.active-element .img-h, .pdf-image.active-element .img-del { display:block; }
+    .img-h[data-c="nw"] { left:-7px; top:-7px; cursor:nwse-resize; } .img-h[data-c="se"] { right:-7px; bottom:-7px; cursor:nwse-resize; }
+    .img-h[data-c="ne"] { right:-7px; top:-7px; cursor:nesw-resize; } .img-h[data-c="sw"] { left:-7px; bottom:-7px; cursor:nesw-resize; }
+    .img-del { position:absolute; right:-10px; top:-30px; display:none; width:22px; height:22px; border:0; border-radius:50%; background:#e05252; color:#fff; font:700 11px Segoe UI, sans-serif; cursor:pointer; z-index:2; box-shadow:0 2px 6px rgba(0,0,0,.3); }
 
     /* ---- workspace ---- */
     #workspace { flex:1; display:flex; flex-direction:row; overflow:hidden; background:var(--canvas); position:relative; min-width:0; }
@@ -314,8 +358,7 @@
     .pdf-image.active-element {
         border: 2px dashed var(--page-accent) !important;
         z-index: 105;
-        resize: both;
-        overflow: hidden;
+        overflow: visible;
     }
 
     body.tool-pointer .pdf-text.new-text,
@@ -659,7 +702,15 @@
     <div class="dialog">
       <h3>Draw your signature</h3>
       <div id="sig-saved"><img alt="Saved signature"><span class="spacer"></span><button id="btn-sig-forget" class="btn quiet">Forget</button><button id="btn-sig-use" class="btn primary">Use this</button></div>
-      <canvas id="sig-canvas" width="400" height="200"></canvas>
+      <div class="sig-tools">
+        <div class="tip-row" id="sig-tips"></div>
+        <div class="size-row" id="sig-sizes"></div>
+        <div class="ink-colors" id="sig-colors"></div>
+        <span class="spacer"></span>
+        <button id="sig-undo" class="pen-ibtn" title="Undo (Ctrl+Z)"><svg class="ico"><use href="#i-undo"/></svg></button>
+        <button id="sig-redo" class="pen-ibtn" title="Redo (Ctrl+Y)"><svg class="ico" style="transform:scaleX(-1)"><use href="#i-undo"/></svg></button>
+      </div>
+      <canvas id="sig-canvas" width="1120" height="440"></canvas>
       <label class="sig-remember"><input type="checkbox" id="sig-remember" checked> Remember this signature</label>
       <div class="dialog-actions">
         <button id="btn-sig-clear" class="btn quiet">Clear</button>
@@ -793,6 +844,7 @@
             <div id="crop-overlay" style="display:none; position:absolute; border:2px dashed #e8527a; background:rgba(232,82,122,0.18); z-index:200; pointer-events:none;"></div>
 
             <div id="event-glass"></div>
+            <div id="eraser-ring"></div>
             <div id="text-layer"></div>
             <div id="find-layer"></div>
             <div id="form-layer"></div>
@@ -845,33 +897,20 @@
       </div>
 
       <div id="panel-draw" style="display: none;">
-        <div id="opts-hl">
-        <div class="tool-header active" id="header-hl"><svg class="ico"><use href="#i-highlighter"/></svg>Highlighter</div>
-        <div class="color-row">
-          <div class="color-dot selected" style="background: #ffeb3b;" onclick="document.getElementById('hl-color').value='#ffeb3b'"></div>
-          <div class="color-dot" style="background: #4ade80;" onclick="document.getElementById('hl-color').value='#4ade80'"></div>
-          <div class="color-dot" style="background: #60a5fa;" onclick="document.getElementById('hl-color').value='#60a5fa'"></div>
-          <div class="color-dot" style="background: #f472b6;" onclick="document.getElementById('hl-color').value='#f472b6'"></div>
+        <div class="pen-top"><span id="pen-title">Pen</span><span class="spacer"></span>
+          <button id="btn-undo" class="pen-ibtn" title="Undo (Ctrl+Z)"><svg class="ico"><use href="#i-undo"/></svg></button>
+          <button id="btn-redo" class="pen-ibtn" title="Redo (Ctrl+Y)"><svg class="ico" style="transform:scaleX(-1)"><use href="#i-undo"/></svg></button>
         </div>
-        <input type="color" id="hl-color" value="#ffeb3b" class="custom-color-picker">
-        <div class="slider-container"><label>Size</label><input type="range" id="hl-size" min="5" max="40" value="16"></div>
+        <div class="tip-row" id="tip-row"></div>
+        <div id="pen-opts">
+          <div class="size-row" id="size-row"></div>
+          <div class="ink-colors" id="ink-colors"></div>
+          <div class="slider-container"><label>Opacity</label><input type="range" id="pen-opacity" min="10" max="100" value="100"></div>
         </div>
-
-        <div id="opts-pen">
-        <div class="tool-header" id="header-pen"><svg class="ico"><use href="#i-pen"/></svg>Pen</div>
-        <div class="color-row">
-          <div class="color-dot selected" style="background: #000000;" onclick="document.getElementById('pen-color').value='#000000'"></div>
-          <div class="color-dot" style="background: #ef4444;" onclick="document.getElementById('pen-color').value='#ef4444'"></div>
-          <div class="color-dot" style="background: #3b82f6;" onclick="document.getElementById('pen-color').value='#3b82f6'"></div>
-          <div class="color-dot" style="background: #ffffff;" onclick="document.getElementById('pen-color').value='#ffffff'"></div>
-        </div>
-        <input type="color" id="pen-color" value="#000000" class="custom-color-picker">
-        <div class="slider-container"><label>Size</label><input type="range" id="pen-size" min="1" max="12" value="3"></div>
-        <div class="slider-container"><label>Opacity</label><input type="range" id="pen-opacity" min="10" max="100" value="100"></div>
-
-        </div>
-        <div class="pop-foot">
-          <button id="btn-undo" class="mini-btn" title="Remove the last stroke (Ctrl+Z)"><svg class="ico"><use href="#i-undo"/></svg>Undo stroke</button>
+        <div id="eraser-opts">
+          <div class="seg" id="erase-mode"><button data-em="stroke">Whole strokes</button><button data-em="area">Where I rub</button></div>
+          <div class="size-row" id="erase-size-row"></div>
+          <button id="erase-page" class="mini-btn danger">Erase all drawing on this page</button>
         </div>
       </div>
 
@@ -2045,7 +2084,7 @@
         method: 'POST', headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({
           filepath: currentTempPdf, page: pageNum - 1, 
-          text_edits: text_edits, new_texts: new_texts, drawings: drawnStrokes, images: new_images
+          text_edits: text_edits, new_texts: new_texts, drawings: drawnStrokes.map(inkForPdf), images: new_images
         })
       });
       
@@ -2470,6 +2509,253 @@
         this.value = '';
     });
 
+    // ---------- ink: pen tips, sizes, colors and the eraser (the page pen and the signature pad share it) ----------
+    // Sizes are in points. Pens marked variable get thicker and thinner with the speed (and, for the
+    // fountain pen, the direction) of the stroke, like a real nib; they're saved as the shape of the ink.
+    const TIPS = {
+      pen:         { name: 'Pen',          sizes: [0.6, 1.2, 2, 3.2, 5],  alpha: 1 },
+      fountain:    { name: 'Fountain pen', sizes: [0.9, 1.6, 2.6, 4, 6],  alpha: 1, variable: 'fountain' },
+      pencil:      { name: 'Pencil',       sizes: [0.4, 0.8, 1.3, 2, 3],  alpha: 0.8 },
+      marker:      { name: 'Marker',       sizes: [2.5, 4, 6, 9, 14],     alpha: 0.92 },
+      brush:       { name: 'Brush',        sizes: [1.5, 3, 5, 8, 13],     alpha: 1, variable: 'brush' },
+      highlighter: { name: 'Highlighter',  sizes: [6, 9, 13, 18, 26],     alpha: 1 },
+    };
+    const ERASER_SIZES = [3, 6, 10, 16, 24];
+    const INK_COLORS = ['#111111', '#e03c3c', '#f59e0b', '#ffd60a', '#22a559', '#0ea5e9', '#2f6fd0', '#7c3aed', '#ec4899', '#8a8f98', '#ffffff'];
+    const HL_COLORS = ['#ffeb3b', '#4ade80', '#60a5fa', '#f472b6', '#fb923c', '#c084fc', '#a3e635', '#22d3ee', '#fca5a5', '#e5e7eb', '#fde68a'];
+    // pictures of the tips, standing up, inked in the current color
+    function tipSvg(tip, color) {
+      const body = '#e9e4d8', dark = '#9a948a';
+      const art = {
+        pen: `<rect x="8" y="22" width="12" height="44" rx="2" fill="${body}"/><path d="M8 22 L14 4 L20 22z" fill="${body}"/><path d="M12.2 9 L14 4 L15.8 9z" fill="${color}"/><rect x="8" y="30" width="12" height="3" fill="${dark}"/>`,
+        fountain: `<rect x="7" y="26" width="14" height="40" rx="3" fill="#2b2b2b"/><path d="M9 26 C9 16 12 10 14 3 C16 10 19 16 19 26z" fill="#c9b37a"/><path d="M14 6 L14 20" stroke="${color}" stroke-width="1.6"/><circle cx="14" cy="20" r="1.6" fill="${color}"/>`,
+        pencil: `<rect x="8" y="20" width="12" height="46" fill="#f2c14e"/><rect x="8" y="20" width="4" height="46" fill="#e0a92e"/><path d="M8 20 L14 5 L20 20z" fill="#efd7a6"/><path d="M12 10 L14 5 L16 10z" fill="${color}"/>`,
+        marker: `<rect x="6" y="24" width="16" height="42" rx="3" fill="${body}"/><path d="M8 24 L9 12 L19 12 L20 24z" fill="${dark}"/><path d="M10 12 L10 5 L18 8 L18 12z" fill="${color}"/>`,
+        brush: `<rect x="9" y="28" width="10" height="38" rx="2" fill="#7a5230"/><rect x="8" y="22" width="12" height="7" fill="#b9b9b9"/><path d="M8 22 C8 14 12 8 14 2 C16 8 20 14 20 22z" fill="${color}"/>`,
+        highlighter: `<rect x="5" y="26" width="18" height="40" rx="3" fill="${body}"/><path d="M7 26 L8 14 L20 14 L21 26z" fill="${dark}"/><path d="M9 14 L9 6 L19 9 L19 14z" fill="${color}" opacity=".85"/>`,
+        eraser: `<rect x="6" y="14" width="16" height="52" rx="3" fill="#7d8597"/><rect x="6" y="6" width="16" height="16" rx="3" fill="#f4a3b5"/><rect x="6" y="18" width="16" height="4" fill="#c9cfdb"/>`,
+      }[tip];
+      return `<svg viewBox="0 0 28 66">${art}</svg>`;
+    }
+    function newStroke(tip, at, opts = {}) {
+      const set = opts.set || pen.tips[tip];
+      const base = TIPS[tip].sizes[set.size] * (opts.scale || 1);
+      const s = { type: tip, color: set.color, size: base, opacity: tip === 'highlighter' ? 1 : TIPS[tip].alpha * (set.opacity / 100), points: [at], t: performance.now() };
+      if (TIPS[tip].variable) s.widths = [TIPS[tip].variable === 'brush' ? base * 0.35 : base * 0.8];
+      return s;
+    }
+    function addInkPoint(s, q) {
+      const p = s.points[s.points.length - 1], d = Math.hypot(q[0] - p[0], q[1] - p[1]);
+      if (d < 0.25) return;
+      const now = performance.now(), dt = Math.max(4, now - s.t); s.t = now;
+      s.points.push(q);
+      if (!s.widths) return;
+      const v = d / dt, prev = s.widths[s.widths.length - 1], base = s.size;
+      let target;
+      if (TIPS[s.type].variable === 'fountain') {   // a slanted nib: thin going one way, broad the other
+        const ang = Math.atan2(q[1] - p[1], q[0] - p[0]);
+        target = base * (0.3 + 1.0 * Math.abs(Math.sin(ang + Math.PI / 4))) * Math.max(0.65, 1.1 - v * 0.3);
+      } else target = base * Math.max(0.3, Math.min(1.35, 1.45 - v * 0.85));
+      s.widths.push(prev * 0.6 + target * 0.4);
+    }
+    function finishInk(s) {
+      delete s.t;
+      if (s.points.length === 1 && !s.widths) s.points.push([s.points[0][0] + 0.1, s.points[0][1] + 0.1]);
+      if (s.widths && TIPS[s.type].variable === 'brush' && s.widths.length > 3) {   // a brush lifts off in a point
+        const n = s.widths.length; [0.85, 0.6, 0.35].forEach((f, i) => { if (n - 1 - i > 0) s.widths[n - 1 - i] *= f; });
+      }
+    }
+    // the outline of a stroke whose width changes, with round ends
+    function inkOutline(s) {
+      const P = s.points, W = s.widths, n = P.length;
+      if (n === 1) { const [x, y] = P[0], r = W[0] / 2; return Array.from({ length: 12 }, (_, i) => [x + r * Math.cos(i * Math.PI / 6), y + r * Math.sin(i * Math.PI / 6)]); }
+      const L = [], R = [];
+      for (let i = 0; i < n; i++) {
+        const a = P[Math.max(0, i - 1)], b = P[Math.min(n - 1, i + 1)];
+        let dx = b[0] - a[0], dy = b[1] - a[1]; const len = Math.hypot(dx, dy) || 1; dx /= len; dy /= len;
+        const h = W[i] / 2;
+        L.push([P[i][0] - dy * h, P[i][1] + dx * h]); R.push([P[i][0] + dy * h, P[i][1] - dx * h]);
+      }
+      const cap = (c, h, from) => Array.from({ length: 5 }, (_, k) => { const t = from - (k + 1) * Math.PI / 6; return [c[0] + h * Math.cos(t), c[1] + h * Math.sin(t)]; });
+      const dir = (a, b) => Math.atan2(b[1] - a[1], b[0] - a[0]);
+      const fe = dir(P[n - 2], P[n - 1]), fs = dir(P[0], P[1]);
+      return L.concat(cap(P[n - 1], W[n - 1] / 2, fe + Math.PI / 2), R.reverse(), cap(P[0], W[0] / 2, fs - Math.PI / 2));
+    }
+    function drawInk(ctx, s, k) {
+      ctx.save();
+      ctx.globalAlpha = s.opacity; ctx.fillStyle = ctx.strokeStyle = s.color;
+      if (s.widths) {
+        const o = inkOutline(s);
+        ctx.beginPath(); o.forEach((p, i) => i ? ctx.lineTo(p[0] * k, p[1] * k) : ctx.moveTo(p[0] * k, p[1] * k)); ctx.closePath(); ctx.fill();
+      } else {
+        const P = s.points;
+        ctx.lineWidth = s.size * k; ctx.lineJoin = 'round';
+        ctx.lineCap = s.type === 'highlighter' ? 'square' : 'round';
+        ctx.beginPath(); ctx.moveTo(P[0][0] * k, P[0][1] * k);
+        for (let i = 1; i < P.length - 1; i++) {   // smooth: curve through the midpoints
+          const mx = (P[i][0] + P[i + 1][0]) / 2, my = (P[i][1] + P[i + 1][1]) / 2;
+          ctx.quadraticCurveTo(P[i][0] * k, P[i][1] * k, mx * k, my * k);
+        }
+        if (P.length > 1) ctx.lineTo(P[P.length - 1][0] * k, P[P.length - 1][1] * k);
+        ctx.stroke();
+        if (s.type === 'pencil') {   // graphite grain: a second, fainter pass slightly off
+          ctx.globalAlpha = s.opacity * 0.35; ctx.lineWidth = Math.max(0.5, s.size * k * 0.6);
+          ctx.translate(0.35 * k, -0.25 * k); ctx.stroke();
+        }
+      }
+      ctx.restore();
+    }
+    const inkForPdf = s => {
+      const o = { type: s.type, color: s.color, size: s.size, opacity: s.opacity, points: s.points };
+      if (s.widths) { o.outline = inkOutline(s); o.widths = s.widths; }
+      return o;
+    };
+
+    // pen settings, remembered per tip
+    const pen = (() => {
+      const d = { tip: 'pen', lastTip: 'pen', eraser: false, eraseMode: 'stroke', eraseSize: 1, tips: {} };
+      for (const t of Object.keys(TIPS)) d.tips[t] = { color: t === 'highlighter' ? '#ffeb3b' : t === 'brush' ? '#2f6fd0' : '#111111', size: t === 'marker' || t === 'highlighter' ? 2 : 1, opacity: 100 };
+      try { const s = JSON.parse(localStorage.getItem('pen-settings')); if (s) { Object.assign(d, s, { tips: Object.assign(d.tips, s.tips || {}) }); d.eraser = false; } } catch (e) {}
+      return d;
+    })();
+    const savePen = () => { try { localStorage.setItem('pen-settings', JSON.stringify(pen)); } catch (e) {} };
+    // one row of tips, one of sizes and a grid of colors; used by the page pen and the signature pad
+    function buildTipRow(box, tips, getSel, onPick, withEraser) {
+      box.innerHTML = '';
+      for (const t of tips.concat(withEraser ? ['eraser'] : [])) {
+        const b = document.createElement('button'); b.className = 'tip'; b.dataset.tip = t; b.title = t === 'eraser' ? 'Eraser' : TIPS[t].name;
+        b.addEventListener('click', () => onPick(t)); box.append(b);
+      }
+      const paint = () => box.querySelectorAll('.tip').forEach(b => {
+        const sel = getSel();
+        b.classList.toggle('selected', b.dataset.tip === sel.tip);
+        b.innerHTML = tipSvg(b.dataset.tip, b.dataset.tip === 'eraser' ? '' : sel.colorOf(b.dataset.tip));
+      });
+      paint(); return paint;
+    }
+    function buildSizeRow(box, sizes, getSize, onPick, color) {
+      box.innerHTML = '';
+      const max = Math.max(...sizes);
+      sizes.forEach((v, i) => {
+        const b = document.createElement('button'); b.className = 'size-btn'; b.title = `${v} pt`;
+        b.innerHTML = `<span style="height:${Math.max(1.5, 2 + 10 * v / max)}px"></span>`;
+        b.addEventListener('click', () => onPick(i)); box.append(b);
+      });
+      const paint = () => box.querySelectorAll('.size-btn').forEach((b, i) => { b.classList.toggle('selected', i === getSize()); b.firstChild.style.background = color(); });
+      paint(); return paint;
+    }
+    function buildColors(box, colors, getColor, onPick, custom) {
+      box.innerHTML = '';
+      const light = c => { const n = parseInt(c.slice(1), 16); return ((n >> 16) * 299 + ((n >> 8) & 255) * 587 + (n & 255) * 114) / 1000 > 170; };
+      for (const c of colors) {
+        const b = document.createElement('button'); b.className = 'ink-dot' + (light(c) ? ' light' : ''); b.style.background = c; b.dataset.c = c; b.title = c;
+        b.addEventListener('click', () => onPick(c)); box.append(b);
+      }
+      if (custom) {
+        const b = document.createElement('label'); b.className = 'ink-dot ink-custom'; b.title = 'Any color';
+        b.innerHTML = '<input type="color">'; b.querySelector('input').addEventListener('input', e => onPick(e.target.value, true)); box.append(b);
+      }
+      const paint = () => {
+        const cur = getColor().toLowerCase(); let found = false;
+        box.querySelectorAll('.ink-dot[data-c]').forEach(b => { const on = b.dataset.c === cur; found = found || on; b.classList.toggle('selected', on); });
+        const cu = box.querySelector('.ink-custom'); if (cu) { cu.classList.toggle('selected', !found); if (!found) cu.style.background = cur; else cu.style.background = ''; }
+      };
+      paint(); return paint;
+    }
+    // the page pen's panel
+    const penPanel = document.getElementById('panel-draw');
+    const tipSet = () => pen.tips[pen.tip === 'eraser' ? pen.lastTip : pen.tip];
+    const paintTips = buildTipRow(document.getElementById('tip-row'), Object.keys(TIPS),
+      () => ({ tip: pen.eraser ? 'eraser' : pen.tip, colorOf: t => pen.tips[t].color }), t => selectTip(t), true);
+    let paintSizes, paintColors;
+    function rebuildPenOpts() {
+      paintSizes = buildSizeRow(document.getElementById('size-row'), TIPS[pen.tip].sizes, () => pen.tips[pen.tip].size,
+        i => { pen.tips[pen.tip].size = i; savePen(); paintPen(); }, () => pen.tips[pen.tip].color === '#ffffff' ? '#cfcfcf' : pen.tips[pen.tip].color);
+      paintColors = buildColors(document.getElementById('ink-colors'), pen.tip === 'highlighter' ? HL_COLORS : INK_COLORS, () => pen.tips[pen.tip].color,
+        (c, custom) => { pen.tips[pen.tip].color = c; savePen(); paintPen(); if (!custom) setTimeout(hideToolPop, 150); }, true);
+    }
+    const paintErase = buildSizeRow(document.getElementById('erase-size-row'), ERASER_SIZES, () => pen.eraseSize, i => { pen.eraseSize = i; savePen(); paintPen(); }, () => '#8a8f98');
+    function paintPen() {
+      paintTips(); paintSizes(); paintColors(); paintErase();
+      penPanel.classList.toggle('erasing', pen.eraser);
+      document.getElementById('pen-title').textContent = pen.eraser ? 'Eraser' : TIPS[pen.tip].name;
+      document.getElementById('pen-opacity').value = pen.tips[pen.tip].opacity;
+      document.getElementById('pen-opacity').parentElement.style.display = pen.tip === 'highlighter' ? 'none' : '';
+      document.querySelectorAll('#erase-mode button').forEach(b => b.classList.toggle('selected', b.dataset.em === pen.eraseMode));
+      document.body.classList.toggle('erasing', currentTool === 'draw' && pen.eraser);
+    }
+    function selectTip(t) {
+      if (t === 'eraser') pen.eraser = true;
+      else { const rebuild = t !== pen.tip; pen.eraser = false; pen.tip = t; if (t !== 'highlighter') pen.lastTip = t; if (rebuild) rebuildPenOpts(); }
+      savePen(); paintPen();
+      if (currentTool !== 'draw') switchTool(t === 'highlighter' ? 'btn-highlight' : 'btn-draw', 'draw');
+      else { document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active')); document.getElementById(t === 'highlighter' ? 'btn-highlight' : 'btn-draw').classList.add('active'); }
+      document.body.classList.toggle('erasing', pen.eraser);
+    }
+    document.getElementById('pen-opacity').addEventListener('input', e => { pen.tips[pen.tip].opacity = +e.target.value; savePen(); });
+    document.querySelectorAll('#erase-mode button').forEach(b => b.addEventListener('click', () => { pen.eraseMode = b.dataset.em; savePen(); paintPen(); }));
+    rebuildPenOpts();   // painted once the tools are set up (paintPen needs currentTool)
+
+    // the eraser: strokes not saved yet go at once; pen strokes already in the file go when the mouse is let go
+    let erasing = null;
+    const eraserRadius = () => ERASER_SIZES[pen.eraseSize] / 2 + 1;
+    function densify(s, step) {   // a stroke with points no further apart than step (widths follow)
+      const P = s.points, W = s.widths, out = [P[0]], ow = W ? [W[0]] : null;
+      for (let i = 1; i < P.length; i++) {
+        const [a, b] = [P[i - 1], P[i]], n = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / step));
+        for (let k = 1; k <= n; k++) { out.push([a[0] + (b[0] - a[0]) * k / n, a[1] + (b[1] - a[1]) * k / n]); if (ow) ow.push(W[i - 1] + (W[i] - W[i - 1]) * k / n); }
+      }
+      return Object.assign({}, s, { points: out, widths: ow || undefined });
+    }
+    function eraseStrokes(list, p, r) {
+      let changed = false;
+      const near = (s, q) => { const w = s.widths ? Math.max(...s.widths) : s.size; return Math.hypot(q[0] - p[0], q[1] - p[1]) <= r + w / 2; };
+      const out = list.flatMap(s => {
+        const xs = s.points.map(q => q[0]), ys = s.points.map(q => q[1]), w = (s.widths ? Math.max(...s.widths) : s.size) / 2 + r;
+        if (p[0] < Math.min(...xs) - w || p[0] > Math.max(...xs) + w || p[1] < Math.min(...ys) - w || p[1] > Math.max(...ys) + w) return [s];
+        const d = densify(s, Math.max(0.4, r / 3));
+        if (!d.points.some(q => near(d, q))) return [s];
+        changed = true;
+        if (pen.eraseMode === 'stroke') return [];
+        const pieces = []; let run = null;
+        d.points.forEach((q, i) => {
+          if (near(d, q)) { if (run && run.points.length > 1) pieces.push(run); run = null; return; }
+          if (!run) run = Object.assign({}, s, { points: [], widths: s.widths ? [] : undefined });
+          run.points.push(q); if (run.widths) run.widths.push(d.widths[i]);
+        });
+        if (run && run.points.length > 1) pieces.push(run);
+        return pieces;
+      });
+      return changed ? out : null;
+    }
+    function eraseAt(p) {
+      const out = eraseStrokes(drawnStrokes, p, eraserRadius());
+      if (out) { drawnStrokes = out; erasing.changed = true; hasUnsavedEdits = true; redrawCanvases(); }
+    }
+    async function finishErase() {
+      const e = erasing; erasing = null;
+      if (!e.changed) { undoStack.pop(); updateInkButtons(); }
+      // pen strokes saved in the file earlier: only ask the backend when the eraser went near one
+      const r = eraserRadius(), xs = e.path.map(q => q[0]), ys = e.path.map(q => q[1]);
+      const reach = [Math.min(...xs) - r, Math.min(...ys) - r, Math.max(...xs) + r, Math.max(...ys) + r];
+      const hit = pageNotes.some(n => ['Ink', 'Polygon'].includes(n.kind) && n.rect[0] <= reach[2] && n.rect[2] >= reach[0] && n.rect[1] <= reach[3] && n.rect[3] >= reach[1]);
+      if (!hit) return;
+      await eraseSaved({ points: e.path, radius: r, mode: pen.eraseMode });
+    }
+    async function eraseSaved(body) {
+      await syncEditsToPython();
+      pushHistory();
+      const d = await api('erase_ink', Object.assign({ filepath: currentTempPdf, page: pageNum - 1 }, body));
+      if (!d.success || !d.changed) { pdfHistory.pop(); if (!d.success) showToast(d.error || "Couldn't erase", true); return; }
+      await takeNewFile(d);
+    }
+    document.getElementById('erase-page').addEventListener('click', async () => {
+      hideToolPop();
+      if (drawnStrokes.length) { saveCanvasState(); drawnStrokes = []; redrawCanvases(); }
+      if (pageNotes.some(n => ['Ink', 'Polygon'].includes(n.kind))) await eraseSaved({ mode: 'all' });
+      showToast('Erased the drawing on this page. Ctrl+Z brings it back');
+    });
+
     const sigModal = document.getElementById('sig-modal');
     const sigCanvas = document.getElementById('sig-canvas');
     const sigCtx = sigCanvas.getContext('2d');
@@ -2482,16 +2768,51 @@
         box.classList.toggle('show', !!sig);
         if (sig) box.querySelector('img').src = sig;
     }
+    // the pad draws with the same pens as the page; strokes are kept so undo and redo work
+    const SIG_TIPS = ['pen', 'fountain', 'brush', 'marker', 'pencil'];
+    const SIG_COLORS = ['#111111', '#1a2b6d', '#2f6fd0', '#c62828', '#1b5e20'];
+    const sig = (() => {
+      const d = { tip: 'fountain', tips: {} };
+      for (const t of SIG_TIPS) d.tips[t] = { color: '#111111', size: 2, opacity: 100 };
+      try { const s = JSON.parse(localStorage.getItem('sig-pen')); if (s) Object.assign(d, s, { tips: Object.assign(d.tips, s.tips || {}) }); } catch (e) {}
+      return d;
+    })();
+    let sigStrokes = [], sigUndo = [], sigRedo = [], sigCur = null;
+    const SIG_K = sigCanvas.width / 560;   // backing pixels per CSS pixel
+    const saveSigPen = () => { try { localStorage.setItem('sig-pen', JSON.stringify(sig)); } catch (e) {} };
+    function drawSig() {
+        sigCtx.clearRect(0, 0, sigCanvas.width, sigCanvas.height);
+        (sigCur ? sigStrokes.concat([sigCur]) : sigStrokes).forEach(s => drawInk(sigCtx, s, SIG_K));
+        document.getElementById('sig-undo').disabled = !sigUndo.length;
+        document.getElementById('sig-redo').disabled = !sigRedo.length;
+    }
+    const paintSigTips = buildTipRow(document.getElementById('sig-tips'), SIG_TIPS, () => ({ tip: sig.tip, colorOf: t => sig.tips[t].color }),
+      t => { sig.tip = t; saveSigPen(); paintSig(); }, false);
+    let paintSigSizes;
+    const paintSigColors = buildColors(document.getElementById('sig-colors'), SIG_COLORS, () => sig.tips[sig.tip].color, c => { sig.tips[sig.tip].color = c; saveSigPen(); paintSig(); }, false);
+    function paintSig() {
+        paintSigSizes = buildSizeRow(document.getElementById('sig-sizes'), TIPS[sig.tip].sizes, () => sig.tips[sig.tip].size,
+          i => { sig.tips[sig.tip].size = i; saveSigPen(); paintSigSizes(); }, () => sig.tips[sig.tip].color);
+        paintSigTips(); paintSigColors();
+    }
+    paintSig();
+    document.getElementById('sig-undo').addEventListener('click', () => { if (!sigUndo.length) return; sigRedo.push(sigStrokes); sigStrokes = sigUndo.pop(); drawSig(); });
+    document.getElementById('sig-redo').addEventListener('click', () => { if (!sigRedo.length) return; sigUndo.push(sigStrokes); sigStrokes = sigRedo.pop(); drawSig(); });
+    sigModal.addEventListener('keydown', e => {
+        if (e.ctrlKey && e.key.toLowerCase() === 'z' && !e.shiftKey) { e.preventDefault(); e.stopPropagation(); document.getElementById('sig-undo').click(); }
+        if (e.ctrlKey && (e.key.toLowerCase() === 'y' || (e.shiftKey && e.key.toLowerCase() === 'z'))) { e.preventDefault(); e.stopPropagation(); document.getElementById('sig-redo').click(); }
+    }, true);
     document.getElementById('btn-add-sig').addEventListener('click', () => {
         sigModal.style.display = 'flex';
-        sigCtx.clearRect(0, 0, sigCanvas.width, sigCanvas.height);
+        sigStrokes = []; sigUndo = []; sigRedo = []; drawSig();
         showSavedSig();
+        sigModal.tabIndex = -1; sigModal.focus();
     });
     document.getElementById('btn-sig-use').addEventListener('click', () => {
         const sig = savedSig(); if (!sig) return;
         sigModal.style.display = 'none';
         const im = new Image();
-        im.onload = () => spawnImageOnCanvas(sig, '200px', Math.round(200 * im.height / im.width) + 'px');
+        im.onload = () => { const w = Math.min(260, im.width / SIG_K) * currentRenderScale; spawnImageOnCanvas(sig, w + 'px', Math.max(16, w * im.height / im.width) + 'px'); };
         im.src = sig;
     });
     document.getElementById('btn-sig-forget').addEventListener('click', () => { try { localStorage.removeItem('saved-signature'); } catch (e) {} showSavedSig(); });
@@ -2507,27 +2828,23 @@
         return c;
     }
 
+    const sigAt = e => { const r = sigCanvas.getBoundingClientRect(); return [(e.clientX - r.left) * 560 / r.width, (e.clientY - r.top) * 560 / r.width]; };
     sigCanvas.addEventListener('mousedown', e => {
+        if (e.button !== 0) return;
         isSigDrawing = true;
-        sigCtx.beginPath();
-        sigCtx.moveTo(e.offsetX, e.offsetY);
-        sigCtx.strokeStyle = '#000000'; 
-        sigCtx.lineWidth = 4;
-        sigCtx.lineCap = 'round';
-        sigCtx.lineJoin = 'round';
+        sigCur = newStroke(sig.tip, sigAt(e), { set: sig.tips[sig.tip], scale: 1.6 });   // the pad is drawn bigger than the page
+        drawSig();
     });
-    
-    sigCanvas.addEventListener('mousemove', e => {
-        if (isSigDrawing) {
-            sigCtx.lineTo(e.offsetX, e.offsetY);
-            sigCtx.stroke();
-        }
+    sigCanvas.addEventListener('mousemove', e => { if (isSigDrawing && sigCur) { addInkPoint(sigCur, sigAt(e)); drawSig(); } });
+    window.addEventListener('mouseup', () => {
+        if (!isSigDrawing) return;
+        isSigDrawing = false;
+        if (sigCur) { finishInk(sigCur); sigUndo.push(sigStrokes); sigRedo = []; sigStrokes = sigStrokes.concat([sigCur]); sigCur = null; drawSig(); }
     });
-    
-    window.addEventListener('mouseup', () => { isSigDrawing = false; });
 
     document.getElementById('btn-sig-clear').addEventListener('click', () => {
-        sigCtx.clearRect(0, 0, sigCanvas.width, sigCanvas.height);
+        if (!sigStrokes.length) return;
+        sigUndo.push(sigStrokes); sigRedo = []; sigStrokes = []; drawSig();
     });
     
     document.getElementById('btn-sig-cancel').addEventListener('click', () => { sigModal.style.display = 'none'; });
@@ -2538,7 +2855,8 @@
         const dataUrl = c.toDataURL("image/png");
         if (document.getElementById('sig-remember').checked) { try { localStorage.setItem('saved-signature', dataUrl); } catch (e) {} }
         sigModal.style.display = 'none';
-        spawnImageOnCanvas(dataUrl, '200px', Math.max(20, Math.round(200 * c.height / c.width)) + 'px');
+        const w = Math.min(260, c.width / SIG_K) * currentRenderScale;
+        spawnImageOnCanvas(dataUrl, w + 'px', Math.max(16, w * c.height / c.width) + 'px');
     });
 
     function spawnImageOnCanvas(srcData, width, height) {
@@ -2557,6 +2875,32 @@
         img.style.pointerEvents = 'none';
 
         div.appendChild(img);
+        // drag a corner to resize (keeps its shape; hold Shift to stretch), the red x removes it
+        for (const c of ['nw', 'ne', 'sw', 'se']) {
+            const h = document.createElement('span'); h.className = 'img-h'; h.dataset.c = c; h.title = 'Drag to resize (Shift: stretch)';
+            h.addEventListener('mousedown', e => {
+                if (e.button !== 0) return;
+                e.stopPropagation(); e.preventDefault();
+                const x0 = e.clientX, y0 = e.clientY, L = parseFloat(div.style.left), T = parseFloat(div.style.top), W = div.offsetWidth, H = div.offsetHeight, ratio = W / H;
+                const move = ev => {
+                    let dx = ev.clientX - x0, dy = ev.clientY - y0;
+                    if (c.includes('w')) dx = -dx; if (c.includes('n')) dy = -dy;
+                    let w = Math.max(20, W + dx), hh = Math.max(12, H + dy);
+                    if (!ev.shiftKey) { if (Math.abs(dx) * H >= Math.abs(dy) * W) hh = w / ratio; else w = hh * ratio; }
+                    div.style.width = w + 'px'; div.style.height = hh + 'px';
+                    div.style.left = (c.includes('w') ? L + W - w : L) + 'px';
+                    div.style.top = (c.includes('n') ? T + H - hh : T) + 'px';
+                    hasUnsavedEdits = true;
+                };
+                const up = () => { window.removeEventListener('mousemove', move); window.removeEventListener('mouseup', up); };
+                window.addEventListener('mousemove', move); window.addEventListener('mouseup', up);
+            });
+            div.append(h);
+        }
+        const del = document.createElement('button'); del.className = 'img-del'; del.innerHTML = '&#x2715;'; del.title = 'Remove';
+        del.addEventListener('mousedown', e => e.stopPropagation());
+        del.addEventListener('click', e => { e.stopPropagation(); div.remove(); activeTextObj = null; hasUnsavedEdits = true; });
+        div.append(del);
         attachBoxInteractions(div);
         document.getElementById('text-layer').appendChild(div);
         
@@ -2858,7 +3202,7 @@
 
         hlCtx.clearRect(0, 0, hlCanvas.width, hlCanvas.height); 
         penCtx.clearRect(0, 0, penCanvas.width, penCanvas.height); 
-        undoStack = [];
+        undoStack = []; redoStack = []; updateInkButtons();
 
         textLayer.innerHTML = '';
         editingText = null; chipFor = null;
@@ -3006,13 +3350,14 @@
       document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active'));
       if(document.getElementById(toolId)) document.getElementById(toolId).classList.add('active');
       if (currentTool !== toolName && currentTool === 'measure') clearMeasure();
+      document.getElementById('eraser-ring').style.display = 'none';
       if (currentTool !== toolName && (currentTool === 'redact' || currentTool === 'markup' || currentTool === 'sigbox')) {   // leaving an area tool
         areaDone = null;
         if (currentTool === 'redact') { pendingRedactions = {}; document.querySelectorAll('.redact-mark').forEach(m => m.remove()); }
       }
       currentTool = toolName;
       
-      document.body.className = 'tool-' + toolName;
+      document.body.className = 'tool-' + toolName + (toolName === 'draw' && pen.eraser ? ' erasing' : '');
       
       if (toolName !== 'edit' && toolName !== 'pointer' && toolName !== 'add') {
           clearActiveText();
@@ -3026,64 +3371,43 @@
     }
 
     switchTool('btn-pointer', 'pointer');
+    paintPen();
     document.getElementById('btn-pointer').addEventListener('click', () => switchTool('btn-pointer', 'pointer'));
     document.getElementById('btn-text').addEventListener('click', () => switchTool('btn-text', 'edit'));
     document.getElementById('btn-add-text').addEventListener('click', () => switchTool('btn-add-text', 'add'));
-    document.getElementById('btn-highlight').addEventListener('click', () => { switchTool('btn-highlight', 'draw'); document.getElementById('header-hl').click(); });
-    document.getElementById('btn-draw').addEventListener('click', () => { switchTool('btn-draw', 'draw'); document.getElementById('header-pen').click(); });
+    document.getElementById('btn-highlight').addEventListener('click', () => { switchTool('btn-highlight', 'draw'); selectTip('highlighter'); });
+    document.getElementById('btn-draw').addEventListener('click', () => { switchTool('btn-draw', 'draw'); selectTip(pen.lastTip || 'pen'); });
 
     const hlCtx = document.getElementById('hl-canvas').getContext('2d');
     const penCtx = document.getElementById('pen-canvas').getContext('2d');
     let isDrawing = false; let undoStack = []; let currentStroke = null;
     let isCropping = false; let cropStartX, cropStartY;
 
-    document.getElementById('header-hl').addEventListener('click', function() { currentDrawMode = 'highlighter'; this.classList.add('active'); document.getElementById('header-pen').classList.remove('active'); });
-    document.getElementById('header-pen').addEventListener('click', function() { currentDrawMode = 'pen'; this.classList.add('active'); document.getElementById('header-hl').classList.remove('active'); });
 
     function redrawCanvases() {
         const hlCnv = document.getElementById('hl-canvas');
         const penCnv = document.getElementById('pen-canvas');
         hlCtx.clearRect(0, 0, hlCnv.width, hlCnv.height);
         penCtx.clearRect(0, 0, penCnv.width, penCnv.height);
-
-        let allStrokes = [...drawnStrokes];
-        if (isDrawing && currentStroke) {
-            allStrokes.push(currentStroke);
-        }
-
-        allStrokes.forEach(stroke => {
-            const ctx = stroke.type === 'highlighter' ? hlCtx : penCtx;
-            ctx.beginPath();
-            ctx.lineCap = 'round';
-            ctx.lineJoin = 'round';
-            ctx.strokeStyle = stroke.color;
-            ctx.lineWidth = stroke.size * currentRenderScale;
-            ctx.globalAlpha = stroke.opacity;
-
-            if (stroke.points.length > 0) {
-                ctx.moveTo(stroke.points[0][0] * currentRenderScale, stroke.points[0][1] * currentRenderScale);
-                for (let i = 1; i < stroke.points.length; i++) {
-                    ctx.lineTo(stroke.points[i][0] * currentRenderScale, stroke.points[i][1] * currentRenderScale);
-                }
-            }
-            ctx.stroke();
-        });
+        const all = isDrawing && currentStroke ? drawnStrokes.concat([currentStroke]) : drawnStrokes;
+        all.forEach(stroke => drawInk(stroke.type === 'highlighter' ? hlCtx : penCtx, stroke, currentRenderScale));
     }
 
-    function saveCanvasState() {
-      const hlCnv = document.getElementById('hl-canvas');
-      const penCnv = document.getElementById('pen-canvas');
-      undoStack.push({ hl: hlCtx.getImageData(0, 0, hlCnv.width, hlCnv.height), pen: penCtx.getImageData(0, 0, penCnv.width, penCnv.height) });
-      if (undoStack.length > 20) undoStack.shift(); 
-    }
-    
+    // undo and redo keep whole copies of the stroke list (strokes are small)
+    let redoStack = [];
+    function saveCanvasState() { undoStack.push(drawnStrokes.slice()); redoStack = []; if (undoStack.length > 60) undoStack.shift(); updateInkButtons(); }
     document.getElementById('btn-undo').addEventListener('click', () => {
-      if (undoStack.length > 0) { 
-          const prev = undoStack.pop(); hlCtx.putImageData(prev.hl, 0, 0); penCtx.putImageData(prev.pen, 0, 0); 
-          drawnStrokes.pop(); 
-          redrawCanvases();
-      }
+      if (!undoStack.length) return;
+      redoStack.push(drawnStrokes); drawnStrokes = undoStack.pop(); redrawCanvases(); updateInkButtons();
     });
+    document.getElementById('btn-redo').addEventListener('click', () => {
+      if (!redoStack.length) return;
+      undoStack.push(drawnStrokes); drawnStrokes = redoStack.pop(); hasUnsavedEdits = true; redrawCanvases(); updateInkButtons();
+    });
+    function updateInkButtons() {
+      document.getElementById('btn-undo').disabled = !undoStack.length;
+      document.getElementById('btn-redo').disabled = !redoStack.length;
+    }
 
     textLayer.addEventListener('mousedown', (e) => {
       if (currentTool === 'add' && e.target === textLayer) {
@@ -3147,18 +3471,12 @@
       }
 
       if (currentTool !== 'draw') return;
-      
-      saveCanvasState(); 
-      isDrawing = true;
-      
-      currentStroke = {
-         type: currentDrawMode,
-         color: document.getElementById(currentDrawMode === 'highlighter' ? 'hl-color' : 'pen-color').value,
-         size: parseFloat(document.getElementById(currentDrawMode === 'highlighter' ? 'hl-size' : 'pen-size').value) / currentRenderScale,
-         opacity: currentDrawMode === 'highlighter' ? 1.0 : parseFloat(document.getElementById('pen-opacity').value) / 100,
-         points: [[clickX / currentRenderScale, clickY / currentRenderScale]]
-      };
 
+      saveCanvasState();
+      const at = [clickX / currentRenderScale, clickY / currentRenderScale];
+      if (pen.eraser) { erasing = { path: [at], changed: false }; eraseAt(at); return; }
+      isDrawing = true;
+      currentStroke = newStroke(pen.tip, at);
       redrawCanvases();
     });
 
@@ -3176,11 +3494,18 @@
           return;
       }
 
+      if (currentTool === 'draw' && pen.eraser) {
+        const ring = document.getElementById('eraser-ring'), d = eraserRadius() * 2 * currentRenderScale;
+        Object.assign(ring.style, { display: 'block', left: moveX + 'px', top: moveY + 'px', width: d + 'px', height: d + 'px' });
+        if (erasing) { const at = [moveX / currentRenderScale, moveY / currentRenderScale]; erasing.path.push(at); eraseAt(at); }
+        return;
+      }
       if (!isDrawing || currentTool !== 'draw') return;
 
-      currentStroke.points.push([moveX / currentRenderScale, moveY / currentRenderScale]);
+      addInkPoint(currentStroke, [moveX / currentRenderScale, moveY / currentRenderScale]);
       redrawCanvases();
     });
+    eventGlass.addEventListener('mouseleave', () => { document.getElementById('eraser-ring').style.display = 'none'; });
 
     window.addEventListener('mouseup', (e) => { 
       if (currentTool === 'crop' && isCropping) {
@@ -3217,12 +3542,9 @@
           return;
       }
 
+      if (erasing) { finishErase(); return; }
       if (isDrawing && currentStroke) {
-          if (currentStroke.points.length === 1) {
-              const ptX = currentStroke.points[0][0];
-              const ptY = currentStroke.points[0][1];
-              currentStroke.points.push([ptX + 0.1, ptY + 0.1]);
-          }
+          finishInk(currentStroke);
           drawnStrokes.push(currentStroke);
           hasUnsavedEdits = true;
           currentStroke = null;
@@ -3246,11 +3568,7 @@
         dot.classList.add('selected');
       });
     });
-    ['hl-color', 'pen-color'].forEach(id => {
-      document.getElementById(id).addEventListener('input', function() {
-        this.previousElementSibling.querySelectorAll('.color-dot').forEach(d => d.classList.remove('selected'));
-      });
-    });
+
 
     // keyboard shortcuts (ignored while typing in a text box or editing page text)
     document.addEventListener('keydown', e => {
@@ -3287,6 +3605,7 @@
     document.addEventListener('keydown', e => {
       const t = e.target, typing = t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));
       if (e.ctrlKey && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'z' && !typing) { e.preventDefault(); undoLast(); }
+      if (e.ctrlKey && !e.altKey && (e.key.toLowerCase() === 'y' || (e.shiftKey && e.key.toLowerCase() === 'z')) && !typing && redoStack.length) { e.preventDefault(); document.getElementById('btn-redo').click(); }
     });
   
     // collapsible side panels (state is remembered); switchTool rewrites body.className, so use <html>
@@ -3320,8 +3639,6 @@
       panelDraw.style.display = which === 'hl' || which === 'pen' ? 'block' : 'none';
       document.getElementById('panel-markup').style.display = which === 'markup' ? 'block' : 'none';
       document.getElementById('panel-measure').style.display = which === 'measure' ? 'block' : 'none';
-      document.getElementById('opts-hl').style.display = which === 'hl' ? 'block' : 'none';
-      document.getElementById('opts-pen').style.display = which === 'pen' ? 'block' : 'none';
       toolPop.classList.add('open'); popFor = id;
       const b = document.getElementById(id).getBoundingClientRect();
       toolPop.style.left = (b.right + 14) + 'px';
@@ -3334,8 +3651,7 @@
       baseSwitch(id, name);
       if (again) hideToolPop(); else showToolPop(id);
     };
-    toolPop.querySelectorAll('#opts-hl .color-dot, #opts-pen .color-dot').forEach(d => d.addEventListener('click', () => setTimeout(hideToolPop, 120)));
-    ['hl-color', 'pen-color'].forEach(id => document.getElementById(id).addEventListener('change', hideToolPop));
+
     document.addEventListener('mousedown', e => {
       if (popFor && !toolPop.contains(e.target) && !e.target.closest('#tool-palette')) hideToolPop();
     }, true);

@@ -1135,6 +1135,120 @@ def add_measure():
         return jsonify({"success": True, "new_file": out})
     except Exception as e: return jsonify({"error": str(e)}), 500
 
+# ---------- pens whose line gets thicker and thinner ----------
+def _ink_outline(P, W):
+    """The outline of a stroke through points P with widths W, round at both ends (as the app draws it)."""
+    import math
+    n = len(P)
+    if n == 1:
+        x, y = P[0]; r = W[0] / 2
+        return [(x + r * math.cos(i * math.pi / 6), y + r * math.sin(i * math.pi / 6)) for i in range(12)]
+    L, R = [], []
+    for i in range(n):
+        a, b = P[max(0, i - 1)], P[min(n - 1, i + 1)]
+        dx, dy = b[0] - a[0], b[1] - a[1]; ln = math.hypot(dx, dy) or 1; dx /= ln; dy /= ln; h = W[i] / 2
+        L.append((P[i][0] - dy * h, P[i][1] + dx * h)); R.append((P[i][0] + dy * h, P[i][1] - dx * h))
+    cap = lambda c, h, frm: [(c[0] + h * math.cos(frm - (k + 1) * math.pi / 6), c[1] + h * math.sin(frm - (k + 1) * math.pi / 6)) for k in range(5)]
+    ang = lambda a, b: math.atan2(b[1] - a[1], b[0] - a[0])
+    return L + cap(P[-1], W[-1] / 2, ang(P[-2], P[-1]) + math.pi / 2) + R[::-1] + cap(P[0], W[0] / 2, ang(P[0], P[1]) - math.pi / 2)
+
+def _add_pen_shape(doc, page, outline, rgb, opacity, center=None, widths=None, info=None):
+    """A filled shape of ink; the stroke's centre line and widths are kept with it so the eraser can cut it."""
+    a = page.add_polygon_annot(outline)
+    a.set_colors(stroke=rgb, fill=rgb); a.set_border(width=0); a.set_opacity(opacity)
+    a.set_info(title=(info or {}).get('title') or os.environ.get('USERNAME', ''), subject='Pen')
+    a.update()
+    if center and widths:
+        data = json.dumps({"p": [[round(x, 2), round(y, 2)] for x, y in center], "w": [round(w, 3) for w in widths]})
+        doc.xref_set_key(a.xref, 'MyPDFKitInk', fitz.get_pdf_str(data))
+    return a
+
+# ---------- the eraser, on pen strokes already in the file ----------
+def _dense(pts, step):
+    """The points of a line with no gap bigger than step between them."""
+    out = []
+    for a, b in zip(pts, pts[1:]):
+        n = max(1, int(((b[0] - a[0]) ** 2 + (b[1] - a[1]) ** 2) ** 0.5 / step))
+        out += [(a[0] + (b[0] - a[0]) * k / n, a[1] + (b[1] - a[1]) * k / n) for k in range(n)]
+    return out + pts[-1:]
+
+@app.route('/erase_ink', methods=['POST'])
+def erase_ink():
+    """mode 'stroke': strokes the eraser touched go; 'area': only the ink under the eraser goes (a stroke
+    can break in two); 'all': every pen stroke on the page goes. Points are as the pen saved them."""
+    d = request.json; fp = d['filepath']
+    try:
+        doc = fitz.open(fp); page = doc[int(d['page'])]
+        mode, r = d.get('mode', 'stroke'), float(d.get('radius', 6))
+        path = _dense([tuple(p) for p in d.get('points') or []], max(0.5, r / 3)) if mode != 'all' else []
+        if path:
+            xs, ys = [p[0] for p in path], [p[1] for p in path]
+            reach = fitz.Rect(min(xs) - r, min(ys) - r, max(xs) + r, max(ys) + r)
+        def hit(pt, extra=0.0):
+            rr = (r + extra) ** 2
+            return any((pt[0] - q[0]) ** 2 + (pt[1] - q[1]) ** 2 <= rr for q in path)
+        changed = 0
+        for a in list(page.annots() or []):
+            kind = a.type[0]
+            pen_shape = kind == fitz.PDF_ANNOT_POLYGON and a.info.get('subject') == 'Pen'
+            if kind != fitz.PDF_ANNOT_INK and not pen_shape: continue
+            if mode == 'all': page.delete_annot(a); changed += 1; continue
+            if not a.rect.intersects(reach): continue
+            width = (a.border or {}).get('width') or 1
+            if pen_shape:
+                kept = None
+                try:
+                    t, v = doc.xref_get_key(a.xref, 'MyPDFKitInk')
+                    if t == 'string': kept = json.loads(v)
+                except Exception: pass
+                if not any(hit(v) for v in _dense([tuple(v) for v in a.vertices] + [tuple(a.vertices[0])], 1)): continue
+                if mode == 'stroke' or not kept:
+                    page.delete_annot(a); changed += 1; continue
+                # rub out just the part under the eraser: cut the centre line, redraw each piece
+                P, W = kept['p'], kept['w']; dp, dw = [tuple(P[0])], [W[0]]
+                for i in range(1, len(P)):
+                    seg = _dense([tuple(P[i - 1]), tuple(P[i])], 0.8)[1:]
+                    dp += seg; dw += [W[i - 1] + (W[i] - W[i - 1]) * (k + 1) / len(seg) for k in range(len(seg))]
+                pieces, run = [], ([], [])
+                for q, w in zip(dp, dw):
+                    if hit(q, w / 2):
+                        if len(run[0]) > 1: pieces.append(run)
+                        run = ([], [])
+                    else: run[0].append(q); run[1].append(w)
+                if len(run[0]) > 1: pieces.append(run)
+                rgb, opacity, info = a.colors.get('fill') or a.colors.get('stroke'), a.opacity, a.info
+                page.delete_annot(a); changed += 1
+                for pp, ww in pieces:
+                    _add_pen_shape(doc, page, _ink_outline(pp, ww), rgb, opacity if opacity is not None and opacity >= 0 else 1, pp, ww, info)
+                continue
+            lists = [_dense([tuple(v) for v in l], 1) for l in a.vertices]
+            if mode == 'stroke':
+                if any(hit(v, width / 2) for l in lists for v in l): page.delete_annot(a); changed += 1
+                continue
+            pieces, cut = [], False
+            for l in lists:
+                run = []
+                for v in l:
+                    if hit(v, width / 2): cut = True; (pieces.append(run) if len(run) > 1 else None); run = []
+                    else: run.append(v)
+                if len(run) > 1: pieces.append(run)
+            if not cut: continue
+            color, opacity, info, blend = a.colors.get('stroke'), a.opacity, a.info, a.blendmode
+            page.delete_annot(a); changed += 1
+            if pieces:
+                n = page.add_ink_annot(pieces)
+                if color: n.set_colors(stroke=color)
+                n.set_border(width=width)
+                if opacity is not None and opacity >= 0: n.set_opacity(opacity)
+                n.set_info(title=info.get('title', ''), subject=info.get('subject', ''), content=info.get('content', ''))
+                try: n.update(blend_mode=blend) if blend else n.update()
+                except Exception: n.update()
+        if not changed: doc.close(); return jsonify({"success": True, "changed": 0})
+        out = _temp_out(fp, 'erase', json.dumps(d))
+        doc.save(out, garbage=3, deflate=True); doc.close()
+        return jsonify({"success": True, "changed": changed, "new_file": out})
+    except Exception as e: return jsonify({"error": str(e)}), 500
+
 @app.route('/formats', methods=['GET'])
 def formats():
     return jsonify({"extensions": [e[1:] for e in OPENABLE_EXT]})
@@ -1866,7 +1980,10 @@ def burn_edits():
         hl_groups = {} 
         pens = []
 
+        polys = []
         for draw in data.get('drawings', []):
+            if draw.get('outline'):   # pens whose line gets thicker and thinner: the shape of the ink
+                polys.append(draw); continue
             if len(draw['points']) > 1:
                 if draw['type'] == 'highlighter':
                     key = (draw['color'], float(draw['size']))
@@ -1901,9 +2018,19 @@ def burn_edits():
                 annot.set_colors(stroke=rgb)
                 annot.set_border({"width": float(draw['size'])})
                 annot.set_opacity(float(draw.get('opacity', 1.0)))
+                annot.set_info(subject='Pen', title=os.environ.get('USERNAME', ''))
                 annot.update()
             except Exception as e:
                 print(f"Skipped pen: {e}")
+
+        for draw in polys:
+            try:
+                center = [(float(p[0]) + x_off, float(p[1]) + y_off) for p in draw['points']]
+                _add_pen_shape(doc, page, _ink_outline(center, draw['widths']) if draw.get('widths') else
+                               [(float(p[0]) + x_off, float(p[1]) + y_off) for p in draw['outline']],
+                               parse_color(draw['color']), float(draw.get('opacity', 1.0)), center, draw.get('widths'))
+            except Exception as e:
+                print(f"Skipped pen shape: {e}")
 
         hasher = hashlib.md5((filepath + str(os.path.getmtime(filepath))).encode()).hexdigest()
         new_path = os.path.join(TEMP_DIR, f"mod_{hasher}.pdf")

@@ -79,7 +79,7 @@ function createWindow() {
   if (app.isPackaged) Menu.setApplicationMenu(null);
   win.once('ready-to-show', () => win.show());
   // closing the main window ends the app, even if a hidden helper window (printing) is still open
-  win.on('closed', () => { win = null; app.quit(); });
+  win.on('closed', () => { win = null; quitCleanly(); });
   // Safety net: never leave the window hidden if the first paint is delayed or fails
   setTimeout(() => { if (win && !win.isDestroyed() && !win.isVisible()) win.show(); }, 2500);
 
@@ -128,7 +128,7 @@ function setupAutoUpdate() {
   const check = () => autoUpdater.checkForUpdates().catch(err => console.error('[update]', err && err.message));
   setTimeout(check, 4000);   // after startup settles
   setInterval(check, 4 * 60 * 60 * 1000);
-  ipcMain.on('install-update', () => { killServer(); autoUpdater.quitAndInstall(true, true); });
+  ipcMain.on('install-update', () => { closing = true; closeBackend().then(() => autoUpdater.quitAndInstall(true, true)); });
 }
 ipcMain.handle('app-version', () => app.getVersion());
 ipcMain.handle('user-data', () => app.getPath('userData'));
@@ -187,5 +187,25 @@ function killServer() {
     spawn('taskkill', ['/pid', String(serverProc.pid), '/f', '/t'], { windowsHide: true });
   }
 }
-app.on('before-quit', killServer);
-app.on('window-all-closed', () => { killServer(); app.quit(); });
+// the backend keeps a hidden Word ready for quick conversions: ask it to close that first (up to 8 seconds)
+function closeBackend() {
+  return new Promise(resolve => {
+    if (!serverProc || serverProc.killed) return resolve();
+    const done = () => { killServer(); resolve(); };
+    const req = http.request({ host: '127.0.0.1', port: SERVER_PORT, path: '/shutdown', method: 'POST', timeout: 8000 }, res => { res.resume(); res.on('end', done); });
+    req.on('error', done); req.on('timeout', () => { req.destroy(); done(); });
+    req.end();
+  });
+}
+let closing = false;
+// every way of closing comes here: the windows close, the backend closes its Word, then the app exits
+function quitCleanly() {
+  if (closing) return;
+  closing = true;
+  // windows close normally, so the page still saves the open tabs
+  const shut = BrowserWindow.getAllWindows().filter(w => !w.isDestroyed()).map(w => new Promise(r => { w.once('closed', r); w.close(); }));
+  const waitWindows = Promise.race([Promise.all(shut), new Promise(r => setTimeout(r, 3000))]);
+  Promise.all([waitWindows, closeBackend()]).then(() => app.exit(0));
+}
+app.on('before-quit', e => { if (!closing) { e.preventDefault(); quitCleanly(); } });
+app.on('window-all-closed', quitCleanly);

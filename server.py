@@ -457,9 +457,80 @@ def _design_to_pdf(src, dst):
         except Exception: raise RuntimeError(f"Couldn't open {os.path.basename(src)}: {e}")
     return _preview_to_pdf(src, dst)
 
+# ---------- Office, kept quick ----------
+# Starting Word takes about a second and shutting it down about two and a half, and the old way did both for
+# every file while the user waited. Now one hidden Word is started when the app starts and kept for the next
+# file (closed after a few idle minutes, or when the app closes), and Excel and PowerPoint shut down in the
+# background after the PDF is handed over. Everything Office runs on one worker thread (COM likes that).
+import queue as _queue, threading as _threading, time as _time
+
+class _OfficeWorker:
+    IDLE_QUIT = 240   # seconds of no use before the hidden Word is closed
+
+    def __init__(self):
+        self.jobs = _queue.Queue(); self.word = None; self.last = 0
+        _threading.Thread(target=self._run, daemon=True).start()
+
+    def _run(self):
+        pythoncom.CoInitialize()
+        while True:
+            try: fn, box = self.jobs.get(timeout=20)
+            except _queue.Empty:
+                if self.word is not None and _time.time() - self.last > self.IDLE_QUIT: self._quit_word()
+                continue
+            try: box['result'] = fn(self)
+            except Exception as e: box['error'] = e
+            finally:
+                self.last = _time.time()
+                if 'done' in box: box['done'].set()
+                after = box.pop('after', None)   # tidy-up that the caller doesn't need to wait for
+                if after:
+                    try: after()
+                    except Exception: pass
+
+    def get_word(self):
+        w = self.word
+        if w is not None:
+            try: w.Documents.Count   # still running?
+            except Exception: w = None
+        if w is None:
+            w = win32.DispatchEx('Word.Application'); w.Visible = False; w.DisplayAlerts = 0
+            self.word = w
+        return w
+
+    def _quit_word(self):
+        w, self.word = self.word, None
+        if w is None: return
+        try:
+            if w.Documents.Count == 0: w.Quit()   # never close a Word that has someone's documents in it
+        except Exception: pass
+
+    def run(self, fn, timeout=600):
+        box = {'done': _threading.Event()}
+        self.jobs.put((fn, box))
+        if not box['done'].wait(timeout): raise TimeoutError('Office took too long')
+        if 'error' in box: raise box['error']
+        return box['result']
+
+    def later(self, fn):
+        self.jobs.put((fn, {}))
+
+    def shutdown(self):
+        self.run(lambda o: o._quit_word(), timeout=20)
+
+OFFICE = _OfficeWorker()
+
+def _prewarm_word():
+    """Have Word ready before the first Word file comes in (only if Word is installed)."""
+    _time.sleep(3)
+    try:
+        import winreg; winreg.CloseKey(winreg.OpenKey(winreg.HKEY_CLASSES_ROOT, r'Word.Application'))
+    except OSError: return
+    OFFICE.later(lambda o: o.get_word())
+
 def _com_to_pdf(src, dst):
     """Convert a Word/Excel/PowerPoint file to PDF using a private Office instance
-    (DispatchEx) so we never touch documents the user already has open, and always Quit().
+    (DispatchEx) so we never touch documents the user already has open.
     Pictures, e-books, web pages and text files have their own converters."""
     low = src.lower()
     if low.endswith(IMAGE_EXT): return _images_to_pdf(src, dst)
@@ -469,32 +540,40 @@ def _com_to_pdf(src, dst):
     if low.endswith(WEB_EXT): return _web_to_pdf(src, dst)
     if low.endswith(TEXT_EXT): return _text_to_pdf(src, dst)
     if low.endswith(WORD_EXT):
-        app_ = win32.DispatchEx('Word.Application')
-        try:
-            app_.DisplayAlerts = 0
-            doc = app_.Documents.Open(src, ReadOnly=True)
+        def word_job(o):
+            w = o.get_word()
+            try: doc = w.Documents.Open(src, ReadOnly=True, AddToRecentFiles=False, Visible=False)
+            except Exception:   # the kept Word went away: start a fresh one once
+                o.word = None; w = o.get_word(); doc = w.Documents.Open(src, ReadOnly=True, AddToRecentFiles=False, Visible=False)
             try: doc.ExportAsFixedFormat(dst, 17)
             finally: doc.Close(False)
-        finally: app_.Quit()
+        OFFICE.run(word_job)
     elif low.endswith(EXCEL_EXT):
-        app_ = win32.DispatchEx('Excel.Application')
-        try:
+        def excel_job(o):
+            app_ = win32.DispatchEx('Excel.Application')
             app_.DisplayAlerts = False
-            wb = app_.Workbooks.Open(src, ReadOnly=True)
+            box = {'app': app_}
             try:
-                try: _widen_cut_off_columns(wb, src)
-                except Exception as e: print('column fit skipped:', e, file=sys.stderr)
-                wb.ExportAsFixedFormat(0, dst)
-            finally: wb.Close(False)   # never saved: the user's file stays as it was
-        finally: app_.Quit()
+                wb = app_.Workbooks.Open(src, ReadOnly=True)
+                try:
+                    try: _widen_cut_off_columns(wb, src)
+                    except Exception as e: print('column fit skipped:', e, file=sys.stderr)
+                    wb.ExportAsFixedFormat(0, dst)
+                finally: wb.Close(False)   # never saved: the user's file stays as it was
+            finally:
+                o.later(lambda o2, a=app_: a.Quit())   # closing Excel takes seconds: done after the PDF is handed over
+        OFFICE.run(excel_job)
     elif low.endswith(POWERPOINT_EXT):
-        app_ = win32.DispatchEx('PowerPoint.Application')
-        try:
-            # PowerPoint takes Office's -1 / 0 for yes / no (a Python True can't be passed to it)
-            pres = app_.Presentations.Open(src, -1, 0, 0)   # read-only, keep its name, no window
-            try: pres.SaveAs(dst, 32)                       # 32 = PDF
-            finally: pres.Close()
-        finally: app_.Quit()
+        def ppt_job(o):
+            app_ = win32.DispatchEx('PowerPoint.Application')
+            try:
+                # PowerPoint takes Office's -1 / 0 for yes / no (a Python True can't be passed to it)
+                pres = app_.Presentations.Open(src, -1, 0, 0)   # read-only, keep its name, no window
+                try: pres.SaveAs(dst, 32)                       # 32 = PDF
+                finally: pres.Close()
+            finally:
+                o.later(lambda o2, a=app_: a.Quit() if a.Presentations.Count == 0 else None)   # don't close someone's own slides
+        OFFICE.run(ppt_job)
     else:
         raise ValueError("Unsupported format")
 
@@ -2379,6 +2458,13 @@ def translate_status():
 def formats():
     return jsonify({"extensions": [e[1:] for e in OPENABLE_EXT]})
 
+@app.route('/shutdown', methods=['POST'])
+def shutdown():
+    """The app is closing: close the hidden Word (nothing else is left running)."""
+    try: OFFICE.shutdown()
+    except Exception: pass
+    return jsonify({"success": True})
+
 @app.route('/ping', methods=['GET'])
 def ping():
     return jsonify({"status": "connected"})
@@ -2589,19 +2675,44 @@ def _with_letter_map(buf, used):
     except Exception as e:
         print('letter map not added:', e, file=sys.stderr); return None
 
+class _MixedFont:
+    """The PDF's own copy of a font for every letter it has, and a stand-in only for the letters it lacks.
+    A PDF usually keeps just the letters it used, so typing a new one (a "J" in a heading that had none)
+    shouldn't switch the whole line to another font."""
+    def __init__(self, main, fallback): self.main, self.fallback = main, fallback
+    def pick(self, ch): return self.main if self.main.has_glyph(ord(ch)) else self.fallback
+    def has_glyph(self, c): return self.main.has_glyph(c) or self.fallback.has_glyph(c)
+    def text_length(self, text, fontsize=11): return sum(self.pick(ch).text_length(ch, fontsize) for ch in text)
+    def __getattr__(self, name): return getattr(self.main, name)
+
+def _tw_add(tw, pos, text, font, size):
+    """TextWriter.append that handles a _MixedFont (each run of letters in the font that has them)."""
+    if not isinstance(font, _MixedFont): return tw.append(pos, text, font=font, fontsize=size)
+    x, y = pos; run, cur = '', None
+    for ch in text + '\x00':
+        f = font.pick(ch) if ch != '\x00' else None
+        if f is not cur and run:
+            tw.append((x, y), run, font=cur, fontsize=size); x += cur.text_length(run, size); run = ''
+        if ch == '\x00': break
+        cur = f; run += ch
+
 def _font_for(doc, page, span_font, text, cache, prefer_embedded=True):
     """A fitz.Font that draws `text` like `span_font`: the PDF's own copy when it has every letter,
-    else the installed font of that name, else the closest built-in font."""
+    else the installed font of that name, else the PDF's copy for the letters it has with the closest
+    built-in font for the rest, else the closest built-in font."""
     need = [ch for ch in text if not ch.isspace()]
+    emb = None
     if prefer_embedded:
-        f = _embedded_font(doc, page, span_font, cache)
-        if f is not None and all(f.has_glyph(ord(ch)) for ch in need): return f
+        emb = _embedded_font(doc, page, span_font, cache)
+        if emb is not None and all(emb.has_glyph(ord(ch)) for ch in need): return emb
     path = _find_system_font(span_font)
     if path and os.path.exists(path):
         try:
             f = fitz.Font(fontfile=path)
             if all(f.has_glyph(ord(ch)) for ch in need): return f
         except Exception: pass
+    if emb is not None and need and sum(1 for ch in need if emb.has_glyph(ord(ch))) >= len(need) / 2:
+        return _MixedFont(emb, _font_for(doc, page, span_font, text, cache, prefer_embedded=False))
     low = span_font.lower()
     b, it = 'bold' in low or 'black' in low or 'heavy' in low, 'italic' in low or 'oblique' in low
     fam = 'co' if 'cour' in low or 'mono' in low else 'ti' if not low or 'times' in low or 'serif' in low and 'sans' not in low else 'he'
@@ -2898,7 +3009,7 @@ def _rewrite_text_plans(doc, page, plans, slants, looks):
             for px, ch in placed:
                 if ch.isspace(): continue
                 # positions are already stretched; the morph stretches again, so take that back out first
-                tw.append((x + (px - o0.x) / hs, y), ch, font=f, fontsize=size)
+                tw.append((x + (px - o0.x) / hs, y), ch, font=f.pick(ch) if isinstance(f, _MixedFont) else f, fontsize=size)
             tw.write_text(page, color=rgb, morph=morph, render_mode=mode, opacity=op)
         else:                     # turned text: each letter at its spot along the line, turned in place
             for px, ch in placed:
@@ -2906,7 +3017,7 @@ def _rewrite_text_plans(doc, page, plans, slants, looks):
                 t = px - o0.x
                 at = fitz.Point(x + t * ddx, y + t * ddy)
                 tw = fitz.TextWriter(page.rect)
-                tw.append(at, ch, font=f, fontsize=size)
+                tw.append(at, ch, font=f.pick(ch) if isinstance(f, _MixedFont) else f, fontsize=size)
                 tw.write_text(page, color=rgb, morph=(at, m), render_mode=mode, opacity=op)
         if e.get('underline') and placed and mode != 3:
             end_x = placed[-1][0] + dx + f.text_length(placed[-1][1], size) * hs
@@ -3026,7 +3137,7 @@ def _rewrap_paragraph(doc, page, rect, text):
             for w, st in words:
                 fo, sz, col, kk, hh = font_of(st), st[1], st[2], st[3], st[4]
                 tw = fitz.TextWriter(page.rect)
-                tw.append((x, y), w, font=fo, fontsize=sz)
+                _tw_add(tw, (x, y), w, fo, sz)
                 m = fitz.Matrix(hh, 0, kk, 1, 0, 0)
                 tw.write_text(page, color=col, morph=(fitz.Point(x, y), m) if (abs(kk) > 0.01 or hh != 1) else None)
                 x += wlen(w, st) + gap
@@ -4044,4 +4155,5 @@ def search_pdf():
     except Exception as e: return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
+    _threading.Thread(target=_prewarm_word, daemon=True).start()
     app.run(host='127.0.0.1', port=int(os.environ.get('MYPDFKIT_PORT') or 5000), threaded=True)

@@ -4,7 +4,8 @@ const fs = require('fs');
 const { spawn } = require('child_process');
 const http = require('http');
 
-const SERVER_PORT = 5000;
+// a test copy can use its own backend port (MYPDFKIT_PORT) so it doesn't meet an installed copy's
+const SERVER_PORT = +process.env.MYPDFKIT_PORT || 5000;
 let serverProc = null;
 let win = null;
 
@@ -85,7 +86,7 @@ function createWindow() {
     const msg = e && e.message !== undefined ? e.message : a[2];
     console.log('[page]', msg);
   });
-  win.loadFile('index.html');
+  win.loadFile('index.html', SERVER_PORT !== 5000 ? { query: { port: String(SERVER_PORT) } } : undefined);
   win.webContents.on('did-finish-load', () => { pageLoaded = true; flushOpenFiles(); });
 }
 

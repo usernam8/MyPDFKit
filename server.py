@@ -1,5 +1,30 @@
 import os
 import sys
+
+def _recognize_ink(strokes):
+    """Windows' handwriting recognizer: the words it reads, each with its other guesses."""
+    import asyncio
+    async def run():
+        from winrt.windows.ui.input.inking import InkStrokeBuilder, InkStrokeContainer, InkRecognizerContainer, InkRecognitionTarget, InkPoint
+        from winrt.windows.foundation import Point
+        from winrt.windows.foundation.numerics import Matrix3x2
+        b, cont = InkStrokeBuilder(), InkStrokeContainer()
+        for pts in strokes:
+            if len(pts) < 2: pts = pts + [[pts[0][0] + 0.3, pts[0][1] + 0.3]]
+            cont.add_stroke(b.create_stroke_from_ink_points([InkPoint(Point(float(x) * 4, float(y) * 4), 0.5) for x, y in pts], Matrix3x2(1, 0, 0, 1, 0, 0)))
+        rc = InkRecognizerContainer()   # held on to: if it's let go mid-way, the answer never comes
+        res = await rc.recognize_async(cont, InkRecognitionTarget.ALL)
+        return [list(r.get_text_candidates()) for r in res]
+    # on a fresh thread: a thread where COM was already set up (pywin32 does that) never gets the answer
+    import threading
+    out = {}
+    def work():
+        try: out['words'] = asyncio.run(run())
+        except Exception as e: out['error'] = e
+    t = threading.Thread(target=work, daemon=True); t.start(); t.join(30)
+    if 'error' in out: raise out['error']
+    if 'words' not in out: raise TimeoutError('no answer from the recognizer')
+    return out['words']
 import subprocess
 import hashlib
 import tempfile
@@ -1152,14 +1177,14 @@ def _ink_outline(P, W):
     ang = lambda a, b: math.atan2(b[1] - a[1], b[0] - a[0])
     return L + cap(P[-1], W[-1] / 2, ang(P[-2], P[-1]) + math.pi / 2) + R[::-1] + cap(P[0], W[0] / 2, ang(P[0], P[1]) - math.pi / 2)
 
-def _add_pen_shape(doc, page, outline, rgb, opacity, center=None, widths=None, info=None):
+def _add_pen_shape(doc, page, outline, rgb, opacity, center=None, widths=None, info=None, tip=None):
     """A filled shape of ink; the stroke's centre line and widths are kept with it so the eraser can cut it."""
     a = page.add_polygon_annot(outline)
     a.set_colors(stroke=rgb, fill=rgb); a.set_border(width=0); a.set_opacity(opacity)
     a.set_info(title=(info or {}).get('title') or os.environ.get('USERNAME', ''), subject='Pen')
     a.update()
     if center and widths:
-        data = json.dumps({"p": [[round(x, 2), round(y, 2)] for x, y in center], "w": [round(w, 3) for w in widths]})
+        data = json.dumps({"p": [[round(x, 2), round(y, 2)] for x, y in center], "w": [round(w, 3) for w in widths], "t": tip or 'fountain'})
         doc.xref_set_key(a.xref, 'MyPDFKitInk', fitz.get_pdf_str(data))
     return a
 
@@ -1219,7 +1244,7 @@ def erase_ink():
                 rgb, opacity, info = a.colors.get('fill') or a.colors.get('stroke'), a.opacity, a.info
                 page.delete_annot(a); changed += 1
                 for pp, ww in pieces:
-                    _add_pen_shape(doc, page, _ink_outline(pp, ww), rgb, opacity if opacity is not None and opacity >= 0 else 1, pp, ww, info)
+                    _add_pen_shape(doc, page, _ink_outline(pp, ww), rgb, opacity if opacity is not None and opacity >= 0 else 1, pp, ww, info, kept.get('t'))
                 continue
             lists = [_dense([tuple(v) for v in l], 1) for l in a.vertices]
             if mode == 'stroke':
@@ -1248,6 +1273,216 @@ def erase_ink():
         doc.save(out, garbage=3, deflate=True); doc.close()
         return jsonify({"success": True, "changed": changed, "new_file": out})
     except Exception as e: return jsonify({"error": str(e)}), 500
+
+# ---------- lasso: pick saved pen strokes up again ----------
+def _inside(pt, poly):
+    x, y, c, n = pt[0], pt[1], False, len(poly)
+    for i in range(n):
+        (x1, y1), (x2, y2) = poly[i], poly[(i + 1) % n]
+        if (y1 > y) != (y2 > y) and x < (x2 - x1) * (y - y1) / ((y2 - y1) or 1e-9) + x1: c = not c
+    return c
+
+def _hex(rgb):
+    return '#' + ''.join(f'{max(0, min(255, round(v * 255))):02x}' for v in (rgb or [0, 0, 0])[:3])
+
+@app.route('/take_ink', methods=['POST'])
+def take_ink():
+    """Pen strokes mostly inside the lasso come out of the file and back to the app as strokes it can move,
+    resize, recolor or turn into text (they go back in when the page is saved)."""
+    d = request.json; fp = d['filepath']
+    try:
+        doc = fitz.open(fp); page = doc[int(d['page'])]; poly = [tuple(q) for q in d['polygon']]
+        taken = []
+        for a in list(page.annots() or []):
+            kind = a.type[0]
+            if kind not in (fitz.PDF_ANNOT_INK, fitz.PDF_ANNOT_POLYGON): continue
+            tip = None
+            try:
+                t, v = doc.xref_get_key(a.xref, 'MyPDFKitTip'); tip = v.lstrip('/') if t == 'name' else None
+            except Exception: pass
+            opacity = a.opacity if a.opacity is not None and a.opacity >= 0 else 1
+            if kind == fitz.PDF_ANNOT_POLYGON:
+                if a.info.get('subject') != 'Pen': continue
+                t, v = doc.xref_get_key(a.xref, 'MyPDFKitInk')
+                if t != 'string': continue
+                k = json.loads(v); pts = k['p']
+                if sum(_inside(q, poly) for q in pts) < 0.6 * len(pts): continue
+                taken.append([{"type": k.get('t') or 'fountain', "color": _hex(a.colors.get('fill') or a.colors.get('stroke')), "size": max(k['w']),
+                               "opacity": opacity, "points": pts, "widths": k['w']}])
+            else:
+                lists = [[list(v) for v in l] for l in a.vertices]
+                allp = [q for l in lists for q in l]
+                if not allp or sum(_inside(q, poly) for q in allp) < 0.6 * len(allp): continue
+                hl = tip == 'highlighter' or a.blendmode == 'Multiply'
+                width = (a.border or {}).get('width') or 1
+                taken.append([{"type": 'highlighter' if hl else (tip or 'pen'), "color": _hex(a.colors.get('stroke')), "size": width,
+                               "opacity": 1 if hl else opacity, "points": l} for l in lists if len(l) > 1])
+            page.delete_annot(a)
+        strokes = [x for g in taken for x in g]
+        if not strokes: doc.close(); return jsonify({"success": True, "strokes": []})
+        out = _temp_out(fp, 'take', json.dumps(d))
+        doc.save(out, garbage=3, deflate=True); doc.close()
+        return jsonify({"success": True, "strokes": strokes, "new_file": out})
+    except Exception as e: return jsonify({"error": str(e)}), 500
+
+# ---------- handwriting to text (Windows' own handwriting recognizer) ----------
+@app.route('/ink_to_text', methods=['POST'])
+def ink_to_text():
+    strokes = request.json.get('strokes') or []
+    try:
+        words = _recognize_ink(strokes)
+        if not words: return jsonify({"error": "Couldn't read that writing"}), 400
+        return jsonify({"text": ' '.join(w[0] for w in words if w), "words": words})
+    except Exception as e:
+        return jsonify({"error": "Handwriting recognition isn't available on this PC (" + str(e)[:120] + ")"}), 500
+
+# ---------- places for others to sign ----------
+@app.route('/add_fields', methods=['POST'])
+def add_fields():
+    """Sign-here boxes and other fields for the people who'll sign: [{page, kind, rect (as shown), signer}].
+    kind: signature | initials | date | name | text | checkbox. They're real PDF form fields, so other
+    readers show them too."""
+    d = request.json; fp = d['filepath']
+    try:
+        doc = fitz.open(fp)
+        names = {w.field_name for p in doc for w in (p.widgets() or [])}
+        label = {'signature': 'Signature', 'initials': 'Initials', 'date': 'Date', 'name': 'Name', 'text': 'Text', 'checkbox': 'Check'}
+        for f in d.get('fields', []):
+            page = doc[int(f['page'])]
+            kind, signer = f['kind'], (f.get('signer') or '').strip() or 'Signer'
+            base = f"{label.get(kind, 'Field')} - {signer}"; name, n = base, 1
+            while name in names: n += 1; name = f'{base} {n}'
+            names.add(name)
+            w = fitz.Widget()
+            w.field_type = {'signature': fitz.PDF_WIDGET_TYPE_SIGNATURE, 'initials': fitz.PDF_WIDGET_TYPE_SIGNATURE,
+                            'checkbox': fitz.PDF_WIDGET_TYPE_CHECKBOX}.get(kind, fitz.PDF_WIDGET_TYPE_TEXT)
+            w.field_name = name
+            w.field_label = {'signature': f'{signer}: sign here', 'initials': f'{signer}: initial here', 'date': f'{signer}: date',
+                             'name': f'{signer}: your name'}.get(kind, f'{signer}: fill in')
+            w.rect = fitz.Rect(f['rect']) * page.derotation_matrix
+            if w.field_type == fitz.PDF_WIDGET_TYPE_TEXT: w.text_fontsize = 0
+            w.border_color = (0.18, 0.44, 0.82); w.border_width = 1
+            w.fill_color = (0.93, 0.96, 1.0)
+            page.add_widget(w)
+        out = _temp_out(fp, 'fields', json.dumps(d))
+        doc.save(out, garbage=3, deflate=True); doc.close()
+        return jsonify({"success": True, "new_file": out})
+    except Exception as e: return jsonify({"error": str(e)}), 500
+
+@app.route('/sign_fields', methods=['POST'])
+def sign_fields():
+    """The places still waiting for a signature or initials, page by page."""
+    try:
+        doc = fitz.open(request.json['filepath']); out = []
+        for i, page in enumerate(doc):
+            for w in page.widgets(types=[fitz.PDF_WIDGET_TYPE_SIGNATURE]) or []:
+                if w.field_value: continue
+                r = w.rect * page.rotation_matrix
+                out.append({"page": i + 1, "rect": [r.x0, r.y0, r.x1, r.y1], "name": w.field_name, "label": w.field_label or '',
+                             "initials": w.field_name.lower().startswith('initials')})
+        doc.close()
+        return jsonify({"fields": out})
+    except Exception as e: return jsonify({"error": str(e), "fields": []})
+
+# ---------- translate, keeping the layout ----------
+LANGS = {'es': 'Spanish', 'fr': 'French', 'de': 'German', 'it': 'Italian', 'pt': 'Portuguese', 'nl': 'Dutch', 'pl': 'Polish', 'ru': 'Russian',
+         'uk': 'Ukrainian', 'tr': 'Turkish', 'ar': 'Arabic', 'he': 'Hebrew', 'hi': 'Hindi', 'zh-CN': 'Chinese (Simplified)', 'zh-TW': 'Chinese (Traditional)',
+         'ja': 'Japanese', 'ko': 'Korean', 'vi': 'Vietnamese', 'th': 'Thai', 'id': 'Indonesian', 'tl': 'Filipino', 'sv': 'Swedish', 'el': 'Greek', 'en': 'English'}
+TRANSLATE = {}
+
+def _translate_texts(texts, target):
+    """Texts translated with Google Translate, sent in batches of paragraphs."""
+    import urllib.request, urllib.parse
+    out, batch, size = [None] * len(texts), [], 0
+    def flush():
+        nonlocal batch, size
+        if not batch: return
+        q = '\n\n'.join(texts[i] for i in batch)
+        req = urllib.request.Request('https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&dt=t&tl=' + urllib.parse.quote(target),
+                                     data=urllib.parse.urlencode({'q': q}).encode(), headers={'User-Agent': 'Mozilla/5.0'})
+        for attempt in range(3):
+            try: j = json.loads(urllib.request.urlopen(req, timeout=30).read()); break
+            except Exception:
+                if attempt == 2: raise
+                import time; time.sleep(1.5 * (attempt + 1))
+        parts = ''.join(x[0] for x in j[0] if x and x[0]).split('\n\n')
+        if len(parts) != len(batch):   # the paragraphs got merged: translate these one by one
+            for i in batch:
+                r = urllib.request.Request(req.full_url, data=urllib.parse.urlencode({'q': texts[i]}).encode(), headers={'User-Agent': 'Mozilla/5.0'})
+                jj = json.loads(urllib.request.urlopen(r, timeout=30).read()); out[i] = ''.join(x[0] for x in jj[0] if x and x[0])
+        else:
+            for i, t in zip(batch, parts): out[i] = t.strip()
+        batch, size = [], 0
+    for i, t in enumerate(texts):
+        if size + len(t) > 3500: flush()
+        batch.append(i); size += len(t) + 2
+    flush()
+    return out
+
+def _translate_run(job, fp, target, out_path):
+    try:
+        doc = fitz.open(fp)
+        cjk = target in ('zh-CN', 'zh-TW', 'ja', 'ko')
+        for pno, page in enumerate(doc):
+            if job['cancel']: break
+            job['current'] = pno + 1
+            blocks = []
+            for b in page.get_text('dict', flags=fitz.TEXTFLAGS_TEXT)['blocks']:
+                lines = [l for l in b.get('lines', []) if any(sp['text'].strip() for sp in l['spans'])]
+                if not lines: continue
+                text = ' '.join(''.join(sp['text'] for sp in l['spans']).strip() for l in lines)
+                text = re.sub(r'\s+', ' ', text).strip()
+                if not re.search(r'[^\W\d_]', text): continue   # numbers and symbols stay as they are
+                spans = [sp for l in lines for sp in l['spans'] if sp['text'].strip()]
+                big = max(spans, key=lambda sp: len(sp['text']))
+                dirs = lines[0]['dir']
+                if abs(dirs[1]) > 0.01: continue   # turned text: leave it
+                xs = [l['bbox'][0] for l in lines]
+                align = 'center' if len(lines) > 1 and max(xs) - min(xs) > 8 and abs((lines[0]['bbox'][0] + lines[0]['bbox'][2]) / 2 - (lines[-1]['bbox'][0] + lines[-1]['bbox'][2]) / 2) < 3 else 'left'
+                blocks.append({"rect": fitz.Rect(b['bbox']), "text": text, "size": big['size'], "color": big['color'],
+                               "bold": bool(big['flags'] & 16) or 'bold' in big['font'].lower(), "italic": bool(big['flags'] & 2), "align": align,
+                               "serif": bool(big['flags'] & 4)})
+            if not blocks: continue
+            done = _translate_texts([b['text'] for b in blocks], target)
+            for b in blocks: page.add_redact_annot(b['rect'])
+            page.apply_redactions(images=fitz.PDF_REDACT_IMAGE_NONE, graphics=fitz.PDF_REDACT_LINE_ART_NONE, text=fitz.PDF_REDACT_TEXT_REMOVE)
+            for b, t in zip(blocks, done):
+                if not t: continue
+                c = b['color']; color = f"#{c:06x}"
+                fam = 'serif' if b['serif'] else 'sans-serif'
+                css = (f"* {{font-family:{fam}; font-size:{b['size']:.1f}px; color:{color}; line-height:1.15; margin:0; text-align:{b['align']};"
+                       f"{' font-weight:bold;' if b['bold'] else ''}{' font-style:italic;' if b['italic'] else ''}}}")
+                r = fitz.Rect(b['rect'].x0, b['rect'].y0, b['rect'].x1 + 2, b['rect'].y1 + 2)
+                import html as _h
+                page.insert_htmlbox(r, _h.escape(t), css=css, scale_low=0)
+            job['done'] = pno + 1
+        if not job['cancel']:
+            try: doc.subset_fonts()
+            except Exception: pass
+            doc.save(out_path, garbage=3, deflate=True)
+            job['path'] = out_path
+        doc.close()
+    except Exception as e:
+        job['error'] = "Couldn't translate (" + str(e)[:160] + "). Check the internet connection."
+    job['finished'] = True
+
+@app.route('/translate_start', methods=['POST'])
+def translate_start():
+    d = request.json; fp = d['filepath']; target = d['target']
+    orig = d.get('original_path') or fp
+    out = get_unique_filename(os.path.join(os.path.dirname(orig), os.path.splitext(os.path.basename(orig))[0] + f" ({LANGS.get(target, target)}).pdf"))
+    n = fitz.open(fp).page_count
+    jid = uuid.uuid4().hex
+    TRANSLATE[jid] = job = {"total": n, "done": 0, "current": 0, "finished": False, "cancel": False, "path": None, "error": None}
+    threading.Thread(target=_translate_run, args=(job, fp, target, out), daemon=True).start()
+    return jsonify({"id": jid, "total": n})
+
+@app.route('/translate_status', methods=['POST'])
+def translate_status():
+    job = TRANSLATE.get(request.json['id'])
+    if not job: return jsonify({"error": "No such job"}), 404
+    if request.json.get('cancel'): job['cancel'] = True
+    return jsonify(job)
 
 @app.route('/formats', methods=['GET'])
 def formats():
@@ -1973,6 +2208,9 @@ def burn_edits():
                     float(img['y']) + float(img['h']) + y_off
                 )
                 page.insert_image(rect, stream=img_bytes)
+                for w in list(page.widgets(types=[fitz.PDF_WIDGET_TYPE_SIGNATURE]) or []):
+                    if not w.field_value and (w.rect & rect).get_area() > 0.4 * w.rect.get_area():
+                        page.delete_widget(w)
             except Exception as e:
                 print(f"Skipped image: {e}")
 
@@ -2001,11 +2239,12 @@ def burn_edits():
                 annot = page.add_ink_annot(ink_list)
                 annot.set_colors(stroke=rgb)
                 annot.set_border({"width": size})
-                annot.set_opacity(0.75) 
+                annot.set_opacity(0.75)
                 try:
                     annot.update(blend_mode=fitz.PDF_BM_Multiply)
                 except:
                     annot.update()
+                doc.xref_set_key(annot.xref, 'MyPDFKitTip', '/highlighter')
             except Exception as e:
                 print(f"Skipped highlighter group: {e}")
 
@@ -2020,6 +2259,7 @@ def burn_edits():
                 annot.set_opacity(float(draw.get('opacity', 1.0)))
                 annot.set_info(subject='Pen', title=os.environ.get('USERNAME', ''))
                 annot.update()
+                doc.xref_set_key(annot.xref, 'MyPDFKitTip', '/' + re.sub(r'[^a-z]', '', str(draw.get('type') or 'pen')))
             except Exception as e:
                 print(f"Skipped pen: {e}")
 
@@ -2028,7 +2268,7 @@ def burn_edits():
                 center = [(float(p[0]) + x_off, float(p[1]) + y_off) for p in draw['points']]
                 _add_pen_shape(doc, page, _ink_outline(center, draw['widths']) if draw.get('widths') else
                                [(float(p[0]) + x_off, float(p[1]) + y_off) for p in draw['outline']],
-                               parse_color(draw['color']), float(draw.get('opacity', 1.0)), center, draw.get('widths'))
+                               parse_color(draw['color']), float(draw.get('opacity', 1.0)), center, draw.get('widths'), tip=draw.get('type'))
             except Exception as e:
                 print(f"Skipped pen shape: {e}")
 
@@ -2896,4 +3136,4 @@ def search_pdf():
     except Exception as e: return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
-    app.run(host='127.0.0.1', port=5000, threaded=True)
+    app.run(host='127.0.0.1', port=int(os.environ.get('MYPDFKIT_PORT') or 5000), threaded=True)

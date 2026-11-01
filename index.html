@@ -605,6 +605,58 @@
     .ms-scale { font-size:11.5px; color:var(--dim); margin:2px 16px 8px; line-height:1.4; }
     .ms-row { display:flex; gap:6px; margin:0 16px 8px; align-items:center; }
     .ms-row select { flex:1; }
+    .pen-ibtn.on { background:var(--accent-soft); color:var(--accent); }
+    .dim-note { font-weight:400; text-transform:none; letter-spacing:0; color:var(--dim); opacity:.8; margin-left:4px; }
+    .mark-grid { display:flex; flex-wrap:wrap; gap:6px; padding:2px 14px 10px; }
+    .mark-btn { min-width:34px; height:32px; padding:0 8px; border:1px solid var(--line); border-radius:6px; background:var(--raised); color:var(--text); font:600 14px Segoe UI, sans-serif; cursor:pointer; }
+    .mark-btn.wide { font-size:12px; font-weight:500; }
+    .mark-btn:hover { border-color:var(--accent); }
+    .mark-btn.on { background:var(--accent-soft); border-color:var(--accent); color:var(--accent); }
+    body.tool-place #area-glass, body.tool-prepare #area-glass { display:block; }
+    body.tool-place #area-glass { cursor:copy; }
+    /* lasso selection */
+    #lasso-layer { position:absolute; inset:0; width:100%; height:100%; z-index:11; pointer-events:none; overflow:visible; }
+    #lasso-layer path { fill:rgba(47,111,208,.06); stroke:#2f6fd0; stroke-width:1.5; stroke-dasharray:5 4; }
+    body.tool-draw.lassoing #event-glass { cursor:crosshair !important; }
+    #ink-sel { position:absolute; z-index:12; display:none; border:1.5px dashed #2f6fd0; background:rgba(47,111,208,.05); cursor:move; }
+    #ink-sel.show { display:block; }
+    .is-h { position:absolute; width:10px; height:10px; background:#fff; border:1.5px solid #2f6fd0; border-radius:2px; }
+    .is-h[data-c="nw"] { left:-6px; top:-6px; cursor:nwse-resize; } .is-h[data-c="se"] { right:-6px; bottom:-6px; cursor:nwse-resize; }
+    .is-h[data-c="ne"] { right:-6px; top:-6px; cursor:nesw-resize; } .is-h[data-c="sw"] { left:-6px; bottom:-6px; cursor:nesw-resize; }
+    .is-bar { position:absolute; left:50%; bottom:calc(100% + 10px); transform:translateX(-50%); display:flex; align-items:center; gap:4px; padding:5px 6px; border-radius:9px; background:#2a2b30; box-shadow:0 4px 16px rgba(0,0,0,.35); white-space:nowrap; cursor:default; }
+    .is-bar .ink-dot { width:20px; height:20px; }
+    .is-bar button.txt { height:24px; padding:0 9px; border:0; border-radius:5px; background:var(--raised); color:var(--text); font:12px Segoe UI, sans-serif; cursor:pointer; }
+    .is-bar button.txt:hover { background:var(--line); }
+    .is-bar button.del { color:#ff9a9a; }
+    /* prepare for signing */
+    #prep-bar { position:absolute; left:50%; bottom:22px; transform:translateX(-50%); z-index:60; display:none; align-items:center; gap:8px; padding:7px 8px; border-radius:10px; background:#2a2b30; box-shadow:0 6px 22px rgba(0,0,0,.4); white-space:nowrap; }
+    body.tool-prepare #prep-bar { display:flex; }
+    #prep-bar .seg { margin:0; }
+    #prep-bar .seg button { padding:0 10px; }
+    #prep-signer { width:96px; height:28px; background:var(--raised); border:1px solid var(--line); border-radius:6px; color:var(--text); padding:0 8px; font:12px Segoe UI, sans-serif; }
+    .prep-mark { position:absolute; border:1.5px solid #2f6fd0; background:rgba(47,111,208,.12); border-radius:3px; pointer-events:auto; cursor:pointer; font:600 10px Segoe UI, sans-serif; color:#1f4f9e; padding:2px 4px; box-sizing:border-box; overflow:hidden; white-space:nowrap; }
+    .prep-mark:hover { background:rgba(224,60,60,.15); border-color:#e03c3c; color:#b02020; }
+    #todo-banner { display:none; position:absolute; left:50%; top:12px; transform:translateX(-50%); z-index:61; align-items:center; gap:10px; padding:7px 8px 7px 14px; border-radius:9px; background:#1d3557; color:#cfe3ff; border:1px solid #2f5d99; font-size:12.5px; box-shadow:0 6px 20px rgba(0,0,0,.35); white-space:nowrap; }
+    #todo-banner.show { display:flex; }
+    #todo-banner button { height:24px; padding:0 12px; border-radius:5px; border:0; background:#2f6fd0; color:#fff; cursor:pointer; font:600 12px Segoe UI, sans-serif; }
+    #todo-banner button.x { background:transparent; color:inherit; padding:0 6px; }
+    .field-flash { position:absolute; z-index:14; border:2px solid #f59e0b; border-radius:4px; pointer-events:none; animation:flash 1.2s ease-out 2; }
+    @keyframes flash { 0% { box-shadow:0 0 0 0 rgba(245,158,11,.7); } 100% { box-shadow:0 0 0 14px rgba(245,158,11,0); } }
+    /* stamps library */
+    .stamp-grid { display:grid; grid-template-columns:repeat(3, 150px); gap:10px; margin:6px 0 12px; max-height:340px; overflow:auto; }
+    .stamp-cell { position:relative; height:90px; border:1px solid var(--line); border-radius:8px; background:#f7f6f2; display:flex; align-items:center; justify-content:center; cursor:pointer; padding:8px; box-sizing:border-box; }
+    .stamp-cell:hover { border-color:var(--accent); }
+    .stamp-cell img { max-width:100%; max-height:100%; }
+    .stamp-cell .sc-name { position:absolute; left:6px; bottom:3px; font-size:10px; color:#666; }
+    .stamp-cell .sc-del { position:absolute; right:4px; top:4px; width:20px; height:20px; border:0; border-radius:50%; background:#e05252; color:#fff; font-size:10px; cursor:pointer; display:none; }
+    .stamp-cell:hover .sc-del { display:block; }
+    .stamp-empty { grid-column:1 / -1; color:var(--dim); font-size:12.5px; padding:14px 4px; }
+    /* read aloud */
+    #speak-bar { position:absolute; left:50%; bottom:22px; transform:translateX(-50%); z-index:62; display:none; align-items:center; gap:4px; padding:6px 10px; border-radius:12px; background:#2a2b30; box-shadow:0 6px 22px rgba(0,0,0,.4); max-width:calc(100% - 40px); }
+    #speak-bar.show { display:flex; }
+    #speak-bar .pen-ibtn.big { width:36px; height:36px; border-radius:50%; background:var(--accent); color:var(--accent-ink); }
+    #sp-now { max-width:360px; min-width:120px; margin:0 8px; font-size:12px; color:var(--dim); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    #sp-voice { max-width:150px; }
     .field-check { display:flex; flex-direction:row-reverse; justify-content:flex-end; align-items:center; gap:8px; }
     .field-check label { margin:0; }
     .sig-remember { display:flex; align-items:center; gap:6px; margin-top:10px; font-size:12.5px; color:var(--dim); }
@@ -656,6 +708,14 @@
     <symbol id="i-book" viewBox="0 0 24 24"><path d="M3 5c3-1 6-1 9 1 3-2 6-2 9-1v14c-3-1-6-1-9 1-3-2-6-2-9-1zM12 6v14"/></symbol>
     <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></symbol>
     <symbol id="i-ruler" viewBox="0 0 24 24"><path d="M3 16L16 3l5 5L8 21zM7 12l2 2M10 9l2 2M13 6l2 2"/></symbol>
+    <symbol id="i-lasso" viewBox="0 0 24 24"><path d="M12 5c5 0 8 2 8 4.5S16.4 14 12 14c-4.4 0-8-2-8-4.5S7 5 12 5z" stroke-dasharray="2.5 2"/><path d="M7 13c-1 2 0 4 2 4s1 3-1 4"/></symbol>
+    <symbol id="i-shapes" viewBox="0 0 24 24"><circle cx="8" cy="8" r="4"/><rect x="12" y="12" width="8" height="8" rx="1"/><path d="M4 20l4-6 4 6z"/></symbol>
+    <symbol id="i-speaker" viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4zM16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11"/></symbol>
+    <symbol id="i-translate" viewBox="0 0 24 24"><path d="M3 5h10M8 3v2M5 5c1 4 4 7 7 8M11 5c-1 4-4 7-7 9M13 21l4-10 4 10M14.5 17h5"/></symbol>
+    <symbol id="i-fields" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M6 14c1.5-3 2.5-4 3-4s-.5 4 .5 4 1.5-2 2.5-2 .5 2 1.5 2h4"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4l13 8-13 8z" fill="currentColor"/></symbol>
+    <symbol id="i-pause" viewBox="0 0 24 24"><path d="M7 4h3v16H7zM14 4h3v16h-3z" fill="currentColor"/></symbol>
+    <symbol id="i-stop" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="1" fill="currentColor"/></symbol>
     <symbol id="i-trash" viewBox="0 0 24 24"><path d="M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13M10 11v6M14 11v6"/></symbol>
     <symbol id="i-save" viewBox="0 0 24 24"><path d="M5 4h11l3 3v13H5zM8 4v5h7V4M8 20v-6h8v6"/></symbol>
     <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 14L4 9l5-5M4 9h9a6 6 0 0 1 0 12h-3"/></symbol>
@@ -738,13 +798,14 @@
     <label class="find"><svg class="ico"><use href="#i-search"/></svg><input id="find-box" placeholder="Find text" spellcheck="false" title="Enter: next match, Shift+Enter: previous, Esc: clear"><span id="find-count"></span><span class="find-nav"><button id="find-prev" title="Previous match (Shift+Enter)" disabled><svg class="ico"><use href="#i-up"/></svg></button><button id="find-next" title="Next match (Enter)" disabled><svg class="ico"><use href="#i-down"/></svg></button><button id="find-close" title="Clear (Esc)"><svg class="ico"><use href="#i-plus"/></svg></button></span></label>
     <button id="btn-side" class="icon-tool" title="Show another file side by side"><svg class="ico"><use href="#i-columns"/></svg></button>
     <button id="btn-read" class="icon-tool" title="Reading view (F11)"><svg class="ico"><use href="#i-book"/></svg></button>
+    <button id="btn-speak" class="icon-tool" title="Read aloud"><svg class="ico"><use href="#i-speaker"/></svg></button>
     <button id="btn-print" class="icon-tool" title="Print (Ctrl+P)"><svg class="ico"><use href="#i-print"/></svg></button>
     <button id="update-pill" title="A new version is downloaded. Restart to use it."><svg class="ico"><use href="#i-rotate"/></svg>Update ready · Restart</button>
     <button id="btn-top-undo" class="icon-tool" title="Undo last action"><svg class="ico"><use href="#i-undo"/></svg></button>
     <button id="btn-save-modified" class="icon-tool" title="Save as a new PDF next to the original (Ctrl+S)"><svg class="ico"><use href="#i-save"/></svg></button>
   </div>
 
-  <div id="tools-view"><div class="tv-inner"><input id="tool-search" placeholder="Find any tool" spellcheck="false"><div id="recent-files"><div class="rf-head"><span>Recent</span><button id="rf-clear">Clear</button></div><div class="rf-list"></div></div><div class="tv-grid"><button class="tool-card" data-tool="create"><span class="tc-ico"><svg class="ico"><use href="#i-extract"/></svg></span><span>Create a PDF</span></button><button class="tool-card" data-tool="merge"><span class="tc-ico"><svg class="ico"><use href="#i-merge"/></svg></span><span>Combine files</span></button><button class="tool-card" data-tool="blank"><span class="tc-ico"><svg class="ico"><use href="#i-plus"/></svg></span><span>Blank page</span></button><button class="tool-card" data-tool="edit"><span class="tc-ico"><svg class="ico"><use href="#i-ibeam"/></svg></span><span>Edit a PDF</span></button><button class="tool-card" data-tool="headfoot"><span class="tc-ico"><svg class="ico"><use href="#i-headfoot"/></svg></span><span>Header and footer</span></button><button class="tool-card" data-tool="number"><span class="tc-ico"><svg class="ico"><use href="#i-hash"/></svg></span><span>Add page numbers</span></button><button class="tool-card" data-tool="convert"><span class="tc-ico"><svg class="ico"><use href="#i-convert"/></svg></span><span>Convert to PDF</span></button><button class="tool-card" data-tool="export"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>Export a PDF</span></button><button class="tool-card" data-tool="toword"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>PDF to Word</span></button><button class="tool-card" data-tool="toexcel"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>PDF to Excel</span></button><button class="tool-card" data-tool="toppt"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>PDF to PowerPoint</span></button><button class="tool-card" data-tool="compress"><span class="tc-ico"><svg class="ico"><use href="#i-compress"/></svg></span><span>Compress a PDF</span></button><button class="tool-card" data-tool="split"><span class="tc-ico"><svg class="ico"><use href="#i-split"/></svg></span><span>Split a PDF</span></button><button class="tool-card" data-tool="delpages"><span class="tc-ico"><svg class="ico"><use href="#i-trash"/></svg></span><span>Delete pages</span></button><button class="tool-card" data-tool="fillform"><span class="tc-ico"><svg class="ico"><use href="#i-ibeam"/></svg></span><span>Fill a form</span></button><button class="tool-card" data-tool="compare"><span class="tc-ico"><svg class="ico"><use href="#i-compare"/></svg></span><span>Compare files</span></button><button class="tool-card" data-tool="redact"><span class="tc-ico"><svg class="ico"><use href="#i-redact"/></svg></span><span>Redact</span></button><button class="tool-card" data-tool="comment"><span class="tc-ico"><svg class="ico"><use href="#i-comment"/></svg></span><span>Comment</span></button><button class="tool-card" data-tool="template"><span class="tc-ico"><svg class="ico"><use href="#i-table"/></svg></span><span>Fill from spreadsheet</span></button><button class="tool-card" data-tool="watermark"><span class="tc-ico"><svg class="ico"><use href="#i-watermark"/></svg></span><span>Watermark</span></button><button class="tool-card" data-tool="sidebyside"><span class="tc-ico"><svg class="ico"><use href="#i-columns"/></svg></span><span>Side by side</span></button><button class="tool-card" data-tool="insert"><span class="tc-ico"><svg class="ico"><use href="#i-insert"/></svg></span><span>Insert pages</span></button><button class="tool-card" data-tool="pagesize"><span class="tc-ico"><svg class="ico"><use href="#i-resize"/></svg></span><span>Page size and margins</span></button><button class="tool-card" data-tool="bookmarks"><span class="tc-ico"><svg class="ico"><use href="#i-bookmark"/></svg></span><span>Bookmarks</span></button><button class="tool-card" data-tool="certsign"><span class="tc-ico"><svg class="ico"><use href="#i-cert"/></svg></span><span>Sign with a digital ID</span></button><button class="tool-card" data-tool="certcheck"><span class="tc-ico"><svg class="ico"><use href="#i-cert"/></svg></span><span>Check signatures</span></button><button class="tool-card" data-tool="batch"><span class="tc-ico"><svg class="ico"><use href="#i-batch"/></svg></span><span>Many files at once</span></button><button class="tool-card" data-tool="read"><span class="tc-ico"><svg class="ico"><use href="#i-book"/></svg></span><span>Reading view</span></button><button class="tool-card" data-tool="measure"><span class="tc-ico"><svg class="ico"><use href="#i-ruler"/></svg></span><span>Measure</span></button><button class="tool-card" data-tool="exportall"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>Export all files</span></button><button class="tool-card" data-tool="extract"><span class="tc-ico"><svg class="ico"><use href="#i-extract"/></svg></span><span>Extract pages</span></button><button class="tool-card" data-tool="ocr"><span class="tc-ico"><svg class="ico"><use href="#i-scan"/></svg></span><span>Recognize text (OCR)</span></button><button class="tool-card" data-tool="print"><span class="tc-ico"><svg class="ico"><use href="#i-print"/></svg></span><span>Print</span></button><button class="tool-card" data-tool="protect"><span class="tc-ico"><svg class="ico"><use href="#i-lock"/></svg></span><span>Protect a PDF</span></button><button class="tool-card" data-tool="sign"><span class="tc-ico"><svg class="ico"><use href="#i-signature"/></svg></span><span>Fill and sign</span></button></div></div></div>
+  <div id="tools-view"><div class="tv-inner"><input id="tool-search" placeholder="Find any tool" spellcheck="false"><div id="recent-files"><div class="rf-head"><span>Recent</span><button id="rf-clear">Clear</button></div><div class="rf-list"></div></div><div class="tv-grid"><button class="tool-card" data-tool="create"><span class="tc-ico"><svg class="ico"><use href="#i-extract"/></svg></span><span>Create a PDF</span></button><button class="tool-card" data-tool="merge"><span class="tc-ico"><svg class="ico"><use href="#i-merge"/></svg></span><span>Combine files</span></button><button class="tool-card" data-tool="blank"><span class="tc-ico"><svg class="ico"><use href="#i-plus"/></svg></span><span>Blank page</span></button><button class="tool-card" data-tool="edit"><span class="tc-ico"><svg class="ico"><use href="#i-ibeam"/></svg></span><span>Edit a PDF</span></button><button class="tool-card" data-tool="headfoot"><span class="tc-ico"><svg class="ico"><use href="#i-headfoot"/></svg></span><span>Header and footer</span></button><button class="tool-card" data-tool="number"><span class="tc-ico"><svg class="ico"><use href="#i-hash"/></svg></span><span>Add page numbers</span></button><button class="tool-card" data-tool="convert"><span class="tc-ico"><svg class="ico"><use href="#i-convert"/></svg></span><span>Convert to PDF</span></button><button class="tool-card" data-tool="export"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>Export a PDF</span></button><button class="tool-card" data-tool="toword"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>PDF to Word</span></button><button class="tool-card" data-tool="toexcel"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>PDF to Excel</span></button><button class="tool-card" data-tool="toppt"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>PDF to PowerPoint</span></button><button class="tool-card" data-tool="compress"><span class="tc-ico"><svg class="ico"><use href="#i-compress"/></svg></span><span>Compress a PDF</span></button><button class="tool-card" data-tool="split"><span class="tc-ico"><svg class="ico"><use href="#i-split"/></svg></span><span>Split a PDF</span></button><button class="tool-card" data-tool="delpages"><span class="tc-ico"><svg class="ico"><use href="#i-trash"/></svg></span><span>Delete pages</span></button><button class="tool-card" data-tool="fillform"><span class="tc-ico"><svg class="ico"><use href="#i-ibeam"/></svg></span><span>Fill a form</span></button><button class="tool-card" data-tool="compare"><span class="tc-ico"><svg class="ico"><use href="#i-compare"/></svg></span><span>Compare files</span></button><button class="tool-card" data-tool="redact"><span class="tc-ico"><svg class="ico"><use href="#i-redact"/></svg></span><span>Redact</span></button><button class="tool-card" data-tool="comment"><span class="tc-ico"><svg class="ico"><use href="#i-comment"/></svg></span><span>Comment</span></button><button class="tool-card" data-tool="template"><span class="tc-ico"><svg class="ico"><use href="#i-table"/></svg></span><span>Fill from spreadsheet</span></button><button class="tool-card" data-tool="watermark"><span class="tc-ico"><svg class="ico"><use href="#i-watermark"/></svg></span><span>Watermark</span></button><button class="tool-card" data-tool="sidebyside"><span class="tc-ico"><svg class="ico"><use href="#i-columns"/></svg></span><span>Side by side</span></button><button class="tool-card" data-tool="insert"><span class="tc-ico"><svg class="ico"><use href="#i-insert"/></svg></span><span>Insert pages</span></button><button class="tool-card" data-tool="pagesize"><span class="tc-ico"><svg class="ico"><use href="#i-resize"/></svg></span><span>Page size and margins</span></button><button class="tool-card" data-tool="bookmarks"><span class="tc-ico"><svg class="ico"><use href="#i-bookmark"/></svg></span><span>Bookmarks</span></button><button class="tool-card" data-tool="certsign"><span class="tc-ico"><svg class="ico"><use href="#i-cert"/></svg></span><span>Sign with a digital ID</span></button><button class="tool-card" data-tool="certcheck"><span class="tc-ico"><svg class="ico"><use href="#i-cert"/></svg></span><span>Check signatures</span></button><button class="tool-card" data-tool="batch"><span class="tc-ico"><svg class="ico"><use href="#i-batch"/></svg></span><span>Many files at once</span></button><button class="tool-card" data-tool="read"><span class="tc-ico"><svg class="ico"><use href="#i-book"/></svg></span><span>Reading view</span></button><button class="tool-card" data-tool="measure"><span class="tc-ico"><svg class="ico"><use href="#i-ruler"/></svg></span><span>Measure</span></button><button class="tool-card" data-tool="stamps"><span class="tc-ico"><svg class="ico"><use href="#i-stamp"/></svg></span><span>Stamps and initials</span></button><button class="tool-card" data-tool="prepare"><span class="tc-ico"><svg class="ico"><use href="#i-fields"/></svg></span><span>Prepare for signing</span></button><button class="tool-card" data-tool="translate"><span class="tc-ico"><svg class="ico"><use href="#i-translate"/></svg></span><span>Translate</span></button><button class="tool-card" data-tool="speak"><span class="tc-ico"><svg class="ico"><use href="#i-speaker"/></svg></span><span>Read aloud</span></button><button class="tool-card" data-tool="exportall"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>Export all files</span></button><button class="tool-card" data-tool="extract"><span class="tc-ico"><svg class="ico"><use href="#i-extract"/></svg></span><span>Extract pages</span></button><button class="tool-card" data-tool="ocr"><span class="tc-ico"><svg class="ico"><use href="#i-scan"/></svg></span><span>Recognize text (OCR)</span></button><button class="tool-card" data-tool="print"><span class="tc-ico"><svg class="ico"><use href="#i-print"/></svg></span><span>Print</span></button><button class="tool-card" data-tool="protect"><span class="tc-ico"><svg class="ico"><use href="#i-lock"/></svg></span><span>Protect a PDF</span></button><button class="tool-card" data-tool="sign"><span class="tc-ico"><svg class="ico"><use href="#i-signature"/></svg></span><span>Fill and sign</span></button></div></div></div>
   <div id="main-content">
     <div id="left-sidebar" class="sidebar">
       <div id="side-scroll">
@@ -774,6 +835,18 @@
         <div class="section-title">Sign</div>
         <button id="btn-add-sig" class="side-btn"><svg class="ico"><use href="#i-signature"/></svg>Signature</button>
         <input type="file" id="img-upload" style="display:none" accept="image/*">
+        <button id="btn-stamps" class="side-btn" title="Your initials, date stamp, company stamps and logos"><svg class="ico"><use href="#i-stamp"/></svg>Stamps and initials</button>
+        <button id="btn-prepare" class="side-btn" title="Mark where others sign, initial and date"><svg class="ico"><use href="#i-fields"/></svg>Prepare for signing</button>
+        <div class="section-title">Quick marks <span class="dim-note">click one, then the page</span></div>
+        <div class="mark-grid">
+          <button class="mark-btn" data-mark="check" title="Check mark">&#10003;</button>
+          <button class="mark-btn" data-mark="cross" title="Cross">&#10005;</button>
+          <button class="mark-btn" data-mark="dot" title="Dot">&#9679;</button>
+          <button class="mark-btn" data-mark="line" title="Line">&#8212;</button>
+          <button class="mark-btn wide" data-mark="date" title="Today's date">Date</button>
+          <button class="mark-btn wide" data-mark="name" title="Your name">Name</button>
+          <button class="mark-btn wide" data-mark="initials" title="Your initials">Initials</button>
+        </div>
         <button id="btn-cert-sign" class="side-btn" title="Sign with a digital ID: anyone can check it's yours and that nothing changed since"><svg class="ico"><use href="#i-cert"/></svg>Sign with a digital ID</button>
         <button id="btn-cert-check" class="side-btn" title="See who signed this PDF and whether it changed since"><svg class="ico"><use href="#i-cert"/></svg>Check signatures</button>
         </div>
@@ -785,6 +858,7 @@
         <button id="btn-export" class="side-btn" title="Word, Excel, PowerPoint, images, web page or text"><svg class="ico"><use href="#i-docup"/></svg>Export a PDF</button>
         <button id="btn-export-all" class="side-btn" title="Export every file in this tab at once"><svg class="ico"><use href="#i-docup"/></svg>Export all files</button>
         <button id="btn-template" class="side-btn" title="Make one filled copy per row of an Excel or CSV file"><svg class="ico"><use href="#i-table"/></svg>Fill from spreadsheet</button>
+        <button id="btn-translate" class="side-btn" title="The same PDF in another language, laid out the same"><svg class="ico"><use href="#i-translate"/></svg>Translate</button>
         <button id="btn-batch" class="side-btn" title="Do one thing to many files at once, or a whole folder"><svg class="ico"><use href="#i-batch"/></svg>Many files at once</button>
         <button id="btn-compare" class="side-btn" title="Show what changed between two versions"><svg class="ico"><use href="#i-compare"/></svg>Compare files</button>
         </div>
@@ -825,6 +899,19 @@
             <button id="btn-delete-page" class="side-btn"><svg class="ico"><use href="#i-trash"/></svg>Delete page</button>
           </div>
           <div id="sig-banner"></div>
+          <div id="todo-banner"></div>
+          <div id="prep-bar"><span class="seg" id="prep-kinds">
+            <button data-k="signature" class="selected">Signature</button><button data-k="initials">Initials</button><button data-k="date">Date</button>
+            <button data-k="name">Name</button><button data-k="text">Text</button><button data-k="checkbox">Checkbox</button></span>
+            <input id="prep-signer" value="Signer 1" title="Who fills these in" spellcheck="false">
+            <button id="prep-cancel" class="btn quiet">Cancel</button><button id="prep-apply" class="btn primary">Add fields</button></div>
+          <div id="speak-bar"><button id="sp-prev" class="pen-ibtn" title="Previous page"><svg class="ico"><use href="#i-up"/></svg></button>
+            <button id="sp-play" class="pen-ibtn big" title="Pause"><svg class="ico"><use href="#i-pause"/></svg></button>
+            <button id="sp-next" class="pen-ibtn" title="Next page"><svg class="ico"><use href="#i-down"/></svg></button>
+            <button id="sp-stop" class="pen-ibtn" title="Stop"><svg class="ico"><use href="#i-stop"/></svg></button>
+            <span id="sp-now"></span>
+            <select id="sp-voice" class="ribbon-select" title="Voice"></select>
+            <select id="sp-rate" class="ribbon-select" title="Speed"><option value="0.8">0.8x</option><option value="1" selected>1x</option><option value="1.2">1.2x</option><option value="1.5">1.5x</option><option value="2">2x</option></select></div>
           <div id="measure-bar"><span id="measure-label"></span><button id="measure-keep" class="btn quiet">Keep on page</button><button id="measure-clear" class="btn quiet">Clear</button></div>
           <div id="redact-bar"><span id="redact-count"></span><button id="redact-find" class="btn quiet">Find words...</button><button id="redact-cancel" class="btn quiet">Cancel</button><button id="redact-apply" class="btn danger-btn">Apply</button></div>
           <div id="drop-message">
@@ -850,6 +937,8 @@
             <div id="form-layer"></div>
             <div id="area-glass"><div id="area-rubber"></div></div>
             <svg id="measure-layer"></svg>
+            <svg id="lasso-layer"></svg>
+            <div id="ink-sel"><div class="is-bar"></div><span class="is-h" data-c="nw"></span><span class="is-h" data-c="ne"></span><span class="is-h" data-c="sw"></span><span class="is-h" data-c="se"></span></div>
           </div>
           </div>
       </div>
@@ -898,6 +987,8 @@
 
       <div id="panel-draw" style="display: none;">
         <div class="pen-top"><span id="pen-title">Pen</span><span class="spacer"></span>
+          <button id="btn-lasso" class="pen-ibtn" title="Lasso: circle strokes to move, resize, recolor or turn into typed text"><svg class="ico"><use href="#i-lasso"/></svg></button>
+          <button id="btn-snap" class="pen-ibtn" title="Snap shapes: rough lines, circles, boxes and triangles come out clean"><svg class="ico"><use href="#i-shapes"/></svg></button>
           <button id="btn-undo" class="pen-ibtn" title="Undo (Ctrl+Z)"><svg class="ico"><use href="#i-undo"/></svg></button>
           <button id="btn-redo" class="pen-ibtn" title="Redo (Ctrl+Y)"><svg class="ico" style="transform:scaleX(-1)"><use href="#i-undo"/></svg></button>
         </div>
@@ -983,6 +1074,8 @@
 
   <script>
     const fs = require('fs');
+    // the backend's address (a test copy can run its own on another port)
+    const BACKEND = 'http://127.0.0.1:' + (new URLSearchParams(location.search).get('port') || 5000);
     const { webUtils } = require('electron'); 
     const { ipcRenderer } = require('electron');
 
@@ -1031,9 +1124,10 @@
     function checkBackend() {
       backendTries++;
       const st = document.getElementById('brain-status');
-      fetch('http://127.0.0.1:5000/ping').then(res => res.json())
+      fetch(BACKEND + '/ping').then(res => res.json())
         .then(() => {
           st.textContent = 'Backend connected'; st.classList.add('online');
+          setTimeout(restoreSession, 300);
           backendWasUp = true;
           loadInstalledFonts();
           setTimeout(checkBackend, 10000);
@@ -1063,7 +1157,7 @@
     function loadInstalledFonts() {
       if (fontsLoaded) return;
       fontsLoaded = true;
-      fetch('http://127.0.0.1:5000/fonts').then(r => r.json()).then(d => {
+      fetch(BACKEND + '/fonts').then(r => r.json()).then(d => {
         const sel = document.getElementById('text-font'), cur = sel.value;
         sel.innerHTML = '';
         for (const f of d.fonts) {
@@ -1694,7 +1788,7 @@
                 fileObj.status = 'processing';
                 renderQueueUI();
                 try {
-                    const res = await fetch('http://127.0.0.1:5000/process_file', {
+                    const res = await fetch(BACKEND + '/process_file', {
                         method: 'POST', headers: {'Content-Type': 'application/json'},
                         body: JSON.stringify({ filepath: fileObj.originalPath })
                     });
@@ -1720,7 +1814,7 @@
                             currentTempPdf = fileObj.pdfPath;
                             pdfHistory = fileObj.history = [];
                             document.getElementById('btn-undo-pdf').style.display = 'none';
-                            loadPDF(currentTempPdf);
+                            loadPDF(currentTempPdf, fileObj.lastPage || 1);
                         }
                     }
                 } catch(e) { fileObj.status = 'error'; }
@@ -1812,7 +1906,8 @@
           for (const o of f.options) { const opt = new Option(Array.isArray(o) ? o[1] : o, Array.isArray(o) ? o[0] : o); el.add(opt); }
           el.value = value || '';
         } else if (f.kind === 'signature') {
-          el = document.createElement('button'); el.textContent = 'Sign here'; el.onclick = () => document.getElementById('btn-add-sig').click();
+          el = document.createElement('button'); el.textContent = /^initials/i.test(f.name) ? 'Initial here' : 'Sign here';
+          el.onclick = () => openSigPad({ rect: f.rect, initials: /^initials/i.test(f.name) });
         } else {
           el = document.createElement(f.multiline ? 'textarea' : 'input');
           el.value = value || '';
@@ -2080,7 +2175,7 @@
       
       showToast("Saving your changes...");
       pushHistory();   // so Undo can take these edits back after they're written into the PDF
-      const res = await fetch('http://127.0.0.1:5000/burn_edits', {
+      const res = await fetch(BACKEND + '/burn_edits', {
         method: 'POST', headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({
           filepath: currentTempPdf, page: pageNum - 1, 
@@ -2136,7 +2231,7 @@
       fileQueue.forEach(f => f.status = 'processing');
       renderQueueUI();
 
-      fetch('http://127.0.0.1:5000/process_all_files', {
+      fetch(BACKEND + '/process_all_files', {
         method: 'POST', headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({ files_data: payloadData, duplicate_approved: duplicateApproved })
       }).then(res=>res.json()).then(data => {
@@ -2426,7 +2521,7 @@
       if(!currentTempPdf) return;
       await syncEditsToPython();
       pushHistory();
-      fetch('http://127.0.0.1:5000/rotate_page', {
+      fetch(BACKEND + '/rotate_page', {
         method: 'POST', headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({ filepath: currentTempPdf, page: pageNum - 1 })
       }).then(res=>res.json()).then(data => {
@@ -2441,7 +2536,7 @@
     document.getElementById('btn-split').addEventListener('click', async () => {
       if(!currentTempPdf) return;
       await syncEditsToPython();
-      fetch('http://127.0.0.1:5000/split_pdf', {
+      fetch(BACKEND + '/split_pdf', {
         method: 'POST', headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({ filepath: currentTempPdf, original_path: currentActiveFile })
       }).then(res=>res.json()).then(data => {
@@ -2453,7 +2548,7 @@
       await syncEditsToPython();
       let readyFiles = fileQueue.filter(f => f.status === 'ready').map(f => f.pdfPath);
       if(readyFiles.length < 2) { return showToast("Add at least two converted files to merge.", true); }
-      fetch('http://127.0.0.1:5000/merge_queue', {
+      fetch(BACKEND + '/merge_queue', {
         method: 'POST', headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({ files: readyFiles, first_original_path: fileQueue[0].originalPath })
       }).then(res=>res.json()).then(data => {
@@ -2464,7 +2559,7 @@
     document.getElementById('btn-save-modified').addEventListener('click', async () => {
       if(!currentTempPdf) return;
       await syncEditsToPython(); 
-      fetch('http://127.0.0.1:5000/save_modified', {
+      fetch(BACKEND + '/save_modified', {
         method: 'POST', headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({ filepath: currentTempPdf, original_path: currentActiveFile })
       }).then(res=>res.json()).then(data => {
@@ -2475,7 +2570,7 @@
     document.getElementById('btn-save-page').addEventListener('click', async () => {
       if(!currentTempPdf) return;
       await syncEditsToPython();
-      fetch('http://127.0.0.1:5000/save_current_page', {
+      fetch(BACKEND + '/save_current_page', {
         method: 'POST', headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({ filepath: currentTempPdf, page: pageNum - 1, original_path: currentActiveFile })
       }).then(res=>res.json()).then(data => {
@@ -2537,11 +2632,19 @@
       }[tip];
       return `<svg viewBox="0 0 28 66">${art}</svg>`;
     }
+    // a stylus (Surface Pen, Wacom...) reports how hard it presses; its eraser end erases
+    let inkPressure = null, stylusErase = false;
+    const pressureWidth = p => 0.25 + 1.05 * Math.min(1, Math.max(0, p));
+    function watchStylus(el) {
+      el.addEventListener('pointerdown', e => { inkPressure = e.pointerType === 'pen' ? e.pressure : null; stylusErase = e.pointerType === 'pen' && (e.buttons & 32) > 0; }, true);
+      el.addEventListener('pointermove', e => { if (e.pointerType === 'pen') inkPressure = e.pressure; }, true);
+    }
     function newStroke(tip, at, opts = {}) {
       const set = opts.set || pen.tips[tip];
       const base = TIPS[tip].sizes[set.size] * (opts.scale || 1);
       const s = { type: tip, color: set.color, size: base, opacity: tip === 'highlighter' ? 1 : TIPS[tip].alpha * (set.opacity / 100), points: [at], t: performance.now() };
-      if (TIPS[tip].variable) s.widths = [TIPS[tip].variable === 'brush' ? base * 0.35 : base * 0.8];
+      if (inkPressure !== null && tip !== 'highlighter') { s.widths = [base * pressureWidth(inkPressure)]; s.pressure = true; }
+      else if (TIPS[tip].variable) s.widths = [TIPS[tip].variable === 'brush' ? base * 0.35 : base * 0.8];
       return s;
     }
     function addInkPoint(s, q) {
@@ -2551,6 +2654,7 @@
       s.points.push(q);
       if (!s.widths) return;
       const v = d / dt, prev = s.widths[s.widths.length - 1], base = s.size;
+      if (s.pressure) { s.widths.push(prev * 0.5 + base * pressureWidth(inkPressure ?? 0.5) * 0.5); return; }
       let target;
       if (TIPS[s.type].variable === 'fountain') {   // a slanted nib: thin going one way, broad the other
         const ang = Math.atan2(q[1] - p[1], q[0] - p[0]);
@@ -2592,7 +2696,8 @@
         ctx.lineWidth = s.size * k; ctx.lineJoin = 'round';
         ctx.lineCap = s.type === 'highlighter' ? 'square' : 'round';
         ctx.beginPath(); ctx.moveTo(P[0][0] * k, P[0][1] * k);
-        for (let i = 1; i < P.length - 1; i++) {   // smooth: curve through the midpoints
+        if (s.sharp) for (let i = 1; i < P.length - 1; i++) ctx.lineTo(P[i][0] * k, P[i][1] * k);   // snapped shapes keep their corners
+        else for (let i = 1; i < P.length - 1; i++) {   // smooth: curve through the midpoints
           const mx = (P[i][0] + P[i + 1][0]) / 2, my = (P[i][1] + P[i + 1][1]) / 2;
           ctx.quadraticCurveTo(P[i][0] * k, P[i][1] * k, mx * k, my * k);
         }
@@ -2683,8 +2788,13 @@
       document.getElementById('pen-opacity').parentElement.style.display = pen.tip === 'highlighter' ? 'none' : '';
       document.querySelectorAll('#erase-mode button').forEach(b => b.classList.toggle('selected', b.dataset.em === pen.eraseMode));
       document.body.classList.toggle('erasing', currentTool === 'draw' && pen.eraser);
+      document.body.classList.toggle('lassoing', currentTool === 'draw' && !!pen.lasso);
+      document.getElementById('btn-lasso').classList.toggle('on', !!pen.lasso);
+      document.getElementById('btn-snap').classList.toggle('on', !!pen.snap);
+      if (pen.lasso) document.getElementById('pen-title').textContent = 'Lasso';
     }
     function selectTip(t) {
+      pen.lasso = false; clearInkSel();
       if (t === 'eraser') pen.eraser = true;
       else { const rebuild = t !== pen.tip; pen.eraser = false; pen.tip = t; if (t !== 'highlighter') pen.lastTip = t; if (rebuild) rebuildPenOpts(); }
       savePen(); paintPen();
@@ -2756,15 +2866,601 @@
       showToast('Erased the drawing on this page. Ctrl+Z brings it back');
     });
 
+    // ---------- snapping rough shapes ----------
+    function rdp(P, eps) {   // the few points that keep a line's shape (Ramer-Douglas-Peucker)
+      if (P.length < 3) return P.slice();
+      const [a, b] = [P[0], P[P.length - 1]], len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+      let far = 0, at = 0;
+      for (let i = 1; i < P.length - 1; i++) {
+        const d = len ? Math.abs((b[0] - a[0]) * (a[1] - P[i][1]) - (a[0] - P[i][0]) * (b[1] - a[1])) / len : Math.hypot(P[i][0] - a[0], P[i][1] - a[1]);
+        if (d > far) { far = d; at = i; }
+      }
+      if (far <= eps) return [a, b];
+      return rdp(P.slice(0, at + 1), eps).slice(0, -1).concat(rdp(P.slice(at), eps));
+    }
+    function snapShape(s, keepUndo) {
+      const P = s.points; if (P.length < 5) return false;
+      const xs = P.map(p => p[0]), ys = P.map(p => p[1]);
+      const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys), D = Math.hypot(x1 - x0, y1 - y0);
+      if (D < 10) return false;
+      let L = 0; for (let i = 1; i < P.length; i++) L += Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]);
+      const a = P[0], b = P[P.length - 1];
+      const done = pts => {
+        if (keepUndo) { undoStack.push(drawnStrokes.concat([Object.assign({}, s, { points: P.slice(), widths: s.widths && s.widths.slice() })])); updateInkButtons(); }
+        const w = s.widths ? s.widths.reduce((x, y) => x + y, 0) / s.widths.length : s.size;
+        s.points = pts; delete s.widths; delete s.pressure; s.size = w; if (pts.length <= 8) s.sharp = true; return true;
+      };
+      const closed = Math.hypot(b[0] - a[0], b[1] - a[1]) < Math.max(0.2 * D, 8) && L > 1.8 * D;
+      if (!closed) {
+        const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+        const dev = Math.max(...P.map(p => Math.abs((b[0] - a[0]) * (a[1] - p[1]) - (a[0] - p[0]) * (b[1] - a[1])) / (len || 1)));
+        if (len < 12 || dev > 0.06 * len || L > 1.25 * len) return false;
+        const e = b.slice(), ang = ((Math.atan2(b[1] - a[1], b[0] - a[0]) * 180 / Math.PI) + 360) % 180;
+        if (ang < 5 || ang > 175) e[1] = a[1]; else if (Math.abs(ang - 90) < 5) e[0] = a[0];   // nearly level lines come out level
+        return done([a, e]);
+      }
+      const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2; let rx = (x1 - x0) / 2, ry = (y1 - y0) / 2;
+      const ellErr = P.reduce((e, p) => e + Math.abs(Math.hypot((p[0] - cx) / (rx || 1), (p[1] - cy) / (ry || 1)) - 1), 0) / P.length;
+      let C = rdp(P.concat([P[0]]), 0.08 * D).slice(0, -1);
+      C = C.filter((p, i) => !i || Math.hypot(p[0] - C[i - 1][0], p[1] - C[i - 1][1]) > 0.1 * D);
+      if (C.length > 2 && Math.hypot(C[0][0] - C[C.length - 1][0], C[0][1] - C[C.length - 1][1]) < 0.1 * D) C.pop();
+      const ring = c => c.concat([c[0]]);
+      if (C.length === 3 && ellErr > 0.09) return done(ring(C));
+      if (C.length === 4 && ellErr > 0.07) {
+        const square = C.every((p, i) => { const q = C[(i + 1) % 4], an = Math.abs(Math.atan2(q[1] - p[1], q[0] - p[0]) * 180 / Math.PI) % 90; return an < 14 || an > 76; });
+        return done(ring(square ? [[x0, y0], [x1, y0], [x1, y1], [x0, y1]] : C));
+      }
+      if (ellErr < 0.14) {
+        if (Math.abs(rx - ry) < 0.12 * Math.max(rx, ry)) rx = ry = (rx + ry) / 2;
+        return done(Array.from({ length: 73 }, (_, i) => [cx + rx * Math.cos(i * Math.PI / 36), cy + ry * Math.sin(i * Math.PI / 36)]));
+      }
+      if (C.length >= 3 && C.length <= 6) return done(ring(C));
+      return false;
+    }
+
+    // ---------- lasso: select strokes, then move, resize, recolor, delete or turn into text ----------
+    let lassoPath = null, inkSel = null;   // inkSel: the selected stroke objects
+    function startLasso(at) { clearInkSel(); lassoPath = [at]; drawLasso(); }
+    function drawLasso() {
+      const k = currentRenderScale, svg = document.getElementById('lasso-layer');
+      svg.innerHTML = lassoPath ? `<path d="M${lassoPath.map(p => `${p[0] * k},${p[1] * k}`).join('L')}Z"/>` : '';
+    }
+    function insidePoly(p, poly) {
+      let c = false;
+      for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+        const [xi, yi] = poly[i], [xj, yj] = poly[j];
+        if ((yi > p[1]) !== (yj > p[1]) && p[0] < (xj - xi) * (p[1] - yi) / ((yj - yi) || 1e-9) + xi) c = !c;
+      }
+      return c;
+    }
+    async function finishLasso() {
+      const poly = lassoPath; lassoPath = null; drawLasso();
+      if (poly.length < 3) return;
+      const inside = s => s.points.filter(p => insidePoly(p, poly)).length >= 0.6 * s.points.length;
+      const xs = poly.map(p => p[0]), ys = poly.map(p => p[1]), box = [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
+      const saved = pageNotes.some(n => ['Ink', 'Polygon'].includes(n.kind) && n.rect[0] < box[2] && n.rect[2] > box[0] && n.rect[1] < box[3] && n.rect[3] > box[1]);
+      if (saved) {   // strokes already in the file come back out so they can be changed
+        await syncEditsToPython();
+        pushHistory();
+        const d = await api('take_ink', { filepath: currentTempPdf, page: pageNum - 1, polygon: poly });
+        if (!d.success || !d.strokes.length) { pdfHistory.pop(); if (!d.success) showToast(d.error || "Couldn't pick those up", true); }
+        else {
+          await takeNewFile(d);
+          await currentPdfDoc.getPage(pageNum); await new Promise(r => setTimeout(r, 30));
+          drawnStrokes = d.strokes; hasUnsavedEdits = true; undoStack = []; redoStack = []; updateInkButtons(); redrawCanvases();
+        }
+      }
+      const picked = drawnStrokes.filter(inside);
+      if (!picked.length) return showToast('Circle some pen strokes to select them', true);
+      inkSel = picked; showInkSel();
+    }
+    function inkBox(list) {
+      let b = [Infinity, Infinity, -Infinity, -Infinity];
+      for (const s of list) { const w = (s.widths ? Math.max(...s.widths) : s.size) / 2; for (const p of s.points) { b = [Math.min(b[0], p[0] - w), Math.min(b[1], p[1] - w), Math.max(b[2], p[0] + w), Math.max(b[3], p[1] + w)]; } }
+      return b;
+    }
+    function clearInkSel() { inkSel = null; const el = document.getElementById('ink-sel'); if (el) el.classList.remove('show'); }
+    function showInkSel() {
+      const el = document.getElementById('ink-sel'), k = currentRenderScale;
+      if (!inkSel || !inkSel.length) return clearInkSel();
+      const b = inkBox(inkSel), pad = 4;
+      Object.assign(el.style, { left: (b[0] - pad) * k + 'px', top: (b[1] - pad) * k + 'px', width: (b[2] - b[0] + 2 * pad) * k + 'px', height: (b[3] - b[1] + 2 * pad) * k + 'px' });
+      el.classList.add('show');
+    }
+    // the selection's own copies, so undo still has the strokes as they were
+    function ownSel() {
+      saveCanvasState();
+      const copies = inkSel.map(s => Object.assign({}, s, { points: s.points.map(p => p.slice()), widths: s.widths && s.widths.slice() }));
+      drawnStrokes = drawnStrokes.map(s => { const i = inkSel.indexOf(s); return i < 0 ? s : copies[i]; });
+      inkSel = copies; hasUnsavedEdits = true;
+    }
+    (() => {
+      const el = document.getElementById('ink-sel'), bar = el.querySelector('.is-bar');
+      bar.innerHTML = INK_COLORS.slice(0, 7).map(c => `<button class="ink-dot" data-c="${c}" style="background:${c}" title="Make it this color"></button>`).join('') +
+        `<button class="txt" data-a="text" title="Read the handwriting and replace it with typed text">To text</button><button class="txt del" data-a="del" title="Delete (Delete key)">Delete</button>`;
+      bar.addEventListener('mousedown', e => e.stopPropagation());
+      bar.addEventListener('click', async e => {
+        const b = e.target.closest('button'); if (!b || !inkSel) return;
+        if (b.dataset.c) { ownSel(); inkSel.forEach(s => s.color = b.dataset.c); redrawCanvases(); return; }
+        if (b.dataset.a === 'del') return deleteInkSel();
+        if (b.dataset.a === 'text') inkToText();
+      });
+      el.addEventListener('mousedown', e => {
+        if (e.button !== 0 || !inkSel) return;
+        e.stopPropagation(); e.preventDefault();
+        const corner = e.target.dataset.c, k = currentRenderScale, x0 = e.clientX, y0 = e.clientY;
+        ownSel();
+        const orig = inkSel.map(s => ({ points: s.points.map(p => p.slice()), widths: s.widths && s.widths.slice(), size: s.size }));
+        const b = inkBox(inkSel);
+        const anchor = corner ? [corner.includes('w') ? b[2] : b[0], corner.includes('n') ? b[3] : b[1]] : null;
+        const move = ev => {
+          const dx = (ev.clientX - x0) / k, dy = (ev.clientY - y0) / k;
+          let f = 1, tx = dx, ty = dy;
+          if (corner) {
+            const w = b[2] - b[0], h = b[3] - b[1];
+            const nw = Math.max(6, w + (corner.includes('w') ? -dx : dx)), nh = Math.max(6, h + (corner.includes('n') ? -dy : dy));
+            f = Math.max(nw / w, nh / h); tx = ty = 0;
+          }
+          inkSel.forEach((s, i) => {
+            s.points = orig[i].points.map(p => corner ? [anchor[0] + (p[0] - anchor[0]) * f, anchor[1] + (p[1] - anchor[1]) * f] : [p[0] + tx, p[1] + ty]);
+            if (orig[i].widths) s.widths = orig[i].widths.map(w => w * f);
+            s.size = orig[i].size * f;
+          });
+          redrawCanvases(); showInkSel();
+        };
+        const up = () => { window.removeEventListener('mousemove', move); window.removeEventListener('mouseup', up); };
+        window.addEventListener('mousemove', move); window.addEventListener('mouseup', up);
+      });
+    })();
+    function deleteInkSel() {
+      if (!inkSel) return;
+      saveCanvasState(); const gone = new Set(inkSel);
+      drawnStrokes = drawnStrokes.filter(s => !gone.has(s)); hasUnsavedEdits = true; clearInkSel(); redrawCanvases();
+    }
+    document.addEventListener('keydown', e => {
+      if (!inkSel || /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName) || document.activeElement.isContentEditable) return;
+      if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); deleteInkSel(); }
+      else if (e.key === 'Escape') clearInkSel();
+    });
+    // a typed text box on the page, as if made with Add text
+    function addTextAt(xPt, yPt, text, sizePt, color) {
+      const k = currentRenderScale, div = document.createElement('div');
+      div.className = 'pdf-text new-text saved';
+      div.style.left = xPt * k + 'px'; div.style.top = yPt * k + 'px';
+      div.dataset.customSize = Math.round(sizePt);
+      div.style.fontSize = sizePt * k + 'px';
+      div.style.color = color || '#111111';
+      div.style.fontFamily = document.getElementById('text-font').value || 'Arial';
+      div.textContent = text; div.setAttribute('contenteditable', 'true');
+      attachBoxInteractions(div);
+      document.getElementById('text-layer').appendChild(div);
+      hasUnsavedEdits = true;
+      return div;
+    }
+    async function inkToText() {
+      const sel = inkSel; if (!sel) return;
+      showToast('Reading the handwriting...');
+      const d = await api('ink_to_text', { strokes: sel.filter(s => s.type !== 'highlighter').map(s => s.points) });
+      if (!d.text) return showToast(d.error || "Couldn't read that writing", true);
+      const b = inkBox(sel), size = Math.max(8, Math.min(72, (b[3] - b[1]) * 0.62));
+      saveCanvasState(); const gone = new Set(sel);
+      drawnStrokes = drawnStrokes.filter(s => !gone.has(s)); clearInkSel(); redrawCanvases();
+      addTextAt(b[0], b[1], d.text, size, sel[0].color === '#ffffff' ? '#111111' : sel[0].color);
+      const alt = (d.words || []).map(w => w.slice(1, 3).join(', ')).filter(Boolean);
+      showToast(`Read as "${d.text}". Double-click it to fix a word`);
+    }
+    document.getElementById('btn-lasso').addEventListener('click', () => {
+      pen.lasso = !pen.lasso; if (pen.lasso) pen.eraser = false; clearInkSel(); savePen();
+      if (currentTool !== 'draw') switchTool('btn-draw', 'draw');
+      paintPen(); if (!pen.lasso) document.getElementById('pen-title').textContent = TIPS[pen.tip].name;
+      if (pen.lasso) { hideToolPop(); showToast('Draw a loop around the strokes you want'); }
+    });
+    document.getElementById('btn-snap').addEventListener('click', () => {
+      pen.snap = !pen.snap; savePen(); paintPen();
+      showToast(pen.snap ? 'Snap shapes is on: lines, circles, boxes and triangles come out clean' : 'Snap shapes is off');
+    });
+
+    // ---------- placing things with a click: quick marks, stamps, initials ----------
+    let placing = null;   // { kind, make(xPt, yPt) }
+    function startPlacing(item, label) {
+      if (!currentTempPdf) return showToast('Open a file first', true);
+      goTab('sign');
+      switchTool('btn-pointer', 'place');
+      placing = item;
+      areaDone = (rect, p1) => { if (placing) placing.make(p1[0], p1[1]); if (!placing || !placing.repeat) { placing = null; switchTool('btn-pointer', 'pointer'); } };
+      showToast(label || 'Click where it goes. Esc to stop');
+    }
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && currentTool === 'place') switchTool('btn-pointer', 'pointer'); });
+    // a picture placed on the page, sized in points and centered on the click
+    function placeImage(dataUrl, wPt, hPt, cx, cy) {
+      const k = currentRenderScale;
+      const div = spawnImageOnCanvas(dataUrl, wPt * k + 'px', hPt * k + 'px');
+      div.style.left = (cx - wPt / 2) * k + 'px'; div.style.top = (cy - hPt / 2) * k + 'px';
+      return div;
+    }
+    function markImage(kind) {
+      const c = document.createElement('canvas'); c.width = kind === 'line' ? 400 : 120; c.height = kind === 'line' ? 24 : 120;
+      const g = c.getContext('2d'); g.strokeStyle = g.fillStyle = '#111111'; g.lineCap = 'round'; g.lineJoin = 'round';
+      if (kind === 'check') { g.lineWidth = 16; g.beginPath(); g.moveTo(16, 64); g.lineTo(46, 96); g.lineTo(104, 22); g.stroke(); }
+      else if (kind === 'cross') { g.lineWidth = 16; g.beginPath(); g.moveTo(20, 20); g.lineTo(100, 100); g.moveTo(100, 20); g.lineTo(20, 100); g.stroke(); }
+      else if (kind === 'dot') { g.beginPath(); g.arc(60, 60, 44, 0, Math.PI * 2); g.fill(); }
+      else { g.lineWidth = 10; g.beginPath(); g.moveTo(8, 12); g.lineTo(392, 12); g.stroke(); }
+      return c.toDataURL('image/png');
+    }
+    const todayText = () => new Date().toLocaleDateString(navigator.language, { year: 'numeric', month: '2-digit', day: '2-digit' });
+    async function myName() {
+      let n = ''; try { n = localStorage.getItem('my-name') || ''; } catch (e) {}
+      if (n) return n;
+      const v = await askDialog('Your name', [{ key: 'n', label: 'As it should appear on documents', value: '' }], 'Save');
+      if (!v || !v.n.trim()) return null;
+      try { localStorage.setItem('my-name', v.n.trim()); } catch (e) {}
+      return v.n.trim();
+    }
+    const initialsOf = n => n.split(/\s+/).filter(Boolean).map(w => w[0].toUpperCase()).join('').slice(0, 3);
+    document.querySelectorAll('.mark-btn').forEach(b => b.addEventListener('click', async () => {
+      const kind = b.dataset.mark;
+      let make;
+      if (['check', 'cross', 'dot', 'line'].includes(kind)) {
+        const url = markImage(kind), size = { check: [12, 12], cross: [10, 10], dot: [6, 6], line: [60, 3.6] }[kind];
+        make = (x, y) => placeImage(url, size[0], size[1], x, y);
+      } else if (kind === 'date') make = (x, y) => addTextAt(x, y - 7, todayText(), 11);
+      else {
+        const n = await myName(); if (!n) return;
+        if (kind === 'initials') {
+          const ini = savedInitials();
+          make = ini ? (x, y) => { const im = new Image(); im.onload = () => placeImage(ini, 36, 36 * im.height / im.width, x, y); im.src = ini; } : (x, y) => addTextAt(x, y - 8, initialsOf(n), 13);
+        } else make = (x, y) => addTextAt(x, y - 7, n, 11);
+      }
+      document.querySelectorAll('.mark-btn').forEach(x => x.classList.toggle('on', x === b));
+      startPlacing({ kind, make, repeat: true }, 'Click where it goes, as many times as you like. Esc to stop');
+      document.querySelectorAll('.mark-btn').forEach(x => x.classList.toggle('on', x === b));
+    }));
+
+    // ---------- stamps library (saved on this PC) ----------
+    const pathMod = require('path');
+    let stampsDir = null;
+    async function stampsFolder() {
+      if (!stampsDir) { stampsDir = pathMod.join(await ipcRenderer.invoke('user-data'), 'stamps'); fs.mkdirSync(stampsDir, { recursive: true }); }
+      return stampsDir;
+    }
+    async function loadStamps() { try { return JSON.parse(fs.readFileSync(pathMod.join(await stampsFolder(), 'stamps.json'), 'utf8')); } catch (e) { return []; } }
+    async function saveStamps(list) { fs.writeFileSync(pathMod.join(await stampsFolder(), 'stamps.json'), JSON.stringify(list, null, 1)); }
+    const savedInitials = () => { try { return localStorage.getItem('saved-initials'); } catch (e) { return null; } };
+    // a text stamp drawn crisply: big letters in a box, an optional second line ({date} becomes today's date)
+    function textStampImage(st) {
+      const line2 = (st.line2 || '').replace(/\{date\}/gi, todayText());
+      const c = document.createElement('canvas'), g = c.getContext('2d'), S = 4;
+      const f1 = `800 ${26 * S}px "Segoe UI", Arial, sans-serif`, f2 = `600 ${12 * S}px "Segoe UI", Arial, sans-serif`;
+      g.font = f1; const w1 = g.measureText(st.text.toUpperCase()).width; g.font = f2; const w2 = line2 ? g.measureText(line2).width : 0;
+      const pad = 14 * S, W = Math.max(w1, w2) + pad * 2, H = (line2 ? 62 : 46) * S;
+      c.width = W; c.height = H;
+      g.strokeStyle = g.fillStyle = st.color || '#c62828'; g.lineWidth = 3.2 * S;
+      const r = st.style === 'rounded' ? 12 * S : 2 * S, inset = 2 * S;
+      const box = (i, rr) => { g.beginPath(); g.roundRect(i, i, W - 2 * i, H - 2 * i, rr); g.stroke(); };
+      box(inset, r); if (st.style === 'double') { g.lineWidth = 1.4 * S; box(inset + 5 * S, Math.max(0, r - 4 * S)); }
+      g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.font = f1; g.fillText(st.text.toUpperCase(), W / 2, line2 ? 25 * S : H / 2 + S);
+      if (line2) { g.font = f2; g.fillText(line2, W / 2, 46 * S); }
+      return c.toDataURL('image/png');
+    }
+    async function stampImage(st) {
+      if (st.kind === 'text') return textStampImage(st);
+      if (st.kind === 'date') return textStampImage({ text: 'Received', line2: '{date}', color: '#2f6fd0', style: 'rounded' });
+      if (st.kind === 'initials') return savedInitials();
+      const data = fs.readFileSync(pathMod.join(await stampsFolder(), st.file));
+      return 'data:image/png;base64,' + data.toString('base64');
+    }
+    async function openStamps() {
+      const list = await loadStamps();
+      const all = [{ kind: 'date', name: "Today's date", fixed: true }].concat(savedInitials() ? [{ kind: 'initials', name: 'My initials', fixed: true }] : []).concat(list);
+      const bd = document.createElement('div'); bd.className = 'backdrop';
+      bd.innerHTML = `<div class="dialog"><h3>Stamps and initials</h3><div class="stamp-grid"></div>
+        <div class="dialog-actions"><button class="btn quiet s-ini">Draw my initials</button><button class="btn quiet s-text">Make a text stamp...</button><button class="btn quiet s-pic">Add a picture...</button><span class="spacer"></span><button class="btn s-close">Close</button></div></div>`;
+      const grid = bd.querySelector('.stamp-grid');
+      for (const st of all) {
+        const cell = document.createElement('div'); cell.className = 'stamp-cell'; cell.title = 'Click, then click the page where it goes';
+        const url = await stampImage(st); if (!url) continue;
+        cell.innerHTML = `<img src="${url}"><span class="sc-name"></span>` + (st.fixed ? '' : '<button class="sc-del" title="Remove from the library">&#x2715;</button>');
+        cell.querySelector('.sc-name').textContent = st.name || '';
+        cell.addEventListener('click', e => {
+          if (e.target.classList.contains('sc-del')) return;
+          bd.remove();
+          const im = new Image();
+          im.onload = () => {
+            const wPt = st.kind === 'initials' ? 40 : st.kind === 'image' ? Math.min(140, im.width / 3) : Math.min(220, im.width / 4.4);
+            startPlacing({ kind: 'stamp', make: (x, y) => placeImage(url, wPt, wPt * im.height / im.width, x, y) }, 'Click where the stamp goes. Drag its corners to resize it');
+          };
+          im.src = url;
+        });
+        const del = cell.querySelector('.sc-del');
+        if (del) del.addEventListener('click', async () => {
+          const rest = (await loadStamps()).filter(x => x.id !== st.id); await saveStamps(rest);
+          if (st.file) try { fs.unlinkSync(pathMod.join(await stampsFolder(), st.file)); } catch (e) {}
+          cell.remove();
+        });
+        grid.append(cell);
+      }
+      if (!list.length) grid.insertAdjacentHTML('beforeend', '<div class="stamp-empty">Make your own: a text stamp like PAID or APPROVED, or add a picture of your company stamp or logo.</div>');
+      const close = () => bd.remove();
+      bd.querySelector('.s-close').onclick = close;
+      bd.querySelector('.s-ini').onclick = () => { close(); openSigPad({ initials: true }); };
+      bd.querySelector('.s-text').onclick = async () => {
+        close();
+        const v = await askDialog('Make a text stamp', [
+          { key: 'text', label: 'Text', value: 'APPROVED' },
+          { key: 'line2', label: 'Second line (optional)', value: '{date}', hint: '{date} becomes the date it is used' },
+          { key: 'color', label: 'Color', type: 'select', options: [['#c62828', 'Red'], ['#2f6fd0', 'Blue'], ['#1b7f3b', 'Green'], ['#111111', 'Black'], ['#7c3aed', 'Purple']] },
+          { key: 'style', label: 'Border', type: 'select', options: [['box', 'Box'], ['rounded', 'Rounded'], ['double', 'Double']] }], 'Save stamp');
+        if (!v || !v.text.trim()) return openStamps();
+        const all2 = await loadStamps(); all2.push({ id: Date.now().toString(36), kind: 'text', name: v.text.trim(), text: v.text.trim(), line2: v.line2.trim(), color: v.color, style: v.style });
+        await saveStamps(all2); openStamps();
+      };
+      bd.querySelector('.s-pic').onclick = async () => {
+        const pth = await pickFile('image/*'); if (!pth) return;
+        close();
+        const id = Date.now().toString(36), file = id + '.png';
+        const im = new Image();
+        im.onload = async () => {   // kept as a PNG; a white background turns see-through so it sits on the page like ink
+          const c = document.createElement('canvas'), sc = Math.min(1, 1200 / Math.max(im.width, im.height));
+          c.width = im.width * sc; c.height = im.height * sc; const g = c.getContext('2d'); g.drawImage(im, 0, 0, c.width, c.height);
+          const px = g.getImageData(0, 0, c.width, c.height), dd = px.data;
+          for (let i = 0; i < dd.length; i += 4) if (dd[i] > 238 && dd[i + 1] > 238 && dd[i + 2] > 238) dd[i + 3] = 0;
+          g.putImageData(px, 0, 0);
+          fs.writeFileSync(pathMod.join(await stampsFolder(), file), Buffer.from(c.toDataURL('image/png').split(',')[1], 'base64'));
+          const all2 = await loadStamps(); all2.push({ id, kind: 'image', name: pathMod.basename(pth).replace(/\.\w+$/, ''), file }); await saveStamps(all2);
+          openStamps();
+        };
+        im.src = require('url').pathToFileURL(pth).href;
+      };
+      bd.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
+      document.body.append(bd);
+    }
+    document.getElementById('btn-stamps').addEventListener('click', openStamps);
+
+    // ---------- prepare for signing: sign-here boxes for others ----------
+    let pendingFields = {}, prepKind = 'signature';
+    const PREP_SIZE = { signature: [180, 40], initials: [60, 34], date: [100, 22], name: [160, 22], text: [160, 22], checkbox: [14, 14] };
+    const PREP_LABEL = { signature: 'Signature', initials: 'Initials', date: 'Date', name: 'Name', text: 'Text', checkbox: '✓' };
+    function drawPrepMarks() {
+      document.querySelectorAll('.prep-mark').forEach(m => m.remove());
+      const layer = document.getElementById('form-layer'), k = currentRenderScale;
+      (pendingFields[pageNum] || []).forEach((f, i) => {
+        const m = document.createElement('div'); m.className = 'prep-mark'; m.title = 'Click to remove';
+        m.textContent = `${PREP_LABEL[f.kind]} · ${f.signer}`;
+        Object.assign(m.style, { left: f.rect[0] * k + 'px', top: f.rect[1] * k + 'px', width: (f.rect[2] - f.rect[0]) * k + 'px', height: (f.rect[3] - f.rect[1]) * k + 'px' });
+        m.addEventListener('mousedown', e => { e.stopPropagation(); pendingFields[pageNum].splice(i, 1); drawPrepMarks(); });
+        layer.append(m);
+      });
+      const n = Object.values(pendingFields).reduce((a, l) => a + l.length, 0);
+      document.getElementById('prep-apply').textContent = n ? `Add ${n} ${n === 1 ? 'field' : 'fields'}` : 'Add fields';
+      document.getElementById('prep-apply').disabled = !n;
+    }
+    async function startPrepare() {
+      if (!await needDoc()) return;
+      goTab('sign');
+      switchTool('btn-pointer', 'prepare');
+      areaDone = rect => {
+        let r = rect;
+        if (r[2] - r[0] < 8 || r[3] - r[1] < 6) { const [w, h] = PREP_SIZE[prepKind]; r = [rect[0] - w / 2, rect[1] - h / 2, rect[0] + w / 2, rect[1] + h / 2]; }
+        (pendingFields[pageNum] = pendingFields[pageNum] || []).push({ kind: prepKind, rect: r, signer: document.getElementById('prep-signer').value.trim() || 'Signer' });
+        drawPrepMarks();
+      };
+      drawPrepMarks();
+      showToast('Pick a kind below, then click or drag on the page where it goes');
+    }
+    function stopPrepare() { pendingFields = {}; drawPrepMarks(); areaDone = null; switchTool('btn-pointer', 'pointer'); }
+    document.querySelectorAll('#prep-kinds button').forEach(b => b.addEventListener('click', () => {
+      prepKind = b.dataset.k; document.querySelectorAll('#prep-kinds button').forEach(x => x.classList.toggle('selected', x === b));
+    }));
+    document.getElementById('prep-cancel').addEventListener('click', stopPrepare);
+    document.getElementById('prep-apply').addEventListener('click', async () => {
+      const fields = Object.entries(pendingFields).flatMap(([pg, l]) => l.map(f => Object.assign({ page: +pg - 1 }, f)));
+      if (!fields.length) return;
+      await syncEditsToPython();
+      pushHistory();
+      const d = await api('add_fields', { filepath: currentTempPdf, fields });
+      pendingFields = {}; drawPrepMarks(); areaDone = null; switchTool('btn-pointer', 'pointer');
+      await takeNewFile(d, `Added ${fields.length} ${fields.length === 1 ? 'field' : 'fields'}. Save, then send the PDF: it can be filled in MyPDFKit, Acrobat or a browser`);
+    });
+    document.getElementById('btn-prepare').addEventListener('click', startPrepare);
+
+    // ---------- places still waiting to be signed ----------
+    let sigTarget = null;   // a sign-here box the next signature goes into
+    function openSigPad(opts = {}) {
+      sigTarget = opts.rect ? { rect: opts.rect, page: pageNum } : null;
+      sigMode = opts.initials ? 'initials' : 'signature';
+      document.getElementById('btn-add-sig').click();
+    }
+    // put a drawn signature (or initials) where it belongs: in the sign-here box, or at the usual spot
+    function placeSignature(dataUrl, w, h) {
+      const t = sigTarget; sigTarget = null;
+      if (!t || t.page !== pageNum) return spawnImageOnCanvas(dataUrl, w + 'px', h + 'px');
+      const k = currentRenderScale, [x0, y0, x1, y1] = t.rect, bw = (x1 - x0) * k, bh = (y1 - y0) * k;
+      const f = Math.min(bw / w, bh / h) * 0.95, W = w * f, H = h * f;
+      const div = spawnImageOnCanvas(dataUrl, W + 'px', H + 'px');
+      div.style.left = x0 * k + (bw - W) / 2 + 'px'; div.style.top = y0 * k + (bh - H) / 2 + 'px';
+      setTimeout(checkSignHere, 50);
+      return div;
+    }
+    let signHere = [];
+    async function checkSignHere() {
+      const b = document.getElementById('todo-banner');
+      if (!currentTempPdf) return b.classList.remove('show');
+      const path = currentTempPdf, d = await api('sign_fields', { filepath: path });
+      if (path !== currentTempPdf) return;
+      // a sign-here box already covered by a signature placed this session counts as done
+      const k = currentRenderScale, placed = [...document.querySelectorAll('.pdf-image')].map(el => [parseFloat(el.style.left) / k, parseFloat(el.style.top) / k, (parseFloat(el.style.left) + el.offsetWidth) / k, (parseFloat(el.style.top) + el.offsetHeight) / k]);
+      signHere = (d.fields || []).filter(f => !(f.page === pageNum && placed.some(r => r[0] < f.rect[2] && r[2] > f.rect[0] && r[1] < f.rect[3] && r[3] > f.rect[1])));
+      if (!signHere.length) return b.classList.remove('show');
+      b.innerHTML = `<span></span><button class="go">Sign</button><button class="x" title="Hide">&#x2715;</button>`;
+      b.querySelector('span').textContent = `${signHere.length} ${signHere.length === 1 ? 'place' : 'places'} to sign or initial`;
+      b.querySelector('.x').onclick = () => b.classList.remove('show');
+      b.querySelector('.go').onclick = async () => {
+        const f = signHere.find(x => x.page === pageNum) || signHere[0];
+        if (f.page !== pageNum) { await syncEditsToPython(); pageNum = f.page; renderPage(f.page); await new Promise(r => setTimeout(r, 400)); }
+        const k2 = currentRenderScale, fl = document.createElement('div'); fl.className = 'field-flash';
+        Object.assign(fl.style, { left: f.rect[0] * k2 - 3 + 'px', top: f.rect[1] * k2 - 3 + 'px', width: (f.rect[2] - f.rect[0]) * k2 + 'px', height: (f.rect[3] - f.rect[1]) * k2 + 'px' });
+        document.getElementById('canvas-wrapper').append(fl); setTimeout(() => fl.remove(), 2600);
+        openSigPad({ rect: f.rect, initials: f.initials });
+      };
+      b.classList.add('show');
+    }
+
+    // ---------- read aloud ----------
+    const speak = { on: false, paused: false, page: 1, queue: [], idx: 0, gen: 0 };
+    function fillVoices() {
+      const sel = document.getElementById('sp-voice'), vs = speechSynthesis.getVoices();
+      if (!vs.length || sel.options.length) return;
+      let pick = ''; try { pick = localStorage.getItem('voice') || ''; } catch (e) {}
+      vs.forEach(v => sel.add(new Option(v.name.replace(/^Microsoft /, '').replace(/ - .*/, '') + (v.lang ? ` (${v.lang})` : ''), v.name)));
+      if (pick) sel.value = pick;
+    }
+    speechSynthesis.onvoiceschanged = fillVoices; fillVoices();
+    async function pageSentences(n) {
+      const tc = await (await currentPdfDoc.getPage(n)).getTextContent();
+      let t = '';
+      for (const it of tc.items) { t += it.str; t += it.hasEOL ? (/-$/.test(it.str) ? '\u0000' : ' ') : ''; }
+      t = t.replace(/-\u0000/g, '').replace(/\u0000/g, '').replace(/\s+/g, ' ').trim();
+      if (!t) return [];
+      const out = [];
+      for (const s of t.split(/(?<=[.!?:;])\s+(?=[\p{Lu}\d"“(])/u)) {
+        if (s.length <= 240) { out.push(s); continue; }
+        for (let i = 0; i < s.length; i += 220) { const cut = s.lastIndexOf(' ', i + 220); const end = cut > i ? cut : i + 220; out.push(s.slice(i, end)); i = end - 220; }
+      }
+      return out;
+    }
+    async function speakFrom(n) {
+      const gen = ++speak.gen; speechSynthesis.cancel();
+      speak.page = n; speak.idx = 0; speak.queue = await pageSentences(n);
+      if (gen !== speak.gen) return;
+      if (n !== pageNum) { await syncEditsToPython(); pageNum = n; renderPage(n); }
+      if (!speak.queue.length) { document.getElementById('sp-now').textContent = `Page ${n} has no text`; if (n < currentPdfDoc.numPages) return speakFrom(n + 1); return stopSpeaking(); }
+      sayNext(gen);
+    }
+    function sayNext(gen) {
+      if (!speak.on || gen !== speak.gen) return;
+      if (speak.idx >= speak.queue.length) {
+        if (speak.page < currentPdfDoc.numPages) return speakFrom(speak.page + 1);
+        document.getElementById('sp-now').textContent = 'Finished'; return stopSpeaking(true);
+      }
+      const u = new SpeechSynthesisUtterance(speak.queue[speak.idx]);
+      const v = speechSynthesis.getVoices().find(x => x.name === document.getElementById('sp-voice').value); if (v) { u.voice = v; u.lang = v.lang; }
+      u.rate = +document.getElementById('sp-rate').value;
+      u.onend = () => { if (gen !== speak.gen) return; speak.idx++; sayNext(gen); };
+      u.onerror = e => { if (e.error !== 'interrupted' && e.error !== 'canceled') { speak.idx++; sayNext(gen); } };
+      document.getElementById('sp-now').textContent = `Page ${speak.page}: ${speak.queue[speak.idx]}`;
+      document.getElementById('sp-now').title = speak.queue[speak.idx];
+      speechSynthesis.speak(u);
+    }
+    function setPlayIcon() { document.querySelector('#sp-play use').setAttribute('href', speak.on && !speak.paused ? '#i-pause' : '#i-play'); document.getElementById('sp-play').title = speak.on && !speak.paused ? 'Pause' : 'Read'; }
+    async function startSpeaking() {
+      if (!await needDoc()) return;
+      fillVoices();
+      if (!speechSynthesis.getVoices().length) return showToast("Windows has no voices installed for reading aloud", true);
+      document.getElementById('speak-bar').classList.add('show');
+      speak.on = true; speak.paused = false; setPlayIcon();
+      speakFrom(pageNum);
+    }
+    function stopSpeaking(keepBar) {
+      speak.on = false; speak.paused = false; speak.gen++; speechSynthesis.cancel(); setPlayIcon();
+      if (!keepBar) document.getElementById('speak-bar').classList.remove('show');
+    }
+    document.getElementById('btn-speak').addEventListener('click', () => speak.on || document.getElementById('speak-bar').classList.contains('show') ? stopSpeaking() : startSpeaking());
+    document.getElementById('sp-play').addEventListener('click', () => {
+      if (!speak.on) { speak.on = true; speak.paused = false; setPlayIcon(); return speakFrom(pageNum); }
+      if (speak.paused) { speak.paused = false; speechSynthesis.resume(); } else { speak.paused = true; speechSynthesis.pause(); }
+      setPlayIcon();
+    });
+    document.getElementById('sp-stop').addEventListener('click', () => stopSpeaking());
+    document.getElementById('sp-prev').addEventListener('click', () => { if (speak.on) speakFrom(Math.max(1, speak.page - 1)); });
+    document.getElementById('sp-next').addEventListener('click', () => { if (speak.on && speak.page < currentPdfDoc.numPages) speakFrom(speak.page + 1); });
+    document.getElementById('sp-rate').addEventListener('change', () => { if (speak.on && !speak.paused) { const g = ++speak.gen; speechSynthesis.cancel(); setTimeout(() => sayNext(g), 60); } });
+    document.getElementById('sp-voice').addEventListener('change', e => { try { localStorage.setItem('voice', e.target.value); } catch (x) {} if (speak.on && !speak.paused) { const g = ++speak.gen; speechSynthesis.cancel(); setTimeout(() => sayNext(g), 60); } });
+
+    // ---------- translate ----------
+    const LANGS = [['es', 'Spanish'], ['fr', 'French'], ['de', 'German'], ['it', 'Italian'], ['pt', 'Portuguese'], ['nl', 'Dutch'], ['pl', 'Polish'], ['ru', 'Russian'],
+      ['uk', 'Ukrainian'], ['tr', 'Turkish'], ['ar', 'Arabic'], ['he', 'Hebrew'], ['hi', 'Hindi'], ['zh-CN', 'Chinese (Simplified)'], ['zh-TW', 'Chinese (Traditional)'],
+      ['ja', 'Japanese'], ['ko', 'Korean'], ['vi', 'Vietnamese'], ['th', 'Thai'], ['id', 'Indonesian'], ['tl', 'Filipino'], ['sv', 'Swedish'], ['el', 'Greek'], ['en', 'English']];
+    async function doTranslate() {
+      if (!await needDoc()) return;
+      let last = 'es'; try { last = localStorage.getItem('translate-to') || 'es'; } catch (e) {}
+      const v = await askDialog('Translate this PDF', [
+        { key: 'to', label: 'Into', type: 'select', options: LANGS, value: last },
+        { key: 'note', label: 'The words are sent to Google Translate. Pictures, tables and the layout stay as they are; a new PDF is saved next to the original.', type: 'hidden' }], 'Translate');
+      if (!v) return;
+      try { localStorage.setItem('translate-to', v.to); } catch (e) {}
+      const job = await api('translate_start', { filepath: currentTempPdf, original_path: currentActiveFile, target: v.to });
+      if (job.error) return showToast(job.error, true);
+      const bd = document.createElement('div'); bd.className = 'backdrop';
+      bd.innerHTML = `<div class="dialog"><h3></h3><div class="batch-bar"><div></div></div><div class="batch-now"></div><div class="batch-err"></div>
+        <div class="dialog-actions"><button class="btn quiet b-stop">Stop</button></div></div>`;
+      bd.querySelector('h3').textContent = `Translating into ${LANGS.find(l => l[0] === v.to)[1]}`;
+      document.body.append(bd);
+      let stop = false; bd.querySelector('.b-stop').onclick = () => { stop = true; bd.querySelector('.b-stop').disabled = true; };
+      let st;
+      while (true) {
+        st = await api('translate_status', { id: job.id, cancel: stop });
+        bd.querySelector('.batch-bar div').style.width = (100 * st.done / st.total) + '%';
+        bd.querySelector('.batch-now').textContent = st.finished ? '' : `Page ${Math.max(1, st.current)} of ${st.total}`;
+        if (st.finished) break;
+        await new Promise(r => setTimeout(r, 400));
+      }
+      bd.remove();
+      if (st.error) return showToast(st.error, true);
+      if (!st.path) return showToast('Stopped');
+      fileQueue.push({ name: st.path.split(/[\\/]/).pop(), originalPath: st.path, pdfPath: null, status: 'pending' });
+      renderQueueUI(); backgroundProcessQueue(); processAndLoad(st.path);
+      showToast(`Saved ${st.path.split(/[\\/]/).pop()}`);
+    }
+    document.getElementById('btn-translate').addEventListener('click', doTranslate);
+
+    // ---------- open tabs come back next time ----------
+    // What's open is kept as you work; next start, every tab returns with its files and pages, including
+    // changes not saved yet (their working copies are kept until then).
+    function saveSession() {
+      try {
+        if (!activeTab || !sessionRestored) return;   // nothing is saved over the last session before it's back
+        const f = fileQueue.find(x => x.originalPath === currentActiveFile);
+        if (f && currentPdfDoc && f.pdfPath === currentTempPdf) f.lastPage = pageNum;   // only once this file is the one showing
+        activeTab.files = fileQueue; activeTab.open = currentActiveFile;
+        const keep = t => ({ open: t.open, files: t.files.filter(f => f.status !== 'error' && fs.existsSync(f.originalPath)).map(f => ({
+          name: f.name, originalPath: f.originalPath, lastPage: f.lastPage || 1,
+          pdfPath: f.pdfPath && f.pdfPath !== f.originalPath && fs.existsSync(f.pdfPath) && ((f.history || []).length || f.keepEdits) ? f.pdfPath : null })) });
+        const list = tabs.map(keep).filter(t => t.files.length);
+        localStorage.setItem('session', JSON.stringify({ active: Math.max(0, tabs.filter(t => keep(t).files.length).indexOf(activeTab)), tabs: list }));
+      } catch (e) {}
+    }
+    window.addEventListener('beforeunload', saveSession);
+    setInterval(saveSession, 4000);
+    let sessionRestored = false;
+    function restoreSession() {
+      if (sessionRestored) return; sessionRestored = true;
+      let data = null; try { data = JSON.parse(localStorage.getItem('session')); } catch (e) {}
+      if (!data || !data.tabs || !data.tabs.length || fileQueue.length) return;
+      let edits = 0;
+      tabs = [];
+      for (const t of data.tabs) {
+        const tab = makeTab();
+        tab.files = t.files.map(f => f.pdfPath ? (edits++, { name: f.name, originalPath: f.originalPath, pdfPath: f.pdfPath, status: 'ready', lastPage: f.lastPage, history: [], keepEdits: true })
+          : { name: f.name, originalPath: f.originalPath, pdfPath: null, status: 'pending', lastPage: f.lastPage });
+        tab.open = t.open;
+      }
+      enterTab(tabs[data.active] || tabs[0]);
+      renderTabs(); backgroundProcessQueue();
+      showToast(edits ? "Your files are back as you left them, with the changes you hadn't saved yet" : 'Your files are back as you left them');
+    }
+
     const sigModal = document.getElementById('sig-modal');
     const sigCanvas = document.getElementById('sig-canvas');
     const sigCtx = sigCanvas.getContext('2d');
-    let isSigDrawing = false;
+    let isSigDrawing = false, sigMode = 'signature';
 
     // a drawn signature can be remembered and reused next time
     const savedSig = () => { try { return localStorage.getItem('saved-signature'); } catch (e) { return null; } };
     function showSavedSig() {
-        const box = document.getElementById('sig-saved'), sig = savedSig();
+        const box = document.getElementById('sig-saved'), sig = sigMode === 'initials' ? savedInitials() : savedSig();
+        document.querySelector('#sig-modal h3').textContent = sigMode === 'initials' ? 'Draw your initials' : 'Draw your signature';
+        document.querySelector('#sig-modal .sig-remember').lastChild.textContent = sigMode === 'initials' ? ' Remember my initials' : ' Remember this signature';
         box.classList.toggle('show', !!sig);
         if (sig) box.querySelector('img').src = sig;
     }
@@ -2802,20 +3498,21 @@
         if (e.ctrlKey && e.key.toLowerCase() === 'z' && !e.shiftKey) { e.preventDefault(); e.stopPropagation(); document.getElementById('sig-undo').click(); }
         if (e.ctrlKey && (e.key.toLowerCase() === 'y' || (e.shiftKey && e.key.toLowerCase() === 'z'))) { e.preventDefault(); e.stopPropagation(); document.getElementById('sig-redo').click(); }
     }, true);
-    document.getElementById('btn-add-sig').addEventListener('click', () => {
+    document.getElementById('btn-add-sig').addEventListener('click', e => {
+        if (e.isTrusted) { sigTarget = null; sigMode = 'signature'; }   // the Signature button itself: a plain signature
         sigModal.style.display = 'flex';
         sigStrokes = []; sigUndo = []; sigRedo = []; drawSig();
         showSavedSig();
         sigModal.tabIndex = -1; sigModal.focus();
     });
     document.getElementById('btn-sig-use').addEventListener('click', () => {
-        const sig = savedSig(); if (!sig) return;
+        const sig = sigMode === 'initials' ? savedInitials() : savedSig(); if (!sig) return;
         sigModal.style.display = 'none';
         const im = new Image();
-        im.onload = () => { const w = Math.min(260, im.width / SIG_K) * currentRenderScale; spawnImageOnCanvas(sig, w + 'px', Math.max(16, w * im.height / im.width) + 'px'); };
+        im.onload = () => { const w = Math.min(sigMode === 'initials' ? 90 : 260, im.width / SIG_K) * currentRenderScale; placeSignature(sig, w, Math.max(16, w * im.height / im.width)); sigMode = 'signature'; };
         im.src = sig;
     });
-    document.getElementById('btn-sig-forget').addEventListener('click', () => { try { localStorage.removeItem('saved-signature'); } catch (e) {} showSavedSig(); });
+    document.getElementById('btn-sig-forget').addEventListener('click', () => { try { localStorage.removeItem(sigMode === 'initials' ? 'saved-initials' : 'saved-signature'); } catch (e) {} showSavedSig(); });
     // just the inked part of the pad, so the signature isn't surrounded by empty space
     function trimmedSignature() {
         const { width: w, height: h } = sigCanvas, px = sigCtx.getImageData(0, 0, w, h).data;
@@ -2828,6 +3525,7 @@
         return c;
     }
 
+    watchStylus(sigCanvas);
     const sigAt = e => { const r = sigCanvas.getBoundingClientRect(); return [(e.clientX - r.left) * 560 / r.width, (e.clientY - r.top) * 560 / r.width]; };
     sigCanvas.addEventListener('mousedown', e => {
         if (e.button !== 0) return;
@@ -2847,16 +3545,17 @@
         sigUndo.push(sigStrokes); sigRedo = []; sigStrokes = []; drawSig();
     });
     
-    document.getElementById('btn-sig-cancel').addEventListener('click', () => { sigModal.style.display = 'none'; });
+    document.getElementById('btn-sig-cancel').addEventListener('click', () => { sigModal.style.display = 'none'; sigTarget = null; sigMode = 'signature'; });
     
     document.getElementById('btn-sig-save').addEventListener('click', () => {
         const c = trimmedSignature();
         if (!c) return showToast('Draw your signature first', true);
         const dataUrl = c.toDataURL("image/png");
-        if (document.getElementById('sig-remember').checked) { try { localStorage.setItem('saved-signature', dataUrl); } catch (e) {} }
+        if (document.getElementById('sig-remember').checked) { try { localStorage.setItem(sigMode === 'initials' ? 'saved-initials' : 'saved-signature', dataUrl); } catch (e) {} }
         sigModal.style.display = 'none';
-        const w = Math.min(260, c.width / SIG_K) * currentRenderScale;
-        spawnImageOnCanvas(dataUrl, w + 'px', Math.max(16, w * c.height / c.width) + 'px');
+        const w = Math.min(sigMode === 'initials' ? 90 : 260, c.width / SIG_K) * currentRenderScale;
+        placeSignature(dataUrl, w, Math.max(16, w * c.height / c.width));
+        sigMode = 'signature';
     });
 
     function spawnImageOnCanvas(srcData, width, height) {
@@ -2907,13 +3606,14 @@
         clearActiveText();
         activeTextObj = div;
         hasUnsavedEdits = true;
+        return div;
     }
 
     document.getElementById('btn-number').addEventListener('click', async () => {
         if(!currentTempPdf) return;
         await syncEditsToPython();
         pushHistory();
-        fetch('http://127.0.0.1:5000/number_pages', {
+        fetch(BACKEND + '/number_pages', {
             method: 'POST', headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({ filepath: currentTempPdf, start_num: 1 })
         }).then(res=>res.json()).then(data => {
@@ -3111,7 +3811,7 @@
         await syncEditsToPython();
         pushHistory();
         
-        fetch('http://127.0.0.1:5000/reorder_pages', {
+        fetch(BACKEND + '/reorder_pages', {
             method: 'POST', headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({ filepath: currentTempPdf, new_order: newOrder })
         }).then(res=>res.json()).then(data => {
@@ -3136,6 +3836,7 @@
       
       const pdfData = new Uint8Array(fs.readFileSync(pdfPath));
       showSignatureBanner(pdfPath, pdfData);
+      setTimeout(checkSignHere, 400);
       pdfjsLib.getDocument({data: pdfData}).promise.then(function(pdf) {
         currentPdfDoc = pdf; 
         pageNum = Math.min(Math.max(1, targetPage), pdf.numPages); 
@@ -3357,7 +4058,9 @@
       }
       currentTool = toolName;
       
-      document.body.className = 'tool-' + toolName + (toolName === 'draw' && pen.eraser ? ' erasing' : '');
+      document.body.className = 'tool-' + toolName + (toolName === 'draw' && pen.eraser ? ' erasing' : '') + (toolName === 'draw' && pen.lasso ? ' lassoing' : '');
+      if (toolName !== 'draw') clearInkSel();
+      if (toolName !== 'place') { placing = null; document.querySelectorAll('.mark-btn').forEach(b => b.classList.remove('on')); }
       
       if (toolName !== 'edit' && toolName !== 'pointer' && toolName !== 'add') {
           clearActiveText();
@@ -3474,7 +4177,8 @@
 
       saveCanvasState();
       const at = [clickX / currentRenderScale, clickY / currentRenderScale];
-      if (pen.eraser) { erasing = { path: [at], changed: false }; eraseAt(at); return; }
+      if (pen.lasso && !stylusErase) { undoStack.pop(); updateInkButtons(); return startLasso(at); }
+      if (pen.eraser || stylusErase) { erasing = { path: [at], changed: false }; eraseAt(at); return; }
       isDrawing = true;
       currentStroke = newStroke(pen.tip, at);
       redrawCanvases();
@@ -3494,7 +4198,8 @@
           return;
       }
 
-      if (currentTool === 'draw' && pen.eraser) {
+      if (lassoPath) { lassoPath.push([moveX / currentRenderScale, moveY / currentRenderScale]); drawLasso(); return; }
+      if (currentTool === 'draw' && (pen.eraser || erasing)) {
         const ring = document.getElementById('eraser-ring'), d = eraserRadius() * 2 * currentRenderScale;
         Object.assign(ring.style, { display: 'block', left: moveX + 'px', top: moveY + 'px', width: d + 'px', height: d + 'px' });
         if (erasing) { const at = [moveX / currentRenderScale, moveY / currentRenderScale]; erasing.path.push(at); eraseAt(at); }
@@ -3525,7 +4230,7 @@
                   let pdfY2 = Math.max(cropStartY, moveY) / currentRenderScale;
 
                   pushHistory();
-                  fetch('http://127.0.0.1:5000/crop_page', {
+                  fetch(BACKEND + '/crop_page', {
                       method: 'POST', headers: {'Content-Type': 'application/json'},
                       body: JSON.stringify({ filepath: currentTempPdf, page: pageNum - 1, rect: [pdfX1, pdfY1, pdfX2, pdfY2] })
                   }).then(res=>res.json()).then(data => {
@@ -3543,8 +4248,10 @@
       }
 
       if (erasing) { finishErase(); return; }
+      if (lassoPath) { finishLasso(); return; }
       if (isDrawing && currentStroke) {
           finishInk(currentStroke);
+          if (pen.snap && snapShape(currentStroke, true)) showToast('Snapped to a clean shape. Ctrl+Z keeps your drawing instead');
           drawnStrokes.push(currentStroke);
           hasUnsavedEdits = true;
           currentStroke = null;
@@ -3554,6 +4261,7 @@
     });
     
     eventGlass.addEventListener('contextmenu', e => e.preventDefault());
+    watchStylus(eventGlass);
   
 
     // ---- interface additions ----
@@ -3670,7 +4378,7 @@
     moreMenu.addEventListener('click', () => moreMenu.classList.remove('open'));
   
     // ---------- new tools ----------
-    const api = async (path, body) => (await fetch('http://127.0.0.1:5000/' + path, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) })).json();
+    const api = async (path, body) => (await fetch(BACKEND + '/' + path, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) })).json();
     async function needDoc() { if (!currentTempPdf) { showToast('Open a file first', true); return false; } await syncEditsToPython(); return true; }
 
     function askDialog(title, fields, okLabel) {
@@ -3928,6 +4636,7 @@
     })();
     // things that follow the page on screen
     function pageChanged(num) {
+      clearInkSel();
       if (side && document.getElementById('sv-sync').checked && side.doc.numPages >= num) side.col.scrollTo(num, true);
       document.querySelectorAll('.bm-row').forEach(r => r.classList.toggle('here', +r.dataset.page === num));
       if (num !== lastShownPage && currentTool === 'measure') clearMeasure();
@@ -4583,7 +5292,7 @@
       compress: () => document.getElementById('btn-compress').click(), split: () => document.getElementById('btn-split').click(),
       number: () => document.getElementById('btn-number').click(), delpages: showPageDelete,
       exportall: doExportAll, extract: showPagePicking, ocr: doOcr, print: doPrint, fillform: startFilling, compare: doCompare, redact: startRedacting, comment: () => startMarkup(), template: doTemplate, watermark: doWatermark, sidebyside: openSideBySide, insert: () => doInsertPages(), pagesize: doPageSize,
-      bookmarks: () => { goTab('edit'); openBookmarks(true); }, certsign: doCertSign, certcheck: () => checkSignatures(), batch: doBatch, read: openReader, measure: startMeasure, edit: () => goTab('edit'), sign: () => { goTab('sign'); }
+      bookmarks: () => { goTab('edit'); openBookmarks(true); }, certsign: doCertSign, certcheck: () => checkSignatures(), batch: doBatch, read: openReader, measure: startMeasure, stamps: openStamps, prepare: startPrepare, translate: doTranslate, speak: () => startSpeaking(), edit: () => goTab('edit'), sign: () => { goTab('sign'); }
     };
     // Delete pages: bring up the page thumbnails with their trash buttons showing for a moment
     async function showPageDelete() {

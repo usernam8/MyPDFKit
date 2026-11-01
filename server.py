@@ -783,12 +783,19 @@ def redact():
             for r in rects:
                 page.add_redact_annot(fitz.Rect(r) * page.derotation_matrix, fill=(0, 0, 0)); n += 1
             page.apply_redactions(images=fitz.PDF_REDACT_IMAGE_PIXELS, graphics=fitz.PDF_REDACT_LINE_ART_REMOVE_IF_COVERED)   # lines just touching a box stay
+        left = 0   # proof: no text is left under any box
+        for pno, rects in pages.items():
+            page = doc[pno]
+            for r in rects:
+                area = fitz.Rect(r) * page.derotation_matrix
+                left += sum(1 for w in page.get_text('words') if (fitz.Rect(w[:4]) & area).get_area() > 0.3 * max(fitz.Rect(w[:4]).get_area(), 0.01))
+        if left: doc.close(); return jsonify({"error": f"{left} words were still found under the boxes, so nothing was saved. Please tell us about this file."}), 500
         if d.get('scrub'):   # hidden information: document details, comments, attachments, scripts, old versions
             doc.scrub(metadata=True, xml_metadata=True, attached_files=True, embedded_files=True, javascript=True,
                       remove_links=False, reset_fields=False, reset_responses=True, thumbnails=True, hidden_text=True)
         new_path = os.path.join(TEMP_DIR, f"mod_{hashlib.md5((fp + str(os.path.getmtime(fp)) + json.dumps(d.get('boxes'))).encode()).hexdigest()}.pdf")
         doc.save(new_path, garbage=4, deflate=True, clean=True); doc.close()
-        return jsonify({"success": True, "new_file": new_path, "message": f"Blacked out {n} {'area' if n == 1 else 'areas'} for good"})
+        return jsonify({"success": True, "new_file": new_path, "message": f"Blacked out {n} {'area' if n == 1 else 'areas'} for good. Checked: nothing readable is left under them"})
     except Exception as e: return jsonify({"error": str(e)}), 500
 
 STAMPS = {'Approved': fitz.STAMP_Approved, 'Draft': fitz.STAMP_Draft, 'Confidential': fitz.STAMP_Confidential, 'Final': fitz.STAMP_Final,
@@ -1687,6 +1694,214 @@ def bates():
             out = _temp_out(fp, 'bates', json.dumps(d) + str(n))
             doc.save(out, garbage=3, deflate=True); doc.close(); outs.append(out)
         return jsonify({"success": True, "files": outs, "next": n})
+    except Exception as e: return jsonify({"error": str(e)}), 500
+
+# ---------- privacy check: what someone could still dig out of a PDF ----------
+COVER_ANNOTS = None
+
+def _covered_words(page):
+    """Letters that are in the file but can't be seen: under a black (or white) box, a dark highlight, a picture,
+    or written in the same color as what's behind them. Found by looking, letter by letter: where each letter
+    sits is drawn as one flat color. These are the "redactions" that can simply be copied out (a box over half
+    a word hides only those letters, and only those are reported and removed)."""
+    import numpy as np
+    spans = [sp for sp in page.get_texttrace() if sp.get('type') != 3]   # render mode 3 is OCR's see-through text: meant to be invisible
+    chars = [(ch[0], fitz.Rect(ch[3])) for sp in spans for ch in sp['chars'] if chr(ch[0]).strip()]
+    chars = [(c, r) for c, r in chars if r.width > 0.3 and r.height > 0.3]
+    if not chars: return []
+    hmin = max(0.5, min(r.height for _, r in chars))
+    dpi = int(min(220, max(72, 10 * 72 / hmin)))
+    pix = page.get_pixmap(dpi=dpi, colorspace=fitz.csGRAY, alpha=False, annots=True)
+    a = np.frombuffer(pix.samples, np.uint8)[:pix.stride * pix.height].reshape(pix.height, pix.stride)[:, :pix.width]
+    k = dpi / 72; rm = page.rotation_matrix
+    hidden = []
+    for c, r in chars:
+        shown = r * rm
+        x0, y0, x1, y1 = int(shown.x0 * k + 0.5), int(shown.y0 * k + 0.5), int(shown.x1 * k - 0.5), int(shown.y1 * k - 0.5)
+        if x1 - x0 < 2 or y1 - y0 < 3: continue
+        region = a[max(0, y0):y1, max(0, x0):x1]
+        if region.size < 6: continue
+        if region.std() < 4:   # nothing drawn there but one flat color: the letter can't be seen
+            hidden.append({"rect": [shown.x0, shown.y0, shown.x1, shown.y1], "word": chr(c), "dark": float(region.mean()) < 128, "raw": [r.x0, r.y0, r.x1, r.y1]})
+    return hidden
+
+def _group_rects(hits):
+    """Hidden letters next to each other on a line become one area (with the hidden text, for the report)."""
+    out = []
+    for h in sorted(hits, key=lambda h: (round(h['rect'][1]), h['rect'][0])):
+        r = fitz.Rect(h['rect'])
+        if out and abs(out[-1]['r'].y0 - r.y0) < 3 and r.x0 - out[-1]['r'].x1 < max(4, r.height * 0.8) and out[-1]['dark'] == h['dark']:
+            gap = ' ' if r.x0 - out[-1]['r'].x1 > r.height * 0.15 else ''
+            out[-1]['r'] |= r; out[-1]['text'] += gap + h['word']
+        else: out.append({'r': r, 'text': h['word'], 'dark': h['dark']})
+    out = [g for g in out if len(g['text'].replace(' ', '')) >= 1]
+    return [{"rect": [g['r'].x0, g['r'].y0, g['r'].x1, g['r'].y1], "words": len(g['text'].split()) or 1, "dark": g['dark'],
+             "sample": g['text'][:24] + ('…' if len(g['text']) > 24 else '')} for g in out]
+
+def _privacy_findings(fp, quick=False):
+    doc = fitz.open(fp); raw = open(fp, 'rb').read()
+    find = []
+    covered, pending = {}, {}
+    for pno, page in enumerate(doc):
+        reds = [a for a in (page.annots() or []) if a.type[0] == fitz.PDF_ANNOT_REDACT]
+        if reds: pending[pno + 1] = len(reds)
+        if quick:   # only pages that have something that could cover words
+            has_cover = any(a.type[0] in (fitz.PDF_ANNOT_SQUARE, fitz.PDF_ANNOT_POLYGON, fitz.PDF_ANNOT_CIRCLE, fitz.PDF_ANNOT_HIGHLIGHT, fitz.PDF_ANNOT_INK,
+                                          fitz.PDF_ANNOT_FREE_TEXT, fitz.PDF_ANNOT_STAMP) for a in (page.annots() or []))
+            has_cover = has_cover or any(d.get('fill') is not None and max(d['fill']) < 0.3 for d in page.get_drawings()) or bool(page.get_images())
+            if not has_cover: continue
+        g = _group_rects(_covered_words(page))
+        if g: covered[pno + 1] = g
+    if covered:
+        n = sum(len(v) for v in covered.values())
+        find.append({"id": "covered", "severity": "danger", "title": f"Text hidden under boxes or covered up in {n} {'place' if n == 1 else 'places'}",
+                     "detail": "They look blacked out (or whited out), but the words are still in the file: anyone can copy them out or remove the box. Fixing removes the words for good and keeps the box.",
+                     "pages": covered, "fixable": True})
+    if pending:
+        find.append({"id": "pending", "severity": "danger", "title": f"{sum(pending.values())} {'redaction' if sum(pending.values()) == 1 else 'redactions'} marked but never applied",
+                     "detail": "These are only marks. The text under them is still there until they're applied.", "pages": {k: [] for k in pending}, "fixable": True})
+    if quick: doc.close(); return find
+    versions = raw.count(b'%%EOF')
+    if versions > 1:
+        find.append({"id": "versions", "severity": "danger", "title": f"{versions - 1} earlier {'version' if versions == 2 else 'versions'} kept inside the file",
+                     "detail": "The file still holds what it looked like before later changes, including text that was deleted or covered. Fixing keeps only the current version.", "fixable": True})
+    meta = {k: v for k, v in (doc.metadata or {}).items() if v and k not in ('format', 'encryption')}
+    if meta or doc.get_xml_metadata():
+        find.append({"id": "metadata", "severity": "warn", "title": "Document details: " + ', '.join(f"{k} \"{str(v)[:30]}\"" for k, v in list(meta.items())[:4]) if meta else "Hidden document details (XML)",
+                     "detail": "Who made it, with which program, when, its title and subject. Fixing clears them.", "fixable": True})
+    if doc.embfile_count():
+        find.append({"id": "attachments", "severity": "warn", "title": f"{doc.embfile_count()} attached {'file' if doc.embfile_count() == 1 else 'files'}: " + ', '.join(doc.embfile_names()[:3]),
+                     "detail": "Files tucked inside the PDF. Fixing removes them.", "fixable": True})
+    if b'/JavaScript' in raw or b'/JS ' in raw or b'/JS(' in raw:
+        find.append({"id": "scripts", "severity": "warn", "title": "Scripts (JavaScript) inside", "detail": "Code that runs when the file opens. Fixing removes it.", "fixable": True})
+    notes = sum(1 for p in doc for a in (p.annots() or []) if a.type[0] in (fitz.PDF_ANNOT_TEXT, fitz.PDF_ANNOT_POPUP) or (a.info.get('content') and a.type[0] not in (fitz.PDF_ANNOT_FREE_TEXT,)))
+    if notes:
+        find.append({"id": "comments", "severity": "warn", "title": f"{notes} {'comment' if notes == 1 else 'comments'} with notes",
+                     "detail": "Sticky notes and the text inside comments travel with the file. Fixing removes the notes (the marks you drew stay).", "fixable": True})
+    try:
+        layers = [c for c in doc.layer_ui_configs() if not c.get('on')]
+    except Exception: layers = []
+    if layers:
+        find.append({"id": "layers", "severity": "warn", "title": f"{len(layers)} hidden {'layer' if len(layers) == 1 else 'layers'}: " + ', '.join(c.get('text', '') for c in layers[:3]),
+                     "detail": "Parts of the page switched off from view but still in the file. Fixing shows them, so you can see what's there.", "fixable": True})
+    fields = sum(1 for p in doc for w in (p.widgets() or []) if w.field_value not in (None, '', 'Off'))
+    if fields:
+        find.append({"id": "fields", "severity": "info", "title": f"{fields} filled-in form {'field' if fields == 1 else 'fields'}",
+                     "detail": "Anyone can still change what's typed in them. Lock and finalize makes them part of the page.", "fixable": False})
+    doc.close()
+    return find
+
+@app.route('/privacy_check', methods=['POST'])
+def privacy_check():
+    try: return jsonify({"findings": _privacy_findings(request.json['filepath'], bool(request.json.get('quick')))})
+    except Exception as e: return jsonify({"error": str(e)}), 500
+
+def _privacy_fix(doc, fixes, fp):
+    """Fix what the check found (fixes: ids). Returns lines saying what was done."""
+    done = []
+    if 'covered' in fixes:   # covered words go for good: real redactions that remove only the text, so the box and the page look the same
+        n = 0
+        for page in doc:
+            hits = _covered_words(page)
+            if not hits: continue
+            for h in hits:   # each hidden letter, shrunk a little so the visible letters beside it stay
+                r = fitz.Rect(h['raw']); dx, dy = r.width * 0.2, r.height * 0.2
+                page.add_redact_annot(fitz.Rect(r.x0 + dx, r.y0 + dy, r.x1 - dx, r.y1 - dy), fill=None)
+            page.apply_redactions(images=fitz.PDF_REDACT_IMAGE_NONE, graphics=fitz.PDF_REDACT_LINE_ART_NONE, text=fitz.PDF_REDACT_TEXT_REMOVE)
+            n += len(hits)
+        if n: done.append(f"Removed {n} hidden {'letter' if n == 1 else 'letters'} for good")
+    if 'pending' in fixes:
+        n = 0
+        for page in doc:
+            k = sum(1 for a in (page.annots() or []) if a.type[0] == fitz.PDF_ANNOT_REDACT)
+            if k: page.apply_redactions(images=fitz.PDF_REDACT_IMAGE_PIXELS, graphics=fitz.PDF_REDACT_LINE_ART_REMOVE_IF_COVERED); n += k
+        if n: done.append(f"Applied {n} {'redaction' if n == 1 else 'redactions'}")
+    if 'comments' in fixes:
+        n = 0
+        for page in doc:
+            for a in list(page.annots() or []):
+                if a.type[0] in (fitz.PDF_ANNOT_TEXT, fitz.PDF_ANNOT_POPUP): page.delete_annot(a); n += 1
+                elif a.info.get('content') and a.type[0] != fitz.PDF_ANNOT_FREE_TEXT: a.set_info(content=''); a.update(); n += 1
+        if n: done.append(f"Removed {n} comment {'note' if n == 1 else 'notes'}")
+    if 'layers' in fixes:
+        try:
+            for i, c in enumerate(doc.layer_ui_configs()):
+                if not c.get('on'): doc.set_layer_ui_config(i, 0)
+            done.append('Turned hidden layers on')
+        except Exception: pass
+    raw = open(fp, 'rb').read()   # report only what was really there
+    present = {'metadata': bool({k: v for k, v in (doc.metadata or {}).items() if v and k not in ('format', 'encryption')}) or bool(doc.get_xml_metadata()),
+               'attachments': doc.embfile_count() > 0, 'scripts': b'/JavaScript' in raw or b'/JS ' in raw or b'/JS(' in raw}
+    scrub = {k: k in fixes and present[k] for k in ('metadata', 'attachments', 'scripts')}
+    if any(scrub.values()):
+        doc.scrub(metadata=scrub['metadata'], xml_metadata=scrub['metadata'], attached_files=scrub['attachments'], embedded_files=scrub['attachments'],
+                  javascript=scrub['scripts'], thumbnails=True, reset_fields=False, reset_responses=False, remove_links=False, hidden_text=False, redactions=False, clean_pages=False)
+        if scrub['metadata']: doc.set_metadata({}); done.append('Cleared the document details')
+        if scrub['attachments']: done.append('Removed attached files')
+        if scrub['scripts']: done.append('Removed scripts')
+    if 'versions' in fixes and raw.count(b'%%EOF') > 1: done.append('Removed the earlier versions kept inside')   # the full save drops them
+    return done
+
+@app.route('/privacy_fix', methods=['POST'])
+def privacy_fix():
+    d = request.json; fp = d['filepath']
+    try:
+        doc = fitz.open(fp)
+        done = _privacy_fix(doc, set(d.get('fixes') or []), fp)
+        out = _temp_out(fp, 'priv', json.dumps(d))
+        doc.save(out, garbage=4, deflate=True, clean=True); doc.close()   # a fresh, full save: no earlier versions inside
+        left = [f['id'] for f in _privacy_findings(out) if f['id'] in ('covered', 'pending', 'versions')]
+        return jsonify({"success": True, "new_file": out, "done": done, "still": left})
+    except Exception as e: return jsonify({"error": str(e)}), 500
+
+# ---------- lock and finalize ----------
+@app.route('/finalize', methods=['POST'])
+def finalize():
+    """The finished copy: every edit made part of the page (comments, shapes, signatures, form fields), hidden
+    things cleaned out, optionally every page turned into a picture, then protected: editing blocked with a
+    password, or certified with a digital ID so any later change shows as tampering."""
+    d = request.json; fp = d['filepath']; orig = d.get('original_path') or fp
+    try:
+        doc = fitz.open(fp); report = []
+        if d.get('clean', True):
+            report += _privacy_fix(doc, {'covered', 'pending', 'metadata', 'attachments', 'scripts', 'versions'}, fp)
+        if d.get('flatten', True):
+            n = sum(1 for p in doc for a in (p.annots() or []) if a.type[0] not in (fitz.PDF_ANNOT_LINK,)) + sum(1 for p in doc for _ in (p.widgets() or []))
+            doc.bake(annots=True, widgets=True)
+            if n: report.append(f"Made {n} {'edit' if n == 1 else 'edits'}, comments and fields part of the page")
+        if d.get('rasterize'):   # the strongest: pictures of the pages, nothing left to edit or copy
+            dpi = int(d.get('dpi') or 200); pics = fitz.open()
+            for page in doc:
+                pix = page.get_pixmap(dpi=dpi, annots=True)
+                np_ = pics.new_page(width=page.rect.width, height=page.rect.height); np_.insert_image(np_.rect, pixmap=pix)
+            doc.close(); doc = pics
+            report.append(f"Turned every page into a picture ({dpi} dpi)")
+        base = os.path.splitext(os.path.basename(orig))[0]
+        out = get_unique_filename(os.path.join(os.path.dirname(orig), base + ' - final.pdf'))
+        mode = d.get('protect') or 'none'
+        if mode == 'password':
+            if not d.get('password'): return jsonify({"error": "Choose a password for unlocking changes"}), 400
+            perm = fitz.PDF_PERM_ACCESSIBILITY
+            if d.get('allow_print', True): perm |= fitz.PDF_PERM_PRINT | fitz.PDF_PERM_PRINT_HQ
+            if d.get('allow_copy', True): perm |= fitz.PDF_PERM_COPY
+            doc.save(out, garbage=4, deflate=True, clean=True, encryption=fitz.PDF_ENCRYPT_AES_256, owner_pw=d['password'], user_pw='', permissions=perm)
+            report.append('Changes need your password' + ('' if d.get('allow_copy', True) else '; copying text is blocked') + ('' if d.get('allow_print', True) else '; printing is blocked'))
+        else:
+            tmp = out if mode == 'none' else _temp_out(fp, 'final', json.dumps(d))
+            doc.save(tmp, garbage=4, deflate=True, clean=True)
+            if mode == 'certify':
+                from pyhanko.sign import signers, fields
+                from pyhanko.pdf_utils.incremental_writer import IncrementalPdfFileWriter
+                signer = signers.SimpleSigner.load_pkcs12(d['pfx'], passphrase=(d.get('pfx_password') or '').encode() or None)
+                if signer is None: doc.close(); return jsonify({"error": "That password isn't right for this digital ID"}), 400
+                meta = signers.PdfSignatureMetadata(field_name='Certification', certify=True, docmdp_permissions=fields.MDPPerm.NO_CHANGES,
+                                                    reason=d.get('reason') or 'Final version: no changes allowed')
+                with open(tmp, 'rb') as inf:
+                    w = IncrementalPdfFileWriter(inf, strict=False)
+                    with open(out, 'wb') as outf: signers.PdfSigner(meta, signer=signer).sign_pdf(w, output=outf)
+                report.append('Certified with your digital ID: any change from now on shows as tampering')
+        doc.close()
+        return jsonify({"success": True, "path": out, "report": report, "message": f"Saved {os.path.basename(out)}"})
     except Exception as e: return jsonify({"error": str(e)}), 500
 
 # ---------- the eraser, on pen strokes already in the file ----------

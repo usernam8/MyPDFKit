@@ -777,18 +777,25 @@ def redact():
         doc = fitz.open(fp)
         n = 0
         pages = {}
-        for b in d.get('boxes', []): pages.setdefault(int(b['page']), []).append(b['rect'])
-        for pno, rects in pages.items():
+        for b in d.get('boxes', []): pages.setdefault(int(b['page']), []).append((b['rect'], (b.get('reason') or '').strip()))
+        for pno, items in pages.items():
             page = doc[pno]
-            for r in rects:
-                page.add_redact_annot(fitz.Rect(r) * page.derotation_matrix, fill=(0, 0, 0)); n += 1
+            for r, reason in items:
+                box = fitz.Rect(r) * page.derotation_matrix
+                if reason:   # the reason code (like (b)(6)) printed in white on the box, as agencies and courts do
+                    size = max(4, min(10, box.height * 0.62, (box.width - 2) / max(1, fitz.get_text_length(reason, fontname='helv', fontsize=1))))
+                    page.add_redact_annot(box, text=reason, fontname='helv', fontsize=size, align=fitz.TEXT_ALIGN_CENTER, fill=(0, 0, 0), text_color=(1, 1, 1))
+                else: page.add_redact_annot(box, fill=(0, 0, 0))
+                n += 1
             page.apply_redactions(images=fitz.PDF_REDACT_IMAGE_PIXELS, graphics=fitz.PDF_REDACT_LINE_ART_REMOVE_IF_COVERED)   # lines just touching a box stay
-        left = 0   # proof: no text is left under any box
-        for pno, rects in pages.items():
+        left = 0   # proof: no text is left under any box (except the reason codes printed on them)
+        reasons = {reason for items in pages.values() for _, reason in items if reason}
+        for pno, items in pages.items():
             page = doc[pno]
-            for r in rects:
+            for r, reason in items:
                 area = fitz.Rect(r) * page.derotation_matrix
-                left += sum(1 for w in page.get_text('words') if (fitz.Rect(w[:4]) & area).get_area() > 0.3 * max(fitz.Rect(w[:4]).get_area(), 0.01))
+                left += sum(1 for w in page.get_text('words') if (fitz.Rect(w[:4]) & area).get_area() > 0.3 * max(fitz.Rect(w[:4]).get_area(), 0.01)
+                            and not any(w[4] in rs for rs in reasons))
         if left: doc.close(); return jsonify({"error": f"{left} words were still found under the boxes, so nothing was saved. Please tell us about this file."}), 500
         if d.get('scrub'):   # hidden information: document details, comments, attachments, scripts, old versions
             doc.scrub(metadata=True, xml_metadata=True, attached_files=True, embedded_files=True, javascript=True,
@@ -1902,6 +1909,174 @@ def finalize():
                 report.append('Certified with your digital ID: any change from now on shows as tampering')
         doc.close()
         return jsonify({"success": True, "path": out, "report": report, "message": f"Saved {os.path.basename(out)}"})
+    except Exception as e: return jsonify({"error": str(e)}), 500
+
+# ---------- find things to black out: phone numbers, emails, card numbers... ----------
+REDACT_PATTERNS = {
+    'phone': r'(?<![\w/])(?:\+\d{1,3}[\s.-]?)?(?:\(\d{3}\)\s?|\d{3}[\s.-])\d{3}[\s.-]\d{4}(?!\d)',
+    'email': r'[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}',
+    'card': r'(?<!\d)(?:\d[ -]?){12,18}\d(?!\d)',
+    'ssn': r'(?<!\d)\d{3}-\d{2}-\d{4}(?!\d)',
+    'date': r'(?<!\d)(?:\d{1,2}[/.-]\d{1,2}[/.-](?:\d{4}|\d{2})|\d{4}-\d{2}-\d{2})(?!\d)|\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)[a-z]*\.?\s+\d{1,2}(?:st|nd|rd|th)?,?\s+\d{4}\b|\b\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)[a-z]*\.?\s+\d{4}\b',
+    'money': r'[$€£¥]\s?\d[\d,]*(?:\.\d{1,2})?|\b\d[\d,]*(?:\.\d{2})?\s?(?:USD|EUR|GBP|dollars)\b',
+    'url': r'\bhttps?://[^\s<>"]+|\bwww\.[^\s<>"]+\.[a-z]{2,}[^\s<>"]*',
+    'ip': r'(?<![\d.])(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)(?![\d.])',
+    'zip': r'(?<!\d)\d{5}(?:-\d{4})(?!\d)',
+}
+
+def _luhn(digits):
+    s, alt = 0, False
+    for ch in reversed(digits):
+        d = int(ch)
+        if alt: d = d * 2 - 9 if d > 4 else d * 2
+        s += d; alt = not alt
+    return s % 10 == 0
+
+@app.route('/find_patterns', methods=['POST'])
+def find_patterns():
+    """Every phone number, email, card number, SSN, date, amount, web address or IP in the file (and any words
+    typed), as boxes to black out. Looks line by line, so a number split into pieces is still found."""
+    d = request.json; kinds = d.get('kinds') or []
+    words_extra = [w.strip() for w in (d.get('words') or '').replace(';', ',').split(',') if w.strip()]
+    pats = [(k, re.compile(REDACT_PATTERNS[k], re.I)) for k in kinds if k in REDACT_PATTERNS]
+    pats += [('word', re.compile(r'(?<!\w)' + re.escape(w) + r'(?!\w)', re.I)) for w in words_extra]
+    try:
+        doc = fitz.open(d['filepath']); out = {}; counts = {}
+        for pno, page in enumerate(doc):
+            rm = page.rotation_matrix
+            lines = {}
+            for w in page.get_text('words'): lines.setdefault((w[5], w[6]), []).append(w)
+            for ws in lines.values():
+                ws.sort(key=lambda w: w[0])
+                text, spans = '', []
+                for w in ws:
+                    if text: text += ' '
+                    spans.append((len(text), len(text) + len(w[4]), w)); text += w[4]
+                for kind, pat in pats:
+                    for m in pat.finditer(text):
+                        if kind == 'card' and not _luhn(re.sub(r'\D', '', m.group())): continue
+                        if kind == 'phone' and len(re.sub(r'\D', '', m.group())) < 10: continue
+                        hit = [sp for sp in spans if sp[0] < m.end() and sp[1] > m.start()]
+                        if not hit: continue
+                        r = fitz.Rect()
+                        for a, b, w in hit:   # only the matched letters of the first and last word
+                            wr = fitz.Rect(w[:4]); n = max(1, len(w[4])); cw = wr.width / n
+                            x0 = wr.x0 + cw * max(0, m.start() - a); x1 = wr.x0 + cw * min(n, m.end() - a)
+                            r |= fitz.Rect(x0, wr.y0, x1, wr.y1)
+                        r = r * rm   # as shown
+                        out.setdefault(pno + 1, []).append({"rect": [r.x0 - 1, r.y0 - 1, r.x1 + 1, r.y1 + 1], "kind": kind, "text": m.group()[:40]})
+                        counts[kind] = counts.get(kind, 0) + 1
+        doc.close()
+        return jsonify({"pages": out, "counts": counts, "count": sum(counts.values())})
+    except Exception as e: return jsonify({"error": str(e)}), 500
+
+# ---------- PDF/A: the archive format courts and archives ask for ----------
+def _embed_base14(doc):
+    """Fonts that were only named, not stored in the file (Helvetica, Times, Courier...), get stored, using
+    MuPDF's built-in look-alikes with the same letter widths. PDF/A needs every font in the file."""
+    done = 0
+    for xref in range(1, doc.xref_length()):
+        try:
+            if doc.xref_get_key(xref, 'Type')[1] != '/Font': continue
+            sub = doc.xref_get_key(xref, 'Subtype')[1]
+            if sub not in ('/Type1', '/TrueType', '/MMType1'): continue
+            fd = doc.xref_get_key(xref, 'FontDescriptor')
+            if fd[0] == 'xref':
+                fdx = int(fd[1].split()[0])
+                if any(doc.xref_get_key(fdx, k)[0] != 'null' for k in ('FontFile', 'FontFile2', 'FontFile3')): continue
+            base = doc.xref_get_key(xref, 'BaseFont')[1].lstrip('/')
+            base = re.sub(r'^[A-Z]{6}\+', '', base)
+            low = base.lower().replace('-', '').replace(',', '')
+            fam = 'cour' if 'cour' in low else 'tiro' if ('times' in low or 'roman' in low or 'serif' in low) else 'symb' if 'symbol' in low else 'zadb' if 'dingbat' in low else 'helv'
+            if fam in ('cour', 'tiro', 'helv'):
+                bold, ital = 'bold' in low or 'black' in low, 'italic' in low or 'oblique' in low
+                fam = {('cour', 0, 0): 'cour', ('cour', 1, 0): 'cobo', ('cour', 0, 1): 'coit', ('cour', 1, 1): 'cobi',
+                       ('tiro', 0, 0): 'tiro', ('tiro', 1, 0): 'tibo', ('tiro', 0, 1): 'tiit', ('tiro', 1, 1): 'tibi',
+                       ('helv', 0, 0): 'helv', ('helv', 1, 0): 'hebo', ('helv', 0, 1): 'heit', ('helv', 1, 1): 'hebi'}[(fam, int(bold), int(ital))]
+            f = fitz.Font(fam)
+            data = f.buffer
+            ff = doc.get_new_xref(); doc.update_object(ff, '<<>>'); doc.update_stream(ff, data)
+            doc.xref_set_key(ff, 'Subtype', '/Type1C')
+            bb = f.bbox
+            desc = (f"<</Type/FontDescriptor/FontName/{base}/Flags {32 if fam not in ('symb', 'zadb') else 4}"
+                    f"/FontBBox[{int(bb.x0 * 1000)} {int(bb.y0 * 1000)} {int(bb.x1 * 1000)} {int(bb.y1 * 1000)}]/ItalicAngle {-12 if fam in ('heit', 'hebi', 'tiit', 'tibi', 'coit', 'cobi') else 0}"
+                    f"/Ascent {int(f.ascender * 1000)}/Descent {int(f.descender * 1000)}/CapHeight 700/StemV 80/FontFile3 {ff} 0 R>>")
+            fdx = doc.get_new_xref(); doc.update_object(fdx, desc)
+            doc.xref_set_key(xref, 'FontDescriptor', f'{fdx} 0 R')
+            if doc.xref_get_key(xref, 'Widths')[0] == 'null':   # letter widths, stated in the file as PDF/A wants
+                widths = [int(round(f.glyph_advance(f.has_glyph(c) and c or 32) * 1000)) if c >= 32 else 0 for c in range(256)]
+                doc.xref_set_key(xref, 'FirstChar', '0'); doc.xref_set_key(xref, 'LastChar', '255')
+                doc.xref_set_key(xref, 'Widths', '[' + ' '.join(map(str, widths)) + ']')
+            done += 1
+        except Exception as e:
+            print('font embed skipped:', xref, e, file=sys.stderr)
+    return done
+
+@app.route('/pdfa', methods=['POST'])
+def save_pdfa():
+    """A PDF/A-2b copy next to the original: every font stored in the file, a color profile, the archive
+    marker in the document details, comments and fields made part of the page, and nothing PDF/A forbids
+    (no password, scripts or attachments)."""
+    import datetime
+    d = request.json; fp = d['filepath']; orig = d.get('original_path') or fp
+    try:
+        doc = fitz.open(fp)
+        if doc.needs_pass or doc.is_encrypted: return jsonify({"error": "Remove the password first: PDF/A files can't be locked"}), 400
+        report = []
+        n = sum(1 for p in doc for _ in (p.annots() or [])) + sum(1 for p in doc for _ in (p.widgets() or []))
+        doc.bake(annots=True, widgets=True)
+        if n: report.append(f"Made {n} comments and fields part of the page")
+        doc.scrub(metadata=False, xml_metadata=True, attached_files=True, embedded_files=True, javascript=True, thumbnails=True,
+                  reset_fields=False, reset_responses=False, remove_links=False, hidden_text=False, redactions=False, clean_pages=False)
+        k = _embed_base14(doc)
+        if k: report.append(f"Stored {k} {'font' if k == 1 else 'fonts'} in the file")
+        # the color profile everything is shown in (sRGB, from Windows)
+        icc_path = os.path.join(os.environ.get('WINDIR', r'C:\Windows'), 'System32', 'spool', 'drivers', 'color', 'sRGB Color Space Profile.icm')
+        icc = open(icc_path, 'rb').read()
+        ix = doc.get_new_xref(); doc.update_object(ix, '<</N 3>>'); doc.update_stream(ix, icc)
+        oi = doc.get_new_xref(); doc.update_object(oi, f'<</Type/OutputIntent/S/GTS_PDFA1/OutputConditionIdentifier(sRGB IEC61966-2.1)/Info(sRGB IEC61966-2.1)/DestOutputProfile {ix} 0 R>>')
+        doc.xref_set_key(doc.pdf_catalog(), 'OutputIntents', f'[{oi} 0 R]')
+        # document details, the same in both places, with the PDF/A-2b marker
+        meta = {k2: v for k2, v in (doc.metadata or {}).items() if v}
+        title = meta.get('title') or os.path.splitext(os.path.basename(orig))[0]
+        now = datetime.datetime.now(datetime.timezone.utc).astimezone()
+        pdf_date = now.strftime("D:%Y%m%d%H%M%S") + (now.strftime('%z')[:3] + "'" + now.strftime('%z')[3:] + "'")
+        iso = now.isoformat(timespec='seconds')
+        doc.set_metadata({'title': title, 'author': meta.get('author', ''), 'subject': meta.get('subject', ''), 'keywords': meta.get('keywords', ''),
+                          'creator': 'MyPDFKit', 'producer': 'MyPDFKit', 'creationDate': pdf_date, 'modDate': pdf_date})
+        from xml.sax.saxutils import escape as esc
+        xmp = f"""<?xpacket begin="\ufeff" id="W5M0MpCehiHzreSzNTczkc9d"?>
+<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+<rdf:Description rdf:about="" xmlns:pdfaid="http://www.aiim.org/pdfa/ns/id/" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:xmp="http://ns.adobe.com/xap/1.0/" xmlns:pdf="http://ns.adobe.com/pdf/1.3/">
+<pdfaid:part>2</pdfaid:part><pdfaid:conformance>B</pdfaid:conformance>
+<dc:format>application/pdf</dc:format>
+<dc:title><rdf:Alt><rdf:li xml:lang="x-default">{esc(title)}</rdf:li></rdf:Alt></dc:title>
+{f'<dc:creator><rdf:Seq><rdf:li>{esc(meta["author"])}</rdf:li></rdf:Seq></dc:creator>' if meta.get('author') else ''}
+{f'<dc:description><rdf:Alt><rdf:li xml:lang="x-default">{esc(meta["subject"])}</rdf:li></rdf:Alt></dc:description>' if meta.get('subject') else ''}
+{f'<pdf:Keywords>{esc(meta["keywords"])}</pdf:Keywords>' if meta.get('keywords') else ''}
+<xmp:CreatorTool>MyPDFKit</xmp:CreatorTool><pdf:Producer>MyPDFKit</pdf:Producer>
+<xmp:CreateDate>{iso}</xmp:CreateDate><xmp:ModifyDate>{iso}</xmp:ModifyDate><xmp:MetadataDate>{iso}</xmp:MetadataDate>
+</rdf:Description></rdf:RDF></x:xmpmeta>
+<?xpacket end="w"?>"""
+        doc.set_xml_metadata(xmp)
+        raw_fonts_left = []   # a last look: anything that still isn't stored in the file
+        for xref in range(1, doc.xref_length()):
+            try:
+                if doc.xref_get_key(xref, 'Type')[1] == '/Font' and doc.xref_get_key(xref, 'Subtype')[1] in ('/Type1', '/TrueType'):
+                    fd = doc.xref_get_key(xref, 'FontDescriptor')
+                    if fd[0] != 'xref' or all(doc.xref_get_key(int(fd[1].split()[0]), kk)[0] == 'null' for kk in ('FontFile', 'FontFile2', 'FontFile3')):
+                        raw_fonts_left.append(doc.xref_get_key(xref, 'BaseFont')[1])
+            except Exception: pass
+        cmyk = any(b'/DeviceCMYK' in doc.xref_object(x).encode() for x in range(1, min(doc.xref_length(), 20000)) if doc.xref_object(x))
+        base = os.path.splitext(os.path.basename(orig))[0]
+        out = get_unique_filename(os.path.join(os.path.dirname(orig), base + ' (PDF-A).pdf'))
+        doc.save(out, garbage=3, deflate=True, clean=True, no_new_id=False, pretty=False)
+        doc.close()
+        warn = []
+        if raw_fonts_left: warn.append("Some fonts couldn't be stored: " + ', '.join(sorted(set(raw_fonts_left))[:4]))
+        if cmyk: warn.append('It uses print colors (CMYK); strict checkers may flag that')
+        report.append('Marked as PDF/A-2b with an sRGB color profile')
+        return jsonify({"success": True, "path": out, "report": report, "warnings": warn, "message": f"Saved {os.path.basename(out)}"})
     except Exception as e: return jsonify({"error": str(e)}), 500
 
 # ---------- the eraser, on pen strokes already in the file ----------

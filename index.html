@@ -268,7 +268,9 @@
     #area-glass { position:absolute; inset:0; z-index:12; display:none; cursor:crosshair; }
     body.tool-redact #area-glass, body.tool-markup #area-glass { display:block; }
     #area-rubber { position:absolute; display:none; border:1.5px dashed #e03c3c; background:rgba(224,60,60,.12); pointer-events:none; }
-    .redact-mark { position:absolute; border:1.5px solid #e03c3c; background:rgba(224,60,60,.18); pointer-events:auto; cursor:pointer; }
+    .redact-mark { position:absolute; border:1.5px solid #e03c3c; background:rgba(224,60,60,.18); pointer-events:auto; cursor:pointer; box-sizing:border-box; }
+    .redact-mark.labelled { display:flex; align-items:center; justify-content:center; font:600 9px Segoe UI, sans-serif; color:#b02020; overflow:hidden; white-space:nowrap; }
+    #redact-reason { max-width:170px; }
     .redact-mark:hover::after { content:"\2715"; position:absolute; right:-8px; top:-8px; width:16px; height:16px; border-radius:50%; background:#e03c3c; color:#fff; font:700 10px/16px Segoe UI, sans-serif; text-align:center; }
     #redact-bar { position:absolute; left:50%; bottom:22px; transform:translateX(-50%); z-index:60; display:none; align-items:center; gap:8px; padding:8px 10px 8px 16px;
       border-radius:10px; background:#2a2b30; color:var(--text); box-shadow:0 6px 22px rgba(0,0,0,.4); font-size:13px; white-space:nowrap; }
@@ -887,7 +889,7 @@
     <button id="btn-save-modified" class="icon-tool" title="Save as a new PDF next to the original (Ctrl+S)"><svg class="ico"><use href="#i-save"/></svg></button>
   </div>
 
-  <div id="tools-view"><div class="tv-inner"><input id="tool-search" placeholder="Find any tool" spellcheck="false"><div id="recent-files"><div class="rf-head"><span>Recent</span><button id="rf-clear">Clear</button></div><div class="rf-list"></div></div><div class="tv-grid"><button class="tool-card" data-tool="create"><span class="tc-ico"><svg class="ico"><use href="#i-extract"/></svg></span><span>Create a PDF</span></button><button class="tool-card" data-tool="merge"><span class="tc-ico"><svg class="ico"><use href="#i-merge"/></svg></span><span>Combine files</span></button><button class="tool-card" data-tool="blank"><span class="tc-ico"><svg class="ico"><use href="#i-plus"/></svg></span><span>Blank page</span></button><button class="tool-card" data-tool="edit"><span class="tc-ico"><svg class="ico"><use href="#i-ibeam"/></svg></span><span>Edit a PDF</span></button><button class="tool-card" data-tool="headfoot"><span class="tc-ico"><svg class="ico"><use href="#i-headfoot"/></svg></span><span>Header and footer</span></button><button class="tool-card" data-tool="number"><span class="tc-ico"><svg class="ico"><use href="#i-hash"/></svg></span><span>Add page numbers</span></button><button class="tool-card" data-tool="convert"><span class="tc-ico"><svg class="ico"><use href="#i-convert"/></svg></span><span>Convert to PDF</span></button><button class="tool-card" data-tool="export"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>Export a PDF</span></button><button class="tool-card" data-tool="toword"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>PDF to Word</span></button><button class="tool-card" data-tool="toexcel"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>PDF to Excel</span></button><button class="tool-card" data-tool="toppt"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>PDF to PowerPoint</span></button><button class="tool-card" data-tool="compress"><span class="tc-ico"><svg class="ico"><use href="#i-compress"/></svg></span><span>Compress a PDF</span></button><button class="tool-card" data-tool="split"><span class="tc-ico"><svg class="ico"><use href="#i-split"/></svg></span><span>Split a PDF</span></button><button class="tool-card" data-tool="delpages"><span class="tc-ico"><svg class="ico"><use href="#i-trash"/></svg></span><span>Delete pages</span></button><button class="tool-card" data-tool="fillform"><span class="tc-ico"><svg class="ico"><use href="#i-ibeam"/></svg></span><span>Fill a form</span></button><button class="tool-card" data-tool="compare"><span class="tc-ico"><svg class="ico"><use href="#i-compare"/></svg></span><span>Compare files</span></button><button class="tool-card" data-tool="redact"><span class="tc-ico"><svg class="ico"><use href="#i-redact"/></svg></span><span>Redact</span></button><button class="tool-card" data-tool="comment"><span class="tc-ico"><svg class="ico"><use href="#i-comment"/></svg></span><span>Comment</span></button><button class="tool-card" data-tool="template"><span class="tc-ico"><svg class="ico"><use href="#i-table"/></svg></span><span>Fill from spreadsheet</span></button><button class="tool-card" data-tool="watermark"><span class="tc-ico"><svg class="ico"><use href="#i-watermark"/></svg></span><span>Watermark</span></button><button class="tool-card" data-tool="sidebyside"><span class="tc-ico"><svg class="ico"><use href="#i-columns"/></svg></span><span>Side by side</span></button><button class="tool-card" data-tool="insert"><span class="tc-ico"><svg class="ico"><use href="#i-insert"/></svg></span><span>Insert pages</span></button><button class="tool-card" data-tool="pagesize"><span class="tc-ico"><svg class="ico"><use href="#i-resize"/></svg></span><span>Page size and margins</span></button><button class="tool-card" data-tool="bookmarks"><span class="tc-ico"><svg class="ico"><use href="#i-bookmark"/></svg></span><span>Bookmarks</span></button><button class="tool-card" data-tool="certsign"><span class="tc-ico"><svg class="ico"><use href="#i-cert"/></svg></span><span>Sign with a digital ID</span></button><button class="tool-card" data-tool="certcheck"><span class="tc-ico"><svg class="ico"><use href="#i-cert"/></svg></span><span>Check signatures</span></button><button class="tool-card" data-tool="batch"><span class="tc-ico"><svg class="ico"><use href="#i-batch"/></svg></span><span>Many files at once</span></button><button class="tool-card" data-tool="read"><span class="tc-ico"><svg class="ico"><use href="#i-book"/></svg></span><span>Reading view</span></button><button class="tool-card" data-tool="measure"><span class="tc-ico"><svg class="ico"><use href="#i-ruler"/></svg></span><span>Measure</span></button><button class="tool-card" data-tool="privacy"><span class="tc-ico"><svg class="ico"><use href="#i-shield"/></svg></span><span>Privacy check</span></button><button class="tool-card" data-tool="finalize"><span class="tc-ico"><svg class="ico"><use href="#i-lock"/></svg></span><span>Lock and finalize</span></button><button class="tool-card" data-tool="replace"><span class="tc-ico"><svg class="ico"><use href="#i-search"/></svg></span><span>Find and replace</span></button><button class="tool-card" data-tool="bates"><span class="tc-ico"><svg class="ico"><use href="#i-hash"/></svg></span><span>Bates numbering</span></button><button class="tool-card" data-tool="shapes"><span class="tc-ico"><svg class="ico"><use href="#i-shapes"/></svg></span><span>Shapes</span></button><button class="tool-card" data-tool="stamps"><span class="tc-ico"><svg class="ico"><use href="#i-stamp"/></svg></span><span>Stamps and initials</span></button><button class="tool-card" data-tool="prepare"><span class="tc-ico"><svg class="ico"><use href="#i-fields"/></svg></span><span>Prepare for signing</span></button><button class="tool-card" data-tool="translate"><span class="tc-ico"><svg class="ico"><use href="#i-translate"/></svg></span><span>Translate</span></button><button class="tool-card" data-tool="speak"><span class="tc-ico"><svg class="ico"><use href="#i-speaker"/></svg></span><span>Read aloud</span></button><button class="tool-card" data-tool="exportall"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>Export all files</span></button><button class="tool-card" data-tool="extract"><span class="tc-ico"><svg class="ico"><use href="#i-extract"/></svg></span><span>Extract pages</span></button><button class="tool-card" data-tool="ocr"><span class="tc-ico"><svg class="ico"><use href="#i-scan"/></svg></span><span>Recognize text (OCR)</span></button><button class="tool-card" data-tool="print"><span class="tc-ico"><svg class="ico"><use href="#i-print"/></svg></span><span>Print</span></button><button class="tool-card" data-tool="protect"><span class="tc-ico"><svg class="ico"><use href="#i-lock"/></svg></span><span>Protect a PDF</span></button><button class="tool-card" data-tool="sign"><span class="tc-ico"><svg class="ico"><use href="#i-signature"/></svg></span><span>Fill and sign</span></button></div></div></div>
+  <div id="tools-view"><div class="tv-inner"><input id="tool-search" placeholder="Find any tool" spellcheck="false"><div id="recent-files"><div class="rf-head"><span>Recent</span><button id="rf-clear">Clear</button></div><div class="rf-list"></div></div><div class="tv-grid"><button class="tool-card" data-tool="create"><span class="tc-ico"><svg class="ico"><use href="#i-extract"/></svg></span><span>Create a PDF</span></button><button class="tool-card" data-tool="merge"><span class="tc-ico"><svg class="ico"><use href="#i-merge"/></svg></span><span>Combine files</span></button><button class="tool-card" data-tool="blank"><span class="tc-ico"><svg class="ico"><use href="#i-plus"/></svg></span><span>Blank page</span></button><button class="tool-card" data-tool="edit"><span class="tc-ico"><svg class="ico"><use href="#i-ibeam"/></svg></span><span>Edit a PDF</span></button><button class="tool-card" data-tool="headfoot"><span class="tc-ico"><svg class="ico"><use href="#i-headfoot"/></svg></span><span>Header and footer</span></button><button class="tool-card" data-tool="number"><span class="tc-ico"><svg class="ico"><use href="#i-hash"/></svg></span><span>Add page numbers</span></button><button class="tool-card" data-tool="convert"><span class="tc-ico"><svg class="ico"><use href="#i-convert"/></svg></span><span>Convert to PDF</span></button><button class="tool-card" data-tool="export"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>Export a PDF</span></button><button class="tool-card" data-tool="toword"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>PDF to Word</span></button><button class="tool-card" data-tool="toexcel"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>PDF to Excel</span></button><button class="tool-card" data-tool="toppt"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>PDF to PowerPoint</span></button><button class="tool-card" data-tool="compress"><span class="tc-ico"><svg class="ico"><use href="#i-compress"/></svg></span><span>Compress a PDF</span></button><button class="tool-card" data-tool="split"><span class="tc-ico"><svg class="ico"><use href="#i-split"/></svg></span><span>Split a PDF</span></button><button class="tool-card" data-tool="delpages"><span class="tc-ico"><svg class="ico"><use href="#i-trash"/></svg></span><span>Delete pages</span></button><button class="tool-card" data-tool="fillform"><span class="tc-ico"><svg class="ico"><use href="#i-ibeam"/></svg></span><span>Fill a form</span></button><button class="tool-card" data-tool="compare"><span class="tc-ico"><svg class="ico"><use href="#i-compare"/></svg></span><span>Compare files</span></button><button class="tool-card" data-tool="redact"><span class="tc-ico"><svg class="ico"><use href="#i-redact"/></svg></span><span>Redact</span></button><button class="tool-card" data-tool="comment"><span class="tc-ico"><svg class="ico"><use href="#i-comment"/></svg></span><span>Comment</span></button><button class="tool-card" data-tool="template"><span class="tc-ico"><svg class="ico"><use href="#i-table"/></svg></span><span>Fill from spreadsheet</span></button><button class="tool-card" data-tool="watermark"><span class="tc-ico"><svg class="ico"><use href="#i-watermark"/></svg></span><span>Watermark</span></button><button class="tool-card" data-tool="sidebyside"><span class="tc-ico"><svg class="ico"><use href="#i-columns"/></svg></span><span>Side by side</span></button><button class="tool-card" data-tool="insert"><span class="tc-ico"><svg class="ico"><use href="#i-insert"/></svg></span><span>Insert pages</span></button><button class="tool-card" data-tool="pagesize"><span class="tc-ico"><svg class="ico"><use href="#i-resize"/></svg></span><span>Page size and margins</span></button><button class="tool-card" data-tool="bookmarks"><span class="tc-ico"><svg class="ico"><use href="#i-bookmark"/></svg></span><span>Bookmarks</span></button><button class="tool-card" data-tool="certsign"><span class="tc-ico"><svg class="ico"><use href="#i-cert"/></svg></span><span>Sign with a digital ID</span></button><button class="tool-card" data-tool="certcheck"><span class="tc-ico"><svg class="ico"><use href="#i-cert"/></svg></span><span>Check signatures</span></button><button class="tool-card" data-tool="batch"><span class="tc-ico"><svg class="ico"><use href="#i-batch"/></svg></span><span>Many files at once</span></button><button class="tool-card" data-tool="read"><span class="tc-ico"><svg class="ico"><use href="#i-book"/></svg></span><span>Reading view</span></button><button class="tool-card" data-tool="measure"><span class="tc-ico"><svg class="ico"><use href="#i-ruler"/></svg></span><span>Measure</span></button><button class="tool-card" data-tool="pdfa"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>Save as PDF/A</span></button><button class="tool-card" data-tool="privacy"><span class="tc-ico"><svg class="ico"><use href="#i-shield"/></svg></span><span>Privacy check</span></button><button class="tool-card" data-tool="finalize"><span class="tc-ico"><svg class="ico"><use href="#i-lock"/></svg></span><span>Lock and finalize</span></button><button class="tool-card" data-tool="replace"><span class="tc-ico"><svg class="ico"><use href="#i-search"/></svg></span><span>Find and replace</span></button><button class="tool-card" data-tool="bates"><span class="tc-ico"><svg class="ico"><use href="#i-hash"/></svg></span><span>Bates numbering</span></button><button class="tool-card" data-tool="shapes"><span class="tc-ico"><svg class="ico"><use href="#i-shapes"/></svg></span><span>Shapes</span></button><button class="tool-card" data-tool="stamps"><span class="tc-ico"><svg class="ico"><use href="#i-stamp"/></svg></span><span>Stamps and initials</span></button><button class="tool-card" data-tool="prepare"><span class="tc-ico"><svg class="ico"><use href="#i-fields"/></svg></span><span>Prepare for signing</span></button><button class="tool-card" data-tool="translate"><span class="tc-ico"><svg class="ico"><use href="#i-translate"/></svg></span><span>Translate</span></button><button class="tool-card" data-tool="speak"><span class="tc-ico"><svg class="ico"><use href="#i-speaker"/></svg></span><span>Read aloud</span></button><button class="tool-card" data-tool="exportall"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>Export all files</span></button><button class="tool-card" data-tool="extract"><span class="tc-ico"><svg class="ico"><use href="#i-extract"/></svg></span><span>Extract pages</span></button><button class="tool-card" data-tool="ocr"><span class="tc-ico"><svg class="ico"><use href="#i-scan"/></svg></span><span>Recognize text (OCR)</span></button><button class="tool-card" data-tool="print"><span class="tc-ico"><svg class="ico"><use href="#i-print"/></svg></span><span>Print</span></button><button class="tool-card" data-tool="protect"><span class="tc-ico"><svg class="ico"><use href="#i-lock"/></svg></span><span>Protect a PDF</span></button><button class="tool-card" data-tool="sign"><span class="tc-ico"><svg class="ico"><use href="#i-signature"/></svg></span><span>Fill and sign</span></button></div></div></div>
   <div id="main-content">
     <div id="left-sidebar" class="sidebar">
       <div id="side-scroll">
@@ -945,6 +947,7 @@
         <button id="btn-export" class="side-btn" title="Word, Excel, PowerPoint, images, web page or text"><svg class="ico"><use href="#i-docup"/></svg>Export a PDF</button>
         <button id="btn-export-all" class="side-btn" title="Export every file in this tab at once"><svg class="ico"><use href="#i-docup"/></svg>Export all files</button>
         <button id="btn-template" class="side-btn" title="Make one filled copy per row of an Excel or CSV file"><svg class="ico"><use href="#i-table"/></svg>Fill from spreadsheet</button>
+        <button id="btn-pdfa" class="side-btn" title="The archive format courts, governments and libraries ask for: everything needed to show it, stored inside"><svg class="ico"><use href="#i-docup"/></svg>Save as PDF/A (archive)</button>
         <button id="btn-translate" class="side-btn" title="The same PDF in another language, laid out the same"><svg class="ico"><use href="#i-translate"/></svg>Translate</button>
         <button id="btn-batch" class="side-btn" title="Do one thing to many files at once, or a whole folder"><svg class="ico"><use href="#i-batch"/></svg>Many files at once</button>
         <button id="btn-compare" class="side-btn" title="Show what changed between two versions"><svg class="ico"><use href="#i-compare"/></svg>Compare files</button>
@@ -1004,7 +1007,14 @@
             <select id="sp-voice" class="ribbon-select" title="Voice"></select>
             <select id="sp-rate" class="ribbon-select" title="Speed"><option value="0.8">0.8x</option><option value="1" selected>1x</option><option value="1.2">1.2x</option><option value="1.5">1.5x</option><option value="2">2x</option></select></div>
           <div id="measure-bar"><span id="measure-label"></span><button id="measure-keep" class="btn quiet">Keep on page</button><button id="measure-clear" class="btn quiet">Clear</button></div>
-          <div id="redact-bar"><span id="redact-count"></span><button id="redact-find" class="btn quiet">Find words...</button><button id="redact-cancel" class="btn quiet">Cancel</button><button id="redact-apply" class="btn danger-btn">Apply</button></div>
+          <div id="redact-bar"><span id="redact-count"></span>
+            <select id="redact-reason" class="ribbon-select" title="The label printed on each box (the reason it was blacked out)">
+              <option value="">No label</option><option value="(b)(6)">(b)(6) Personal privacy</option><option value="(b)(7)(C)">(b)(7)(C) Law enforcement privacy</option>
+              <option value="(b)(4)">(b)(4) Trade secrets</option><option value="(b)(5)">(b)(5) Deliberative</option><option value="(b)(7)(E)">(b)(7)(E) Methods</option>
+              <option value="Privileged">Attorney-client privilege</option><option value="Confidential">Confidential</option><option value="Privacy">Privacy</option>
+              <option value="PII">PII</option><option value="custom">Your own label...</option></select>
+            <button id="redact-patterns" class="btn quiet" title="Phone numbers, emails, card numbers, SSNs, dates, amounts, names...">Find personal info...</button>
+            <button id="redact-find" class="btn quiet">Find words...</button><button id="redact-cancel" class="btn quiet">Cancel</button><button id="redact-apply" class="btn danger-btn">Apply</button></div>
           <div id="drop-message">
             <div class="drop-box">
               <svg class="ico ico-lg"><use href="#i-docup"/></svg>
@@ -2136,6 +2146,7 @@
       const layer = document.getElementById('form-layer'), k = currentRenderScale;
       (pendingRedactions[pageNum] || []).forEach((r, i) => {
         const m = document.createElement('div'); m.className = 'redact-mark'; m.title = 'Click to unmark';
+        if (r[4]) { m.textContent = r[4]; m.classList.add('labelled'); }
         Object.assign(m.style, { left: r[0] * k + 'px', top: r[1] * k + 'px', width: (r[2] - r[0]) * k + 'px', height: (r[3] - r[1]) * k + 'px' });
         m.addEventListener('mousedown', e => { e.stopPropagation(); pendingRedactions[pageNum].splice(i, 1); drawRedactions(); });
         layer.append(m);
@@ -2148,10 +2159,49 @@
       if (!await needDoc()) return;
       goTab('edit');
       switchTool('btn-pointer', 'redact');
-      areaDone = rect => { if (rect[2] - rect[0] < 2 || rect[3] - rect[1] < 2) return; (pendingRedactions[pageNum] = pendingRedactions[pageNum] || []).push(rect); drawRedactions(); };
+      areaDone = rect => { if (rect[2] - rect[0] < 2 || rect[3] - rect[1] < 2) return; (pendingRedactions[pageNum] = pendingRedactions[pageNum] || []).push(rect.concat([redactReason()])); drawRedactions(); };
       drawRedactions();
       showToast('Drag over anything you want to black out, or find words to mark them everywhere');
     }
+    // the label for new boxes: a FOIA exemption code like (b)(6), or your own word
+    let customReason = '';
+    function redactReason() { const v = document.getElementById('redact-reason').value; return v === 'custom' ? customReason : v; }
+    document.getElementById('redact-reason').addEventListener('change', async e => {
+      if (e.target.value === 'custom') {
+        const v = await askDialog('Your own label', [{ key: 'l', label: 'Printed on each box', value: customReason || 'Redacted' }], 'Use it');
+        if (!v || !v.l.trim()) { e.target.value = ''; return; }
+        customReason = v.l.trim().slice(0, 30);
+        e.target.querySelector('option[value=custom]').textContent = `"${customReason}"`;
+      }
+      try { localStorage.setItem('redact-reason', e.target.value); } catch (x) {}
+    });
+    try { const r = localStorage.getItem('redact-reason'); if (r && r !== 'custom') document.getElementById('redact-reason').value = r; } catch (e) {}
+    // find personal information everywhere and mark it
+    const PATTERN_KINDS = [['phone', 'Phone numbers', '(555) 201-3344, +1 555.987.6543'], ['email', 'Email addresses', 'name@example.com'],
+      ['ssn', 'Social Security numbers', '123-45-6789'], ['card', 'Credit card numbers', 'checked to be real card numbers'], ['date', 'Dates', '10/31/2026, March 3, 1985'],
+      ['money', 'Amounts of money', '$1,250.00'], ['url', 'Web addresses', 'https://...'], ['ip', 'IP addresses', '192.168.1.20'], ['zip', 'ZIP+4 codes', '90210-1234']];
+    document.getElementById('redact-patterns').addEventListener('click', async () => {
+      let last = ['phone', 'email', 'ssn', 'card']; try { last = JSON.parse(localStorage.getItem('redact-kinds')) || last; } catch (e) {}
+      const v = await askDialog('Find personal information', PATTERN_KINDS.map(([k, name, ex]) => ({ key: k, label: `${name}  (${ex})`, type: 'checkbox', value: last.includes(k) }))
+        .concat([{ key: 'words', label: 'Also these names or words (separate with commas)', hint: 'e.g. Maria Lopez, Acme Holdings' }]), 'Mark them');
+      if (!v) return;
+      const kinds = PATTERN_KINDS.map(x => x[0]).filter(k => v[k]);
+      try { localStorage.setItem('redact-kinds', JSON.stringify(kinds)); } catch (e) {}
+      if (!kinds.length && !v.words.trim()) return;
+      await syncEditsToPython();
+      const d = await api('find_patterns', { filepath: currentTempPdf, kinds, words: v.words });
+      if (d.error) return showToast(d.error, true);
+      if (!d.count) return showToast('None of those were found in this PDF', true);
+      const label = redactReason();
+      for (const [pg, hits] of Object.entries(d.pages)) {
+        const l = pendingRedactions[pg] = pendingRedactions[pg] || [];
+        hits.forEach(h => l.push(h.rect.concat([label])));
+      }
+      drawRedactions();
+      const one = { phone: 'phone number', email: 'email address', ssn: 'Social Security number', card: 'credit card number', date: 'date', money: 'amount', url: 'web address', ip: 'IP address', zip: 'ZIP+4 code', word: 'name or word' };
+      const many = { phone: 'phone numbers', email: 'email addresses', ssn: 'Social Security numbers', card: 'credit card numbers', date: 'dates', money: 'amounts', url: 'web addresses', ip: 'IP addresses', zip: 'ZIP+4 codes', word: 'names or words' };
+      showToast(`Marked ${Object.entries(d.counts).map(([k, n]) => `${n} ${(n === 1 ? one : many)[k]}`).join(', ')} on ${Object.keys(d.pages).length} ${Object.keys(d.pages).length === 1 ? 'page' : 'pages'}. Check them, then Apply`);
+    });
     function stopRedacting() { pendingRedactions = {}; areaDone = null; drawRedactions(); switchTool('btn-pointer', 'pointer'); }
     document.getElementById('redact-cancel').addEventListener('click', stopRedacting);
     document.getElementById('redact-find').addEventListener('click', async () => {
@@ -2162,13 +2212,13 @@
       if (!d.count) return showToast(`"${v.q.trim()}" isn't in this PDF`, true);
       for (const [pg, boxes] of Object.entries(d.boxes)) {
         const l = pendingRedactions[pg] = pendingRedactions[pg] || [];
-        boxes.forEach(b => l.push([b[0] - 1, b[1] - 1, b[2] + 1, b[3] + 1]));
+        boxes.forEach(b => l.push([b[0] - 1, b[1] - 1, b[2] + 1, b[3] + 1, redactReason()]));
       }
       drawRedactions();
       showToast(`Marked ${d.count} ${d.count === 1 ? 'place' : 'places'} on ${d.pages.length} ${d.pages.length === 1 ? 'page' : 'pages'}`);
     });
     document.getElementById('redact-apply').addEventListener('click', async () => {
-      const boxes = Object.entries(pendingRedactions).flatMap(([pg, l]) => l.map(rect => ({ page: +pg - 1, rect })));
+      const boxes = Object.entries(pendingRedactions).flatMap(([pg, l]) => l.map(r => ({ page: +pg - 1, rect: r.slice(0, 4), reason: r[4] || '' })));
       if (!boxes.length) return;
       const v = await askDialog(`Black out ${boxes.length} ${boxes.length === 1 ? 'area' : 'areas'}?`, [
         { key: 'scrub', label: 'Also remove hidden information (author, comments, attachments)', type: 'checkbox', value: true }], 'Black out for good');
@@ -3623,6 +3673,21 @@
       }
       return true;
     }
+
+    // ---------- PDF/A: for courts, governments and archives ----------
+    async function doPdfa() {
+      if (!await needDoc()) return;
+      showToast('Making the archive copy...');
+      const d = await api('pdfa', { filepath: currentTempPdf, original_path: currentActiveFile });
+      document.getElementById('toast-message').classList.remove('show');
+      if (!d.success) return showToast(d.error || "Couldn't make it", true);
+      fileQueue.push({ name: d.path.split(/[\\/]/).pop(), originalPath: d.path, pdfPath: null, status: 'pending' });
+      renderQueueUI(); backgroundProcessQueue(); processAndLoad(d.path);
+      await askDialog(`Saved ${d.path.split(/[\\/]/).pop()}`, d.report.map(l => ({ key: Math.random().toString(36), label: '✓ ' + l, type: 'hidden' }))
+        .concat(d.warnings.map(l => ({ key: Math.random().toString(36), label: '⚠ ' + l, type: 'hidden' })))
+        .concat([{ key: 'n', label: 'PDF/A-2b: it will look the same on any computer in years to come. Comments and fields became part of the page, and it has no password, scripts or attachments, as the format requires.', type: 'hidden' }]), 'OK');
+    }
+    document.getElementById('btn-pdfa').addEventListener('click', doPdfa);
 
     // ---------- lock and finalize ----------
     async function doFinalize() {
@@ -6368,7 +6433,7 @@
       compress: () => document.getElementById('btn-compress').click(), split: () => document.getElementById('btn-split').click(),
       number: () => document.getElementById('btn-number').click(), delpages: showPageDelete,
       exportall: doExportAll, extract: showPagePicking, ocr: doOcr, print: doPrint, fillform: startFilling, compare: doCompare, redact: startRedacting, comment: () => startMarkup(), template: doTemplate, watermark: doWatermark, sidebyside: openSideBySide, insert: () => doInsertPages(), pagesize: doPageSize,
-      bookmarks: () => { goTab('edit'); openBookmarks(true); }, certsign: doCertSign, certcheck: () => checkSignatures(), batch: doBatch, read: openReader, measure: startMeasure, privacy: () => doPrivacyCheck(), finalize: doFinalize, replace: doReplace, bates: doBates, shapes: () => { goTab('edit'); switchTool('btn-shape', 'shape'); }, stamps: openStamps, prepare: startPrepare, translate: doTranslate, speak: () => startSpeaking(), edit: () => goTab('edit'), sign: () => { goTab('sign'); }
+      bookmarks: () => { goTab('edit'); openBookmarks(true); }, certsign: doCertSign, certcheck: () => checkSignatures(), batch: doBatch, read: openReader, measure: startMeasure, pdfa: doPdfa, privacy: () => doPrivacyCheck(), finalize: doFinalize, replace: doReplace, bates: doBates, shapes: () => { goTab('edit'); switchTool('btn-shape', 'shape'); }, stamps: openStamps, prepare: startPrepare, translate: doTranslate, speak: () => startSpeaking(), edit: () => goTab('edit'), sign: () => { goTab('sign'); }
     };
     // Delete pages: bring up the page thumbnails with their trash buttons showing for a moment
     async function showPageDelete() {

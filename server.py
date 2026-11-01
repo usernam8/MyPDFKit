@@ -963,6 +963,43 @@ def _gs_names(doc, page):
     t, v = doc.xref_get_key(holder, path)
     return set(re.findall(r'/([^\s/<>\[\]()]+)\s*(?:<<|\d+ 0 R)', v)) if t == 'dict' else set()
 
+def _watermark_outline(W, H, d, rgb, opacity):
+    """A one-page PDF the size of the page as shown, holding the watermark text turned into outlines."""
+    import math
+    text = (d.get('text') or 'CONFIDENTIAL').strip()
+    diag = d.get('angle', 'diagonal') == 'diagonal'
+    scale = float(d['scale']) if d.get('scale') else {'small': .35, 'medium': .6, 'large': .85}.get(d.get('size'), .6)
+    room = (math.hypot(W, H) if diag else W) * scale
+    size = min(room / max(1, fitz.get_text_length(text, fontname='hebo', fontsize=1)), H * 0.6)
+    wlen = fitz.get_text_length(text, fontname='hebo', fontsize=size)
+    t = fitz.open(); p = t.new_page(width=W, height=H); c = fitz.Point(W / 2, H / 2)
+    turn = math.degrees(math.atan2(H, W)) if diag else 0
+    p.insert_text(fitz.Point(c.x - wlen / 2, c.y + size * 0.35), text, fontsize=size, fontname='hebo', color=rgb,
+                  fill_opacity=opacity, morph=(c, fitz.Matrix(-turn)) if turn else None)
+    return fitz.open('pdf', fitz.open('svg', p.get_svg_image(text_as_path=True).encode()).convert_to_pdf())
+
+def _multiply_in(doc, xref, seen):
+    """Every transparency setting inside a drawing (and the drawings in it) set to multiply."""
+    if xref in seen: return
+    seen.add(xref)
+    t, v = doc.xref_get_key(xref, 'Resources/ExtGState')
+    if t == 'xref':
+        gs_x = int(v.split()[0]); t, v = 'dict', doc.xref_object(gs_x); holder, prefix = gs_x, ''
+    else: holder, prefix = xref, 'Resources/ExtGState/'
+    if t == 'dict':
+        for name, ref in re.findall(r'/([^\s/<>\[\]()]+)\s*(\d+ 0 R|<<)', v):
+            if ref == '<<': doc.xref_set_key(holder, prefix + name + '/BM', '/Multiply')
+            else: doc.xref_set_key(int(ref.split()[0]), 'BM', '/Multiply')
+    t, v = doc.xref_get_key(xref, 'Resources/XObject')
+    if t == 'xref': t, v = 'dict', doc.xref_object(int(v.split()[0]))
+    if t == 'dict':
+        for ref in re.findall(r'(\d+) 0 R', v): _multiply_in(doc, int(ref), seen)
+
+def _multiply_new_xobjects(doc, page, before):
+    seen = set()
+    for x in page.get_xobjects():
+        if x[0] not in before: _multiply_in(doc, x[0], seen)
+
 def _multiply_new_gs(doc, page, before):
     """Make the see-through setting the watermark just added (and only it) blend as 'multiply': the
     watermark then only darkens the white of the page, so it looks behind the content even on pages that
@@ -990,7 +1027,7 @@ def watermark():
             with Image.open(d['image']) as im:   # the picture, made see-through
                 im = im.convert('RGBA'); a = im.getchannel('A').point(lambda v: int(v * opacity)); im.putalpha(a)
                 buf = BytesIO(); im.save(buf, 'PNG'); img_bytes = buf.getvalue(); iw, ih = im.size
-        outs = []
+        outs = []; made = {}
         for fp in d['files']:
             doc = fitz.open(fp)
             for page in doc:
@@ -999,23 +1036,18 @@ def watermark():
                 if kind == 'color':
                     page.draw_rect(page.mediabox, color=None, fill=rgb, overlay=False, fill_opacity=1)
                 elif kind == 'image':
-                    w = r.width * {'small': .25, 'medium': .45, 'large': .7}.get(d.get('size'), .45); h = w * ih / iw
+                    w = r.width * (float(d['scale']) if d.get('scale') else {'small': .25, 'medium': .45, 'large': .7}.get(d.get('size'), .45)); h = w * ih / iw
                     box = fitz.Rect(c.x - w / 2, c.y - h / 2, c.x + w / 2, c.y + h / 2) * page.derotation_matrix
                     page.insert_image(box, stream=img_bytes, overlay=on_top, keep_proportion=True)
                 else:
-                    text = (d.get('text') or 'CONFIDENTIAL').strip()
-                    diag = d.get('angle', 'diagonal') == 'diagonal'
-                    ang = math.degrees(math.atan2(r.height, r.width)) if diag else 0
-                    room = (math.hypot(r.width, r.height) if diag else r.width) * {'small': .35, 'medium': .6, 'large': .85}.get(d.get('size'), .6)
-                    size = min(room / max(1, fitz.get_text_length(text, fontname='hebo', fontsize=1)), r.height * 0.4)
-                    wlen = fitz.get_text_length(text, fontname='hebo', fontsize=size)
-                    # laid out in the page's own (unturned) coordinates, then turned so it reads right as shown
-                    cu = c * page.derotation_matrix
-                    turn = (ang if diag else 0) + WATERMARK_TURN * page.rotation
-                    before = _gs_names(doc, page)
-                    page.insert_text(fitz.Point(cu.x - wlen / 2, cu.y + size * 0.35), text, fontsize=size, fontname='hebo', color=rgb,
-                                     fill_opacity=opacity, overlay=True, morph=(cu, fitz.Matrix(-turn)) if turn else None)
-                    if not on_top: _multiply_new_gs(doc, page, before)   # tint only: the page's own text stays crisp on top
+                    # drawn as the letters' outlines, not as text: it looks the same but can't be selected, copied
+                    # or found by search in any PDF reader. Made once per page size, then placed on each page.
+                    key = (round(r.width, 1), round(r.height, 1))
+                    if key not in made: made[key] = _watermark_outline(r.width, r.height, d, rgb, opacity)
+                    before = {x[0] for x in page.get_xobjects()}
+                    cb = page.cropbox
+                    page.show_pdf_page(fitz.Rect(0, 0, cb.width, cb.height), made[key], 0, rotate=page.rotation, overlay=True)
+                    if not on_top: _multiply_new_xobjects(doc, page, before)   # tint only: the page's own text stays crisp on top
             out = os.path.join(TEMP_DIR, f"mod_{hashlib.md5((fp + str(os.path.getmtime(fp)) + json.dumps(d)).encode()).hexdigest()}.pdf")
             doc.save(out, garbage=3, deflate=True); doc.close(); outs.append(out)
         return jsonify({"success": True, "files": outs})

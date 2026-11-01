@@ -704,6 +704,27 @@
     .queue-item.dragging { opacity:.4; }
     .bm-star { color:#f5b301; font-size:11px; margin-left:2px; }
     #my-marks { padding:0 6px 4px; max-height:40%; overflow-y:auto; border-bottom:1px solid var(--line); }
+    /* bookmarks like a book */
+    .rail-btn.marked { color:#e5484d; }
+    .rail-btn.marked .ico, .icon-tool.marked .ico { fill:currentColor; }
+    .icon-tool.marked { color:#e5484d; }
+    #page-ribbon { position:absolute; right:22px; top:-4px; width:22px; height:38px; z-index:16; display:none; cursor:pointer; background:#e5484d;
+      clip-path:polygon(0 0, 100% 0, 100% 100%, 50% 74%, 0 100%); box-shadow:0 2px 4px rgba(0,0,0,.3); }
+    #page-ribbon.show { display:block; }
+    #page-ribbon:hover { background:#c93c41; }
+    .thumb-wrapper.marked::after { content:""; position:absolute; right:8px; top:-2px; width:10px; height:18px; background:#e5484d; clip-path:polygon(0 0, 100% 0, 100% 100%, 50% 72%, 0 100%); }
+    .rd-marks { position:absolute; right:150px; top:46px; z-index:5; width:260px; max-height:60vh; overflow:auto; padding:6px; border-radius:10px; background:#232428; border:1px solid var(--line); box-shadow:0 10px 30px rgba(0,0,0,.45); }
+    .rd-marks button { display:flex; align-items:center; gap:8px; width:100%; padding:7px 8px; border:0; border-radius:6px; background:transparent; color:var(--text); font:13px Segoe UI, sans-serif; cursor:pointer; text-align:left; }
+    .rd-marks button:hover { background:var(--raised); }
+    .rd-marks button span:nth-child(2) { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    /* watermark window */
+    .wm-sheet { position:relative; }
+    .wm-sheet canvas { position:absolute; left:0; top:0; }
+    .wm-dlg .seg { margin:4px 0 12px; }
+    .wm-dlg .field input[type=range] { height:auto; background:none; border:0; padding:0; }
+    .wm-val { float:right; color:var(--text); font-variant-numeric:tabular-nums; }
+    .wm-colors { display:flex; flex-wrap:wrap; gap:6px; }
+    .wm-note { color:var(--dim); font-size:12px; }
     .field-check { display:flex; flex-direction:row-reverse; justify-content:flex-end; align-items:center; gap:8px; }
     .field-check label { margin:0; }
     .sig-remember { display:flex; align-items:center; gap:6px; margin-top:10px; font-size:12.5px; color:var(--dim); }
@@ -763,6 +784,7 @@
     <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4l13 8-13 8z" fill="currentColor"/></symbol>
     <symbol id="i-pause" viewBox="0 0 24 24"><path d="M7 4h3v16H7zM14 4h3v16h-3z" fill="currentColor"/></symbol>
     <symbol id="i-stop" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="1" fill="currentColor"/></symbol>
+    <symbol id="i-list" viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01"/></symbol>
     <symbol id="i-trash" viewBox="0 0 24 24"><path d="M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13M10 11v6M14 11v6"/></symbol>
     <symbol id="i-save" viewBox="0 0 24 24"><path d="M5 4h11l3 3v13H5zM8 4v5h7V4M8 20v-6h8v6"/></symbol>
     <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 14L4 9l5-5M4 9h9a6 6 0 0 1 0 12h-3"/></symbol>
@@ -842,7 +864,7 @@
     <button class="tab-btn" data-tab="sign">E-Sign</button>
     <span id="doc-name"></span>
     <span class="menu-spacer"></span>
-    <label class="find"><svg class="ico"><use href="#i-search"/></svg><input id="find-box" placeholder="Find text" spellcheck="false" title="Enter: next match, Shift+Enter: previous, Esc: clear"><span id="find-count"></span><span class="find-nav"><button id="find-prev" title="Previous match (Shift+Enter)" disabled><svg class="ico"><use href="#i-up"/></svg></button><button id="find-next" title="Next match (Enter)" disabled><svg class="ico"><use href="#i-down"/></svg></button><button id="find-close" title="Clear (Esc)"><svg class="ico"><use href="#i-plus"/></svg></button></span></label>
+    <label class="find"><svg class="ico"><use href="#i-search"/></svg><input id="find-box" placeholder="Find, or go to page #" spellcheck="false" title="Type words to find them, or a page number (like 240 or page 240) and Enter to go there. Ctrl+G goes to a page."><span id="find-count"></span><span class="find-nav"><button id="find-prev" title="Previous match (Shift+Enter)" disabled><svg class="ico"><use href="#i-up"/></svg></button><button id="find-next" title="Next match (Enter)" disabled><svg class="ico"><use href="#i-down"/></svg></button><button id="find-close" title="Clear (Esc)"><svg class="ico"><use href="#i-plus"/></svg></button></span></label>
     <button id="btn-side" class="icon-tool" title="Show another file side by side"><svg class="ico"><use href="#i-columns"/></svg></button>
     <button id="btn-read" class="icon-tool" title="Reading view (F11)"><svg class="ico"><use href="#i-book"/></svg></button>
     <button id="btn-speak" class="icon-tool" title="Read aloud"><svg class="ico"><use href="#i-speaker"/></svg></button>
@@ -920,7 +942,7 @@
       <div id="toast-message"></div>
 
       <div id="bookmarks-panel"><div class="bm-head"><span>My bookmarks</span><span class="spacer"></span>
-        <button id="my-mark-add" class="mini-btn" title="Bookmark this page (Ctrl+B)"><svg class="ico"><use href="#i-plus"/></svg>Add</button></div>
+        <button id="my-mark-add" class="mini-btn" title="Bookmark this page (Ctrl+B)"><svg class="ico"><use href="#i-bookmark"/></svg>This page</button></div>
         <div id="my-marks"></div>
         <div class="bm-head"><span>In the file</span><span class="spacer"></span>
         <button id="bm-add" class="mini-btn" title="Bookmark this page"><svg class="ico"><use href="#i-plus"/></svg>Add</button>
@@ -993,6 +1015,7 @@
             <svg id="lasso-layer"></svg>
             <div id="shape-sel"><button class="sh-del" title="Delete (Delete key)">&#x2715;</button></div>
             <svg id="guide-layer"></svg>
+            <div id="page-ribbon" title="Bookmarked. Click to remove the bookmark"></div>
             <div id="ink-sel"><div class="is-bar"></div><span class="is-h" data-c="nw"></span><span class="is-h" data-c="ne"></span><span class="is-h" data-c="sw"></span><span class="is-h" data-c="se"></span></div>
           </div>
           </div>
@@ -1120,7 +1143,8 @@
 
     <div id="right-rail">
       <button class="rail-btn" id="rail-pages" title="Page thumbnails"><svg class="ico"><use href="#i-pages"/></svg></button>
-      <button class="rail-btn" id="rail-bookmarks" title="Bookmarks"><svg class="ico"><use href="#i-bookmark"/></svg></button>
+      <button class="rail-btn" id="rail-mark" title="Bookmark this page (Ctrl+B)"><svg class="ico"><use href="#i-bookmark"/></svg></button>
+      <button class="rail-btn" id="rail-bookmarks" title="All bookmarks"><svg class="ico"><use href="#i-list"/></svg></button>
       <button class="rail-btn" id="rail-dark" title="Dark pages (easier on the eyes at night)"><svg class="ico"><use href="#i-moon"/></svg></button>
       <div id="page-nav">
         <input id="page-input" title="Go to page" spellcheck="false">
@@ -4162,31 +4186,50 @@
     function drawMyMarks() {
       const box = document.getElementById('my-marks'); if (!box) return;
       const marks = myMarks().slice().sort((a, b) => a.page - b.page);
-      box.innerHTML = marks.length ? '' : '<div class="bm-empty">Your own bookmarks: they stay on this PC and don\'t change the file. Press Ctrl+B on any page.</div>';
+      box.innerHTML = marks.length ? '' : '<div class="bm-empty">No bookmarks yet. Tap the bookmark button on the right (or Ctrl+B) to mark the page you\'re on, like folding a page corner. They stay on this PC; the file isn\'t changed.</div>';
       for (const m of marks) {
         const row = document.createElement('div'); row.className = 'bm-row' + (m.page === pageNum ? ' here' : ''); row.style.paddingLeft = '6px'; row.dataset.page = m.page;
         row.innerHTML = `<span class="bm-star">&#9733;</span><span class="bm-title"></span><span class="bm-pg">${m.page}</span><span class="bm-act"><button data-a="del" title="Remove">&#x2715;</button></span>`;
         row.querySelector('.bm-title').textContent = m.note || `Page ${m.page}`;
-        row.title = (m.note ? m.note + ' · ' : '') + `page ${m.page}` + (m.at ? ' · ' + new Date(m.at).toLocaleDateString() : '');
+        row.addEventListener('dblclick', async e => {   // give it a name
+          e.stopPropagation();
+          const v = await askDialog(`Name the bookmark on page ${m.page}`, [{ key: 'n', label: 'Name', value: m.note || '' }], 'Save');
+          if (!v) return; m.note = v.n.trim(); reading[rkey(currentActiveFile)].at = Date.now(); saveReading(); drawMyMarks();
+        });
+        row.title = (m.note ? m.note + ' · ' : '') + `page ${m.page}` + (m.at ? ' · ' + new Date(m.at).toLocaleDateString() : '') + ' · double-click to name it';
         row.addEventListener('click', async e => {
-          if (e.target.closest('button')) { const r = reading[rkey(currentActiveFile)]; r.marks = r.marks.filter(x => x !== m); saveReading(); drawMyMarks(); return; }
+          if (e.target.closest('button')) { const r = reading[rkey(currentActiveFile)]; r.marks = r.marks.filter(x => x !== m); saveReading(); drawMyMarks(); updateMarkUI(); return; }
           await syncEditsToPython(); pageNum = Math.min(m.page, currentPdfDoc.numPages); renderPage(pageNum);
           if (reader) reader.col.scrollTo(pageNum, true);
         });
         box.append(row);
       }
     }
-    async function addMyMark() {
+    const isMarked = n => myMarks().some(m => m.page === n);
+    function shownPage() { return reader ? (reader.page || pageNum) : pageNum; }
+    function toggleMark(n) {
       if (!currentTempPdf) return;
-      const n = reader ? (reader.page || pageNum) : pageNum;
-      const v = await askDialog(`Bookmark page ${n}`, [{ key: 'note', label: 'Note (optional)', value: '' }], 'Bookmark');
-      if (!v) return;
-      const r = reading[rkey(currentActiveFile)] = reading[rkey(currentActiveFile)] || { page: n };
-      (r.marks = r.marks || []).push({ page: n, note: v.note.trim(), at: Date.now() }); r.at = Date.now(); saveReading();
-      if (!rootEl.classList.contains('bm-open') && !reader) openBookmarks(true);
-      drawMyMarks(); showToast(`Bookmarked page ${n}`);
+      n = n || shownPage();
+      const key = rkey(currentActiveFile), r = reading[key] = reading[key] || { page: n };
+      r.marks = r.marks || [];
+      if (r.marks.some(m => m.page === n)) { r.marks = r.marks.filter(m => m.page !== n); showToast(`Removed the bookmark on page ${n}`); }
+      else { r.marks.push({ page: n, note: '', at: Date.now() }); showToast(`Bookmarked page ${n}. See them all with the list button`); }
+      r.at = Date.now(); saveReading(); drawMyMarks(); updateMarkUI();
     }
-    document.addEventListener('keydown', e => { if (e.ctrlKey && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'b' && !(document.activeElement && document.activeElement.isContentEditable)) { e.preventDefault(); addMyMark(); } });
+    async function addMyMark() { toggleMark(); }
+    // the page's ribbon, the filled bookmark button, and ribbons on the thumbnails
+    function updateMarkUI() {
+      const n = shownPage(), on = !!currentTempPdf && isMarked(n);
+      document.getElementById('rail-mark').classList.toggle('marked', on);
+      document.getElementById('rail-mark').title = on ? 'Remove the bookmark on this page (Ctrl+B)' : 'Bookmark this page (Ctrl+B)';
+      document.getElementById('page-ribbon').classList.toggle('show', !!currentTempPdf && isMarked(pageNum));
+      const rd = document.querySelector('#reader .rd-mark'); if (rd) rd.classList.toggle('marked', on);
+      const marked = new Set(myMarks().map(m => m.page));
+      document.querySelectorAll('.thumb-wrapper').forEach(w => w.classList.toggle('marked', marked.has(+w.dataset.pageIndex + 1)));
+    }
+    document.getElementById('rail-mark').addEventListener('click', () => toggleMark());
+    document.getElementById('page-ribbon').addEventListener('mousedown', e => { e.stopPropagation(); e.preventDefault(); toggleMark(pageNum); });
+    document.addEventListener('keydown', e => { if (e.ctrlKey && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'b' && !(document.activeElement && document.activeElement.isContentEditable)) { e.preventDefault(); toggleMark(); } });
 
     // ---------- open tabs come back next time ----------
     // What's open is kept as you work; next start, every tab returns with its files and pages, including
@@ -4584,6 +4627,7 @@
             } catch (err) { }
         }), { root: sidebar, rootMargin: '800px 0px' });
         sidebar.querySelectorAll('.thumb-wrapper').forEach(w => io.observe(w));
+        updateMarkUI();
     }
     let thumbGen = 0, thumbObserver = null;
 
@@ -5250,36 +5294,93 @@
     async function doWatermark() {
       if (!await needDoc()) return;
       const many = fileQueue.filter(f => f.status === 'ready').length > 1;
-      const show = (inputs, kind) => {   // only the options that apply to the kind picked
-        const on = { text: ['text', 'color', 'opacity', 'size', 'angle', 'where'], image: ['opacity', 'size', 'where'], color: ['color'] }[kind];
-        for (const k of ['text', 'color', 'opacity', 'size', 'angle', 'where']) inputs[k].parentElement.style.display = on.includes(k) ? '' : 'none';
-      };
-      const v = await askDialog('Watermark or background', [
-        { key: 'kind', label: 'Add', type: 'select', options: [['text', 'Text watermark'], ['image', 'Picture watermark (a logo)'], ['color', 'Page background color']],
-          onchange: (el, inputs) => { show(inputs, el.value); inputs.color.value = el.value === 'color' ? '#fff8e1' : '#c0392b'; } },
-        { key: 'text', label: 'Text', value: 'CONFIDENTIAL' },
-        { key: 'color', label: 'Color', type: 'color', value: '#c0392b' },
-        { key: 'opacity', label: 'How strong (%)', type: 'range', min: 5, max: 100, step: 5, value: 30 },
-        { key: 'size', label: 'Size', type: 'select', options: [['medium', 'Medium'], ['large', 'Large'], ['small', 'Small']] },
-        { key: 'angle', label: 'Direction', type: 'select', options: [['diagonal', 'Diagonal'], ['straight', 'Straight across']] },
-        { key: 'where', label: 'Place it', type: 'select', options: [['top', 'Over the content'], ['behind', 'Behind the content']] },
-        ...(many ? [{ key: 'all', label: 'Every file in this tab', type: 'checkbox', value: false }] : []),
-      ], 'Add');
-      if (!v) return;
-      let image = null;
-      if (v.kind === 'image') { image = await pickFile('image/*'); if (!image) return; }
-      const targets = v.all ? fileQueue.filter(f => f.status === 'ready') : [fileQueue.find(f => f.originalPath === currentActiveFile)];
-      showToast('Adding it...');
-      const d = await api('watermark', { files: targets.map(f => f.originalPath === currentActiveFile ? currentTempPdf : f.pdfPath), kind: v.kind, text: v.text,
-        color: v.color, opacity: +v.opacity, size: v.size, angle: v.angle, on_top: v.where !== 'behind', image });
-      if (!d.success) return showToast(d.error || "Couldn't add it", true);
-      targets.forEach((f, i) => {
-        if (f.originalPath === currentActiveFile) return;
-        (f.history = f.history || []).push(f.pdfPath); f.pdfPath = d.files[i];
+      const st = (() => { const d = { kind: 'text', text: 'CONFIDENTIAL', color: '#c0392b', bg: '#fff8e1', opacity: 30, scale: 60, angle: 'diagonal', where: 'top' };
+        try { Object.assign(d, JSON.parse(localStorage.getItem('wm-settings')) || {}); } catch (e) {} return d; })();
+      let picture = null, pictureImg = null;
+      const bd = document.createElement('div'); bd.className = 'backdrop print-bd';
+      bd.innerHTML = `<div class="dialog print-dlg wm-dlg">
+        <div class="pp-left"><div class="pp-stage"><div class="pp-sheet wm-sheet"><canvas class="wm-page"></canvas><canvas class="wm-over"></canvas></div></div>
+          <div class="pp-nav"><span class="wm-note">Preview of page ${pageNum}</span></div></div>
+        <div class="pp-right"><h3>Watermark or background</h3>
+          <div class="seg wm-kind"><button data-kind="text">Text</button><button data-kind="image">Picture</button><button data-kind="color">Background</button></div>
+          <div class="field wm-f-text"><label>Text</label><input data-k="text"></div>
+          <div class="field wm-f-pic"><label>Picture (a logo, a stamp...)</label><button class="btn quiet wm-pick">Choose a picture...</button></div>
+          <div class="field wm-f-color"><label>Color</label><div class="wm-colors"></div></div>
+          <div class="field wm-f-size"><label>Size <span class="wm-val" data-for="scale"></span></label><input data-k="scale" type="range" min="10" max="100" step="1"></div>
+          <div class="field wm-f-op"><label>How strong <span class="wm-val" data-for="opacity"></span></label><input data-k="opacity" type="range" min="5" max="100" step="1"></div>
+          <div class="field wm-f-angle"><label>Direction</label><select data-k="angle"><option value="diagonal">Diagonal</option><option value="straight">Straight across</option></select></div>
+          <div class="field wm-f-where"><label>Place it</label><select data-k="where"><option value="top">Over the content</option><option value="behind">Behind the content (only tints it)</option></select></div>
+          ${many ? '<label class="field-check"><input type="checkbox" data-k="all"> Every file in this tab</label>' : ''}
+          <div class="dialog-actions"><span class="spacer"></span><button class="btn quiet wm-cancel">Cancel</button><button class="btn primary wm-go">Add</button></div>
+        </div></div>`;
+      document.body.append(bd);
+      const $ = k => bd.querySelector(`[data-k="${k}"]`);
+      $('text').value = st.text; $('scale').value = st.scale; $('opacity').value = st.opacity; $('angle').value = st.angle; $('where').value = st.where;
+      const colors = bd.querySelector('.wm-colors');
+      const paintColors = buildColors(colors, ['#c0392b', '#111111', '#8a8f98', '#2f6fd0', '#22a559', '#f59e0b'], () => st.kind === 'color' ? st.bg : st.color,
+        c => { if (st.kind === 'color') st.bg = c; else st.color = c; paintColors(); draw(); }, true);
+      // the page itself, drawn once; the watermark is drawn over it on every change
+      const sheet = bd.querySelector('.wm-sheet'), pageCv = bd.querySelector('.wm-page'), over = bd.querySelector('.wm-over');
+      const pg = await currentPdfDoc.getPage(pageNum), v1 = pg.getViewport({ scale: 1 });
+      const stage = bd.querySelector('.pp-stage'), k = Math.min((stage.clientWidth - 40) / v1.width, (stage.clientHeight - 40) / v1.height), dpr = devicePixelRatio || 1;
+      const W = v1.width, H = v1.height;
+      Object.assign(sheet.style, { width: W * k + 'px', height: H * k + 'px' });
+      for (const cv of [pageCv, over]) { cv.width = W * k * dpr; cv.height = H * k * dpr; Object.assign(cv.style, { width: W * k + 'px', height: H * k + 'px' }); }
+      await pg.render({ canvasContext: pageCv.getContext('2d'), viewport: pg.getViewport({ scale: k * dpr }) }).promise;
+      function draw() {
+        st.text = $('text').value; st.scale = +$('scale').value; st.opacity = +$('opacity').value; st.angle = $('angle').value; st.where = $('where').value;
+        bd.querySelector('[data-for=scale]').textContent = st.scale + '%'; bd.querySelector('[data-for=opacity]').textContent = st.opacity + '%';
+        for (const [cls, on] of [['wm-f-text', st.kind === 'text'], ['wm-f-pic', st.kind === 'image'], ['wm-f-color', st.kind !== 'image'], ['wm-f-size', st.kind !== 'color'],
+          ['wm-f-op', st.kind !== 'color'], ['wm-f-angle', st.kind === 'text'], ['wm-f-where', st.kind !== 'color']]) bd.querySelector('.' + cls).style.display = on ? '' : 'none';
+        bd.querySelectorAll('.wm-kind button').forEach(b => b.classList.toggle('selected', b.dataset.kind === st.kind));
+        bd.querySelector('.wm-go').disabled = (st.kind === 'image' && !picture) || (st.kind === 'text' && !st.text.trim());
+        const g = over.getContext('2d'), s = k * dpr;
+        g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, over.width, over.height); g.scale(s, s);
+        // "behind" and backgrounds tint the page (multiply) the way they will on the real page
+        over.style.mixBlendMode = st.kind === 'color' || st.where === 'behind' ? 'multiply' : 'normal';
+        if (st.kind === 'color') { g.fillStyle = st.bg; g.fillRect(0, 0, W, H); return; }
+        g.globalAlpha = st.opacity / 100;
+        if (st.kind === 'image') {
+          if (!pictureImg) return;
+          const w = W * st.scale / 100, h = w * pictureImg.height / pictureImg.width;
+          g.drawImage(pictureImg, (W - w) / 2, (H - h) / 2, w, h); return;
+        }
+        const t = st.text.trim(); if (!t) return;
+        const diag = st.angle === 'diagonal', room = (diag ? Math.hypot(W, H) : W) * st.scale / 100;
+        g.font = 'bold 100px Helvetica, Arial, sans-serif';
+        const size = Math.min(room / (g.measureText(t).width / 100), H * 0.6);
+        g.font = `bold ${size}px Helvetica, Arial, sans-serif`; g.fillStyle = st.color; g.textAlign = 'center'; g.textBaseline = 'middle';
+        g.translate(W / 2, H / 2); if (diag) g.rotate(Math.atan2(H, W)); g.fillText(t, 0, 0);
+      }
+      bd.querySelectorAll('input, select').forEach(el => el.addEventListener('input', draw));
+      bd.querySelectorAll('.wm-kind button').forEach(b => b.addEventListener('click', () => { st.kind = b.dataset.kind; paintColors(); draw(); }));
+      bd.querySelector('.wm-pick').addEventListener('click', async () => {
+        const f = await pickFile('image/*'); if (!f) return;
+        picture = f; const im = new Image();
+        im.onload = () => { pictureImg = im; bd.querySelector('.wm-pick').textContent = require('path').basename(f); draw(); };
+        im.src = require('url').pathToFileURL(f).href;
       });
-      const mine = targets.findIndex(f => f.originalPath === currentActiveFile);
-      if (mine >= 0) { pushHistory(); await takeNewFile({ success: true, new_file: d.files[mine] }); }
-      showToast(targets.length > 1 ? `Added to all ${targets.length} files. Save or Convert all to keep them` : 'Added. Save to keep it');
+      draw();
+      const close = () => bd.remove();
+      bd.querySelector('.wm-cancel').onclick = close;
+      bd.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
+      bd.addEventListener('mousedown', e => { if (e.target === bd) close(); });
+      bd.querySelector('.wm-go').onclick = async () => {
+        const all = many && $('all').checked; close();
+        try { localStorage.setItem('wm-settings', JSON.stringify(st)); } catch (e) {}
+        const targets = all ? fileQueue.filter(f => f.status === 'ready') : [fileQueue.find(f => f.originalPath === currentActiveFile)];
+        showToast('Adding it...');
+        const d = await api('watermark', { files: targets.map(f => f.originalPath === currentActiveFile ? currentTempPdf : f.pdfPath), kind: st.kind, text: st.text,
+          color: st.kind === 'color' ? st.bg : st.color, opacity: st.opacity, scale: st.scale / 100, angle: st.angle, on_top: st.where !== 'behind', image: picture });
+        if (!d.success) return showToast(d.error || "Couldn't add it", true);
+        targets.forEach((f, i) => {
+          if (f.originalPath === currentActiveFile) return;
+          (f.history = f.history || []).push(f.pdfPath); f.pdfPath = d.files[i];
+        });
+        const mine = targets.findIndex(f => f.originalPath === currentActiveFile);
+        if (mine >= 0) { pushHistory(); await takeNewFile({ success: true, new_file: d.files[mine] }); }
+        showToast(targets.length > 1 ? `Added to all ${targets.length} files. Save or Export all to keep them` : 'Added. Save to keep it');
+      };
     }
     document.getElementById('btn-watermark').addEventListener('click', doWatermark);
 
@@ -5434,6 +5535,7 @@
       clearInkSel(); selectShape(null);
       noteReading(num);
       document.querySelectorAll('#my-marks .bm-row').forEach(r => r.classList.toggle('here', +r.dataset.page === num));
+      updateMarkUI();
       if (side && document.getElementById('sv-sync').checked && side.doc.numPages >= num) side.col.scrollTo(num, true);
       document.querySelectorAll('.bm-row').forEach(r => r.classList.toggle('here', +r.dataset.page === num));
       if (num !== lastShownPage && currentTool === 'measure') clearMeasure();
@@ -5539,7 +5641,7 @@
       if (currentPdfDoc) renderPage(pageNum);
     }
     railBm.addEventListener('click', () => openBookmarks());
-    document.getElementById('my-mark-add').addEventListener('click', () => addMyMark());
+    document.getElementById('my-mark-add').addEventListener('click', () => toggleMark());
     try { if (localStorage.getItem('bm-open') === '1') { rootEl.classList.add('bm-open'); railBm.classList.add('active'); } } catch (e) {}
     async function refreshBookmarks() {
       if (!rootEl.classList.contains('bm-open') || !currentTempPdf) return;
@@ -5626,11 +5728,13 @@
           <button class="icon-tool rd-in" title="Bigger (+)"><svg class="ico"><use href="#i-zin"/></svg></button>
           <button class="icon-tool rd-dark" title="Dark pages"><svg class="ico"><use href="#i-moon"/></svg></button>
           <button class="icon-tool rd-mark" title="Bookmark this page (Ctrl+B)"><svg class="ico"><use href="#i-bookmark"/></svg></button>
+          <button class="icon-tool rd-list" title="All bookmarks"><svg class="ico"><use href="#i-list"/></svg></button>
           <button class="btn quiet rd-exit" title="Back to editing (Esc)">Exit reading view</button></div><div class="rd-body"></div>`;
         document.body.append(el);
         el.querySelector('.rd-exit').onclick = closeReader;
         el.querySelector('.rd-dark').onclick = () => setDark(!rootEl.classList.contains('dark-pages'));
-        el.querySelector('.rd-mark').onclick = () => addMyMark();
+        el.querySelector('.rd-mark').onclick = () => toggleMark();
+        el.querySelector('.rd-list').onclick = () => readerMarks();
         el.querySelector('.rd-in').onclick = () => zoomReader(1.15);
         el.querySelector('.rd-out').onclick = () => zoomReader(1 / 1.15);
       }
@@ -5641,10 +5745,23 @@
       let zoom = 1;
       try { zoom = +localStorage.getItem('reader-zoom') || 1; } catch (e) {}
       const width = () => Math.min(body.clientWidth - 40, 860) * zoom;
-      reader = { el, zoom, col: pageColumn(body, doc, { width, onPage: n => { reader.page = n; pageText(n); noteReading(n); } }), page: pageNum, width };
+      reader = { el, zoom, col: pageColumn(body, doc, { width, onPage: n => { reader.page = n; pageText(n); noteReading(n); updateMarkUI(); } }), page: pageNum, width };
       pageText(pageNum);
       reader.col.scrollTo(pageNum);
       body.tabIndex = -1; body.focus();
+    }
+    // reading view: the bookmarks as a little list to jump from
+    function readerMarks() {
+      const old = document.querySelector('.rd-marks'); if (old) return old.remove();
+      const marks = myMarks().slice().sort((a, b) => a.page - b.page), box = document.createElement('div'); box.className = 'rd-marks';
+      box.innerHTML = marks.length ? '' : '<div class="bm-empty">No bookmarks yet. Tap the bookmark button to mark this page.</div>';
+      for (const m of marks) {
+        const b = document.createElement('button'); b.innerHTML = `<span class="bm-star">&#9733;</span><span></span><span class="bm-pg">${m.page}</span>`;
+        b.children[1].textContent = m.note || `Page ${m.page}`;
+        b.onclick = () => { box.remove(); reader.col.scrollTo(m.page, true); };
+        box.append(b);
+      }
+      reader.el.append(box);
     }
     function zoomReader(f) {
       if (!reader) return;
@@ -6163,6 +6280,7 @@
     async function showFindHit() {
       const h = findState.hits[findState.idx];
       findCount.textContent = `${findState.idx + 1} / ${findState.hits.length}`;
+      delete findCount.dataset.page;
       setFindNav();
       if (h.page !== pageNum) { await syncEditsToPython(); pageNum = h.page; renderPage(pageNum); }   // renderPage draws the marks
       else drawFindMarks();
@@ -6173,7 +6291,7 @@
       const d = await api('search', { filepath: currentTempPdf, query: q });
       if (seq !== findSeq || findBox.value.trim() !== q) return;   // the user kept typing
       if (d.error) return showToast(d.error, true);
-      if (!d.count) { clearFind(); findCount.textContent = 'No results'; return; }
+      if (!d.count) { clearFind(); findCount.textContent = findCount.dataset.page ? `Enter: go to page ${findCount.dataset.page}` : 'No results'; return; }
       const hits = [];
       d.pages.forEach(p => d.boxes[p].forEach(box => hits.push({ page: p, box })));
       // reading order: page, then line (tops within 3pt are one line), then left to right
@@ -6189,17 +6307,41 @@
       findState.idx = (findState.idx + (back ? n - 1 : 1)) % n;
       showFindHit();
     }
+    // "page 240", "p 9", or just "240" (when the file has that many pages): Enter goes straight there
+    function pageAsked() {
+      const m = findBox.value.match(/^\s*(p|pg|page)?\.?\s*(\d{1,6})\s*$/i);
+      if (!m || !currentPdfDoc) return null;
+      const n = +m[2]; return n >= 1 && n <= currentPdfDoc.numPages ? { n, said: !!m[1] } : null;
+    }
+    async function goToPage(n) {
+      if (!currentPdfDoc) return;
+      n = Math.max(1, Math.min(currentPdfDoc.numPages, n));
+      if (reader) return reader.col.scrollTo(n, true);
+      await syncEditsToPython(); pageNum = n; renderPage(n);
+    }
     findBox.addEventListener('keydown', e => {
       if (e.key === 'Escape') { findBox.value = ''; clearFind(); findBox.blur(); return; }
-      if (e.key === 'Enter') { e.preventDefault(); stepFind(e.shiftKey); }
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const pa = pageAsked();
+        if (pa && !e.shiftKey && (pa.said || !findState || !findState.hits.length || findState.idx === undefined || findCount.dataset.page)) {
+          goToPage(pa.n); findBox.value = ''; clearFind(); findBox.blur(); return;
+        }
+        stepFind(e.shiftKey);
+      }
     });
     let findTimer;
     findBox.addEventListener('input', () => {   // search as you type
       clearTimeout(findTimer);
       const q = findBox.value.trim();
-      if (!q) { findSeq++; return clearFind(); }
+      if (!q) { findSeq++; delete findCount.dataset.page; return clearFind(); }
       setFindNav();
       if (!currentTempPdf) return;
+      const pa = pageAsked();
+      if (pa) {   // a page number: say what Enter will do (a plain number is still searched for too)
+        findCount.dataset.page = pa.n; findCount.textContent = `Enter: go to page ${pa.n}`;
+        if (pa.said) { findSeq++; findState = null; drawFindMarks(); return; }
+      } else delete findCount.dataset.page;
       findTimer = setTimeout(() => runFind(q), 250);
     });
     // mousedown on the arrows would blur the box first; keep the focus there like a browser does
@@ -6207,6 +6349,13 @@
     document.getElementById('find-prev').onclick = () => stepFind(true);
     document.getElementById('find-next').onclick = () => stepFind(false);
     document.getElementById('find-close').onclick = () => { findBox.value = ''; clearFind(); };
+    // Ctrl+G: go to a page
+    document.addEventListener('keydown', async e => {
+      if (!e.ctrlKey || e.shiftKey || e.altKey || e.key.toLowerCase() !== 'g' || !currentPdfDoc) return;
+      e.preventDefault();
+      const v = await askDialog('Go to page', [{ key: 'n', label: `Page (1 to ${currentPdfDoc.numPages})`, type: 'number', min: 1, max: currentPdfDoc.numPages, value: shownPage() }], 'Go');
+      if (v && +v.n) goToPage(+v.n);
+    });
     document.addEventListener('keydown', e => { if (e.ctrlKey && !e.shiftKey && e.key.toLowerCase() === 'f') { e.preventDefault(); findBox.focus(); findBox.select(); } });
 
     renderTabs();   // start with an empty New tab, like a browser

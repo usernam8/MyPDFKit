@@ -1057,17 +1057,24 @@ def verify_signatures():
 import threading, uuid
 BATCH = {}
 
-def _batch_one(client, src, action, opt, out_dir):
-    """Run one action on one file through the app's own routes; returns the saved path."""
+BATCH_PDF_ACTIONS = ('compress', 'watermark', 'number', 'headfoot', 'ocr', 'rotate', 'scrub')
+
+def _batch_one(client, src, action, opt, out_dir, pdf=None, inplace=False):
+    """Run one action on one file through the app's own routes; returns the saved path. inplace (the files
+    open in a tab): changes to the PDF come back as a new working copy for the tab instead of a saved file,
+    and new files (exports, protected copies) go next to each original."""
     def call(route, body):
         r = client.post(route, json=body); j = r.get_json() or {}
         if r.status_code >= 400 or j.get('error'): raise RuntimeError(j.get('error') or f'{route} failed')
         return j
     base = os.path.splitext(os.path.basename(src))[0]
-    pdf = call('/process_file', {'filepath': src})
-    if pdf.get('needs_password'): raise RuntimeError('It has a password')
-    pdf = pdf['pdf_path']
+    if not pdf or not os.path.exists(pdf):
+        r = call('/process_file', {'filepath': src})
+        if r.get('needs_password'): raise RuntimeError('It has a password')
+        pdf = r['pdf_path']
+    if inplace: out_dir = os.path.dirname(src)
     def save(path, suffix=''):
+        if inplace and action in BATCH_PDF_ACTIONS: return path
         dst = get_unique_filename(os.path.join(out_dir, base + suffix + '.pdf'))
         shutil.copyfile(path, dst); return dst
     if action == 'convert': return save(pdf)
@@ -1089,19 +1096,21 @@ def _batch_one(client, src, action, opt, out_dir):
         tmp = _temp_out(pdf, 'bscrub'); doc.save(tmp, garbage=4, deflate=True, clean=True); doc.close(); return save(tmp)
     if action == 'protect':
         if not opt.get('password'): raise RuntimeError('No password given')
-        doc = fitz.open(pdf); dst = get_unique_filename(os.path.join(out_dir, base + '.pdf'))
+        doc = fitz.open(pdf); dst = get_unique_filename(os.path.join(out_dir, base + ('_Protected' if inplace else '') + '.pdf'))
         doc.save(dst, encryption=fitz.PDF_ENCRYPT_AES_256, user_pw=opt['password'], owner_pw=opt['password']); doc.close(); return dst
     if action in ('docx', 'xlsx', 'pptx', 'png', 'txt', 'html'):
         j = call('/export', {'filepath': pdf, 'original_path': os.path.join(out_dir, os.path.basename(src)), 'format': action})
         return j.get('path') or out_dir
     raise RuntimeError('Unknown action')
 
-def _batch_run(job, files, action, opt, out_dir):
+def _batch_run(job, files, action, opt, out_dir, pdfs=None, inplace=False):
     client = app.test_client()
     for i, f in enumerate(files):
         if job['cancel']: break
         job['current'] = os.path.basename(f)
-        try: job['outputs'].append(_batch_one(client, f, action, opt, out_dir))
+        try:
+            out = _batch_one(client, f, action, opt, out_dir, (pdfs or [None] * len(files))[i], inplace)
+            job['outputs'].append(out); job['results'][i] = out
         except Exception as e: job['errors'].append(f"{os.path.basename(f)}: {e}")
         job['done'] = i + 1
     job['finished'] = True
@@ -1109,6 +1118,14 @@ def _batch_run(job, files, action, opt, out_dir):
 @app.route('/batch_start', methods=['POST'])
 def batch_start():
     d = request.json
+    if d.get('items'):   # the files open in a tab, each with its working copy
+        items = [it for it in d['items'] if it.get('src')]
+        jid = uuid.uuid4().hex
+        BATCH[jid] = job = {"total": len(items), "done": 0, "current": '', "errors": [], "outputs": [], "results": [None] * len(items),
+                            "finished": False, "cancel": False, "out_dir": None, "inplace": True}
+        threading.Thread(target=_batch_run, args=(job, [it['src'] for it in items], d['action'], d.get('options') or {}, None,
+                                                  [it.get('pdf') for it in items], True), daemon=True).start()
+        return jsonify({"id": jid, "total": len(items), "out_dir": None})
     first = (d.get('files') or [''])[0]
     out_dir = d.get('out_dir') or os.path.join(first if os.path.isdir(first) else os.path.dirname(first), 'MyPDFKit output')
     skip = os.path.normcase(os.path.abspath(out_dir))
@@ -1123,7 +1140,7 @@ def batch_start():
     if not files: return jsonify({"error": "There are no files there that MyPDFKit can open"}), 400
     os.makedirs(out_dir, exist_ok=True)
     jid = uuid.uuid4().hex
-    BATCH[jid] = job = {"total": len(files), "done": 0, "current": '', "errors": [], "outputs": [], "finished": False, "cancel": False, "out_dir": out_dir}
+    BATCH[jid] = job = {"total": len(files), "done": 0, "current": '', "errors": [], "outputs": [], "results": [None] * len(files), "finished": False, "cancel": False, "out_dir": out_dir}
     threading.Thread(target=_batch_run, args=(job, files, d['action'], d.get('options') or {}, out_dir), daemon=True).start()
     return jsonify({"id": jid, "total": len(files), "out_dir": out_dir})
 

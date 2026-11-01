@@ -3012,7 +3012,7 @@
       s.points = shapeOutline(kind, box); return s;
     }
     const reshape = s => { s.points = shapeOutline(s.shape.kind, s.shape.box); };
-    let selShape = null, shapeDrag = null;
+    let selShape = null, shapeDrag = null, shapeDrawn = false;
     // the selected shape gets its own copy first, so undo still has it as it was
     function ownShape() {
       saveCanvasState();
@@ -3070,6 +3070,9 @@
         reshape(s); drawnStrokes = [s]; undoStack = []; redoStack = []; updateInkButtons(); hasUnsavedEdits = true; redrawCanvases();
         selectShape(s); return;
       }
+      // clicking away after drawing (or from a selected shape) goes back to Select, like other drawing apps;
+      // to draw another, pick a shape again
+      if (selShape || shapeDrawn) { selectShape(null); shapeDrawn = false; hideToolPop(); switchTool('btn-pointer', 'pointer'); return; }
       selectShape(null);
       saveCanvasState();
       const s = makeShape(shapeSet.kind, [p[0], p[1], p[0], p[1]]);
@@ -3113,6 +3116,7 @@
         s.shape.box = LINE_KINDS.includes(s.shape.kind) ? [a, b, a + w, b] : [a - w / 2, b - h / 2, a + w / 2, b + h / 2];
         reshape(s);
       }
+      if (d.mode === 'new') shapeDrawn = true;
       hasUnsavedEdits = true; redrawCanvases(); selectShape(s);
     }
     function deleteShape() {
@@ -3143,7 +3147,7 @@
       for (const [k, name] of SHAPES) {
         const b = document.createElement('button'); b.className = 'shape-btn'; b.dataset.k = k; b.title = name; b.innerHTML = shapeIcon(k);
         b.addEventListener('click', () => {
-          shapeSet.kind = k; saveShapeSet(); selectShape(null); paintShapePanel(); setTimeout(hideToolPop, 150);   // the next drag draws one
+          shapeSet.kind = k; saveShapeSet(); selectShape(null); shapeDrawn = false; paintShapePanel(); setTimeout(hideToolPop, 150);   // the next drag draws one
         });
         grid.append(b);
       }
@@ -3169,7 +3173,31 @@
       if (noFill) { const cu = fb.querySelector('.ink-custom'); cu.classList.remove('selected'); cu.style.background = ''; }
       document.getElementById('shape-opacity').value = selShape ? Math.round(selShape.opacity * 100) : shapeSet.opacity;
     }
-    document.getElementById('btn-shape').addEventListener('click', () => { switchTool('btn-shape', 'shape'); paintShapePanel(); });
+    document.getElementById('btn-shape').addEventListener('click', () => { shapeDrawn = false; switchTool('btn-shape', 'shape'); paintShapePanel(); });
+    // with the Select arrow, clicking a shape's outline (or inside a filled one) picks it up to edit it
+    function shapeUnder(p) {
+      for (let i = drawnStrokes.length - 1; i >= 0; i--) {
+        const s = drawnStrokes[i]; if (!s.shape) continue;
+        const pad = Math.max(5, s.size), [a, b, c, d] = s.shape.box;
+        if (s.fill && p[0] >= Math.min(a, c) && p[0] <= Math.max(a, c) && p[1] >= Math.min(b, d) && p[1] <= Math.max(b, d)) return true;
+        const P = s.points;
+        for (let j = 1; j < P.length; j++) {
+          const [x1, y1] = P[j - 1], [x2, y2] = P[j], L = Math.hypot(x2 - x1, y2 - y1) || 1;
+          const t = Math.max(0, Math.min(1, ((p[0] - x1) * (x2 - x1) + (p[1] - y1) * (y2 - y1)) / L / L));
+          if (Math.hypot(p[0] - x1 - t * (x2 - x1), p[1] - y1 - t * (y2 - y1)) <= pad) return true;
+        }
+      }
+      return pageNotes.some(n => n.subject === 'Shape' && p[0] >= n.rect[0] - 4 && p[0] <= n.rect[2] + 4 && p[1] >= n.rect[1] - 4 && p[1] <= n.rect[3] + 4
+        && (p[0] <= n.rect[0] + 6 || p[0] >= n.rect[2] - 6 || p[1] <= n.rect[1] + 6 || p[1] >= n.rect[3] - 6));
+    }
+    document.getElementById('canvas-wrapper').addEventListener('mousedown', e => {
+      if (currentTool !== 'pointer' || e.button !== 0 || e.target.closest('.pdf-image, .new-text, .pdf-field, #shape-sel, #ink-sel')) return;
+      const r = document.getElementById('canvas-wrapper').getBoundingClientRect(), p = [(e.clientX - r.left) / currentRenderScale, (e.clientY - r.top) / currentRenderScale];
+      if (!shapeUnder(p)) return;
+      e.stopPropagation(); e.preventDefault();
+      shapeDrawn = false; switchTool('btn-shape', 'shape'); hideToolPop();
+      shapeDown(p, e);
+    }, true);
 
     // ---------- snapping rough shapes ----------
     function rdp(P, eps) {   // the few points that keep a line's shape (Ramer-Douglas-Peucker)
@@ -4102,8 +4130,8 @@
                 await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
                 const imgEl = document.getElementById(`thumb-img-${i}`);
                 if (!imgEl || gen !== thumbGen) return;
+                imgEl.onload = () => { imgEl.parentElement.style.minHeight = '0'; };   // fit the page's shape (wide pages too) once it's drawn
                 canvas.toBlob(b => { if (!b) return; if (imgEl.src.startsWith('blob:')) URL.revokeObjectURL(imgEl.src); imgEl.src = URL.createObjectURL(b); }, 'image/jpeg', 0.8);
-                imgEl.parentElement.style.minHeight = '0';   // fit the page's shape (wide pages too)
             } catch (err) { }
         }), { root: sidebar, rootMargin: '800px 0px' });
         sidebar.querySelectorAll('.thumb-wrapper').forEach(w => io.observe(w));
@@ -5331,7 +5359,12 @@
       const action = v.action === 'shrink' ? 'compress' : v.action;
       const options = { target_mb: v.action === 'shrink' ? +v.target_mb : null, level: 'balanced', text: v.text, header: v.header, footer: v.footer, angle: +v.angle, password: v.password };
       if (action === 'protect' && !v.password) return showToast('Enter a password', true);
-      const job = await api('batch_start', { files, action, options });
+      // the files in this tab: their working copies (with any edits) change, right here in the tab
+      const tabFiles = v.src === 'tab' ? fileQueue.slice() : null;
+      if (tabFiles) await syncEditsToPython();
+      const job = await api('batch_start', tabFiles
+        ? { items: tabFiles.map(f => ({ src: f.originalPath, pdf: f.status === 'ready' ? (f.originalPath === currentActiveFile ? currentTempPdf : f.pdfPath) : null })), action, options }
+        : { files, action, options });
       if (job.error) return showToast(job.error, true);
       const label = BATCH_ACTIONS.find(a => a[0] === v.action)[1];
       const bd = document.createElement('div'); bd.className = 'backdrop';
@@ -5342,18 +5375,33 @@
       let stop = false;
       bd.querySelector('.b-stop').onclick = () => { stop = true; bd.querySelector('.b-stop').disabled = true; };
       bd.querySelector('.b-close').onclick = () => bd.remove();
-      bd.querySelector('.b-open').onclick = () => { require('electron').shell.openPath(job.out_dir); bd.remove(); };
+      const inTabChange = tabFiles && ['compress', 'watermark', 'number', 'headfoot', 'ocr', 'rotate', 'scrub'].includes(action);
+      const folder = job.out_dir || (tabFiles && tabFiles[0] && require('path').dirname(tabFiles[0].originalPath));
+      bd.querySelector('.b-open').onclick = () => { require('electron').shell.openPath(folder); bd.remove(); };
+      let st;
       while (true) {
-        const st = await api('batch_status', { id: job.id, cancel: stop });
+        st = await api('batch_status', { id: job.id, cancel: stop });
         bd.querySelector('.batch-bar div').style.width = (100 * st.done / st.total) + '%';
-        bd.querySelector('.batch-now').textContent = st.finished ? `Done: ${st.saved} saved in "${job.out_dir.split(/[\\/]/).pop()}"${st.done < st.total ? ` (stopped after ${st.done})` : ''}` : `${st.done + 1} of ${st.total}: ${st.current}`;
+        const stopped = st.done < st.total ? ` (stopped after ${st.done})` : '';
+        bd.querySelector('.batch-now').textContent = !st.finished ? `${st.done + 1} of ${st.total}: ${st.current}`
+          : inTabChange ? `Done: ${st.saved} ${st.saved === 1 ? 'file' : 'files'} changed in this tab${stopped}. Save or Export all to keep them`
+          : tabFiles ? `Done: ${st.saved} saved next to the originals${stopped}` : `Done: ${st.saved} saved in "${job.out_dir.split(/[\\/]/).pop()}"${stopped}`;
         bd.querySelector('.batch-err').textContent = st.errors.length ? `Skipped: ${st.errors.join('; ')}` : '';
         if (st.finished) break;
         await new Promise(r => setTimeout(r, 400));
       }
+      if (inTabChange) {   // each file's new working copy takes its place; Undo on a file takes it back
+        for (let i = 0; i < tabFiles.length; i++) {
+          const f = tabFiles[i], out = st.results[i]; if (!out) continue;
+          if (f.originalPath === currentActiveFile) { pushHistory(); await takeNewFile({ success: true, new_file: out }); continue; }
+          if (f.pdfPath) (f.history = f.history || []).push(f.pdfPath);
+          f.pdfPath = out; f.status = 'ready';
+        }
+        renderQueueUI();
+      }
       bd.querySelector('.b-stop').style.display = 'none';
-      bd.querySelector('.b-open').style.display = ''; bd.querySelector('.b-close').style.display = '';
-      bd.querySelector('.b-open').focus();
+      bd.querySelector('.b-close').style.display = '';
+      if (!inTabChange) { bd.querySelector('.b-open').style.display = ''; bd.querySelector('.b-open').focus(); } else bd.querySelector('.b-close').focus();
     }
     document.getElementById('btn-batch').addEventListener('click', doBatch);
 

@@ -94,7 +94,8 @@ PREVIEW_EXT = ('.skp', '.rvt', '.rfa', '.rte', '.3dm', '.max', '.blend', '.indd'
                '.fig', '.xd', '.pages', '.numbers', '.key', '.vsd', '.vsdx', '.pub', '.ifc', '.dgn', '.step', '.stp', '.iges', '.igs', '.sldprt',
                '.sldasm', '.slddrw', '.ipt', '.iam', '.f3d', '.c4d', '.fbx', '.dae', '.3ds', '.cr2', '.cr3', '.nef', '.arw', '.dng', '.raf', '.orf',
                '.rw2', '.pef', '.srw', '.clo', '.zprj', '.avt', '.pds', '.mdl', '.aama', '.rul',
-               '.zpac', '.zfab', '.zsel', '.bw', '.vsp', '.u3m', '.iba', '.vet', '.mrk', '.tuk')
+               '.zpac', '.zfab', '.zsel', '.bw', '.vsp', '.u3m', '.iba', '.vet', '.mrk', '.tuk',
+               '.pln', '.pla', '.bimx', '.vwx', '.nwd', '.nwc', '.nwf', '.lcf', '.tcp', '.dwfx3d')
 MAIL_EXT = ('.eml',)
 DESIGN_EXT = CAD_EXT + PICTURE_EXT + VECTOR_EXT + MODEL_EXT + PREVIEW_EXT + MAIL_EXT
 OPENABLE_EXT = ('.pdf',) + WORD_EXT + EXCEL_EXT + POWERPOINT_EXT + IMAGE_EXT + BOOK_EXT + WEB_EXT + TEXT_EXT + DESIGN_EXT
@@ -166,7 +167,9 @@ KIND_NAME = {'.skp': 'SketchUp', '.rvt': 'Revit', '.rfa': 'Revit', '.rte': 'Revi
              '.fbx': 'a 3D program', '.dae': 'a 3D program', '.3ds': 'a 3D program', '.dwg': 'AutoCAD', '.dwf': 'Design Review',
              '.clo': 'CLO 3D', '.zprj': 'CLO 3D', '.avt': 'CLO 3D', '.pds': 'Optitex', '.mdl': 'a pattern program', '.aama': 'a pattern program', '.rul': 'a pattern program',
              '.zpac': 'CLO 3D', '.zfab': 'CLO 3D', '.zsel': 'CLO 3D', '.bw': 'Browzwear VStitcher', '.vsp': 'Browzwear VStitcher', '.u3m': 'a 3D fabric program',
-             '.iba': 'Lectra Modaris', '.vet': 'Lectra Modaris', '.mrk': 'Optitex', '.tuk': 'Tukatech'}
+             '.iba': 'Lectra Modaris', '.vet': 'Lectra Modaris', '.mrk': 'Optitex', '.tuk': 'Tukatech',
+             '.pln': 'Archicad', '.pla': 'Archicad', '.bimx': 'Archicad BIMx', '.vwx': 'Vectorworks', '.nwd': 'Navisworks', '.nwc': 'Navisworks',
+             '.nwf': 'Navisworks', '.lcf': 'Vectorworks', '.tcp': 'TurboCAD', '.dwfx3d': 'Autodesk Design Review'}
 
 def _program_path(*globs):
     import glob

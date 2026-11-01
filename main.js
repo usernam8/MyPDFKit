@@ -25,7 +25,7 @@ const OPENABLE = new RegExp('\\.(' +['pdf', 'doc', 'docx', 'docm', 'dot', 'dotx'
   'dxf', 'dwg', 'dwf', 'dwfx', 'plt', 'hpgl', 'hpg', 'hgl', 'psd', 'psb', 'heic', 'heif', 'avif', 'tga', 'dds', 'pcx', 'jp2', 'j2k', 'emf', 'wmf', 'svgz',
   'ai', 'eps', 'ps', 'stl', 'obj', 'ply', 'off', 'skp', 'rvt', 'rfa', '3dm', 'max', 'blend', 'indd', 'idml', 'cdr', 'afdesign', 'afphoto', 'afpub',
   'sketch', 'fig', 'xd', 'pages', 'numbers', 'key', 'vsd', 'vsdx', 'pub', 'ifc', 'dgn', 'step', 'stp', 'iges', 'igs', 'sldprt', 'sldasm', 'slddrw',
-  'ipt', 'iam', 'f3d', 'c4d', 'fbx', 'dae', '3ds', 'cr2', 'cr3', 'nef', 'arw', 'dng', 'raf', 'orf', 'rw2', 'pef', 'srw', 'clo', 'zprj', 'avt', 'pds', 'mdl', 'aama', 'rul', 'zpac', 'zfab', 'zsel', 'bw', 'vsp', 'u3m', 'iba', 'vet', 'mrk', 'tuk', 'eml'].join('|') + ')$', 'i');
+  'ipt', 'iam', 'f3d', 'c4d', 'fbx', 'dae', '3ds', 'cr2', 'cr3', 'nef', 'arw', 'dng', 'raf', 'orf', 'rw2', 'pef', 'srw', 'clo', 'zprj', 'avt', 'pds', 'mdl', 'aama', 'rul', 'zpac', 'zfab', 'zsel', 'bw', 'vsp', 'u3m', 'iba', 'vet', 'mrk', 'tuk', 'pln', 'pla', 'bimx', 'vwx', 'nwd', 'nwc', 'nwf', 'lcf', 'tcp', 'dwfx3d', 'eml'].join('|') + ')$', 'i');
 function filesFromArgv(argv) {
   return argv.slice(app.isPackaged ? 1 : 2).filter(a => OPENABLE.test(a) && fs.existsSync(a));
 }

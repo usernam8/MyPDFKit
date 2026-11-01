@@ -84,7 +84,19 @@ BOOK_EXT = ('.xps', '.oxps', '.epub', '.fb2', '.cbz', '.mobi', '.svg')   # MuPDF
 WEB_EXT = ('.html', '.htm', '.mhtml', '.mht', '.xhtml')
 TEXT_EXT = ('.txt', '.md', '.markdown', '.log', '.json', '.xml', '.yaml', '.yml', '.ini', '.cfg', '.conf', '.py', '.js',
             '.ts', '.css', '.java', '.c', '.cpp', '.h', '.cs', '.go', '.rs', '.rb', '.php', '.sql', '.sh', '.bat', '.ps1')
-OPENABLE_EXT = ('.pdf',) + WORD_EXT + EXCEL_EXT + POWERPOINT_EXT + IMAGE_EXT + BOOK_EXT + WEB_EXT + TEXT_EXT
+# design, CAD and photo files (architects, fashion and product designers, photographers)
+CAD_EXT = ('.dxf', '.dwg', '.dwf', '.dwfx', '.plt', '.hpgl', '.hpg', '.hgl', '.prn')
+PICTURE_EXT = ('.psd', '.psb', '.heic', '.heif', '.avif', '.tga', '.dds', '.pcx', '.icns', '.jp2', '.j2k', '.emf', '.wmf', '.ppm', '.pgm', '.pbm', '.xbm', '.svgz')
+VECTOR_EXT = ('.ai', '.eps', '.ps', '.epsf')
+MODEL_EXT = ('.stl', '.obj', '.ply', '.off')
+# files whose own program isn't on this PC: the preview picture (or preview PDF) saved inside them
+PREVIEW_EXT = ('.skp', '.rvt', '.rfa', '.rte', '.3dm', '.max', '.blend', '.indd', '.idml', '.cdr', '.afdesign', '.afphoto', '.afpub', '.sketch',
+               '.fig', '.xd', '.pages', '.numbers', '.key', '.vsd', '.vsdx', '.pub', '.ifc', '.dgn', '.step', '.stp', '.iges', '.igs', '.sldprt',
+               '.sldasm', '.slddrw', '.ipt', '.iam', '.f3d', '.c4d', '.fbx', '.dae', '.3ds', '.cr2', '.cr3', '.nef', '.arw', '.dng', '.raf', '.orf',
+               '.rw2', '.pef', '.srw', '.clo', '.zprj', '.avt', '.pds', '.mdl', '.aama', '.rul')
+MAIL_EXT = ('.eml',)
+DESIGN_EXT = CAD_EXT + PICTURE_EXT + VECTOR_EXT + MODEL_EXT + PREVIEW_EXT + MAIL_EXT
+OPENABLE_EXT = ('.pdf',) + WORD_EXT + EXCEL_EXT + POWERPOINT_EXT + IMAGE_EXT + BOOK_EXT + WEB_EXT + TEXT_EXT + DESIGN_EXT
 
 def _images_to_pdf(src, dst):
     """Every picture in the file (a multi-page TIFF or animated GIF has several) becomes a page its own size."""
@@ -143,12 +155,315 @@ def _web_to_pdf(src, dst):
     finally: shutil.rmtree(prof, ignore_errors=True)
     if not os.path.exists(dst): raise RuntimeError("The browser couldn't print this page")
 
+# ---------- design, CAD and photo files ----------
+KIND_NAME = {'.skp': 'SketchUp', '.rvt': 'Revit', '.rfa': 'Revit', '.rte': 'Revit', '.3dm': 'Rhino', '.max': '3ds Max', '.blend': 'Blender',
+             '.indd': 'InDesign', '.idml': 'InDesign', '.cdr': 'CorelDRAW', '.afdesign': 'Affinity Designer', '.afphoto': 'Affinity Photo',
+             '.afpub': 'Affinity Publisher', '.sketch': 'Sketch', '.fig': 'Figma', '.xd': 'Adobe XD', '.pages': 'Pages', '.numbers': 'Numbers',
+             '.key': 'Keynote', '.vsd': 'Visio', '.vsdx': 'Visio', '.pub': 'Publisher', '.ifc': 'a BIM program', '.dgn': 'MicroStation',
+             '.step': 'a CAD program', '.stp': 'a CAD program', '.iges': 'a CAD program', '.igs': 'a CAD program', '.sldprt': 'SolidWorks',
+             '.sldasm': 'SolidWorks', '.slddrw': 'SolidWorks', '.ipt': 'Inventor', '.iam': 'Inventor', '.f3d': 'Fusion 360', '.c4d': 'Cinema 4D',
+             '.fbx': 'a 3D program', '.dae': 'a 3D program', '.3ds': 'a 3D program', '.dwg': 'AutoCAD', '.dwf': 'Design Review',
+             '.clo': 'CLO 3D', '.zprj': 'CLO 3D', '.avt': 'CLO 3D', '.pds': 'Optitex', '.mdl': 'a pattern program', '.aama': 'a pattern program', '.rul': 'a pattern program'}
+
+def _program_path(*globs):
+    import glob
+    for g in globs:
+        hits = sorted(glob.glob(g), reverse=True)
+        if hits: return hits[0]
+    return None
+
+def _dxf_to_pdf(src, dst):
+    """A DXF drawing (AutoCAD, pattern makers' AAMA/ASTM files too): the model and every sheet layout, each
+    on a page fitted to the drawing, on white, in the drawing's own colors and line weights."""
+    from ezdxf import recover
+    from ezdxf.addons.drawing import RenderContext, Frontend, config, layout
+    from ezdxf.addons.drawing.pymupdf import PyMuPdfBackend
+    doc, auditor = recover.readfile(src)
+    cfg = config.Configuration(background_policy=config.BackgroundPolicy.WHITE, lineweight_scaling=1.0)
+    out = fitz.open()
+    def add(lay, fit):
+        backend = PyMuPdfBackend()
+        Frontend(RenderContext(doc), backend, config=cfg).draw_layout(lay, finalize=True)
+        if fit:   # the model is drawn life-size (meters of wall): fit it on an A3 sheet, turned to match its shape
+            from ezdxf import bbox
+            ext = bbox.extents(lay, fast=True)
+            wide = not ext.has_data or ext.size.x >= ext.size.y
+            page = layout.Page(420 if wide else 297, 297 if wide else 420, layout.Units.mm, margins=layout.Margins.all(10))
+        else:     # a sheet layout already has its paper size
+            page = layout.Page(0, 0, layout.Units.mm, margins=layout.Margins.all(5))
+        out.insert_pdf(fitz.open('pdf', backend.get_pdf_bytes(page)))
+    add(doc.modelspace(), True)
+    for name in doc.layout_names_in_taborder():
+        if name.lower() == 'model': continue
+        lay = doc.paperspace(name)
+        if sum(1 for e in lay if e.dxftype() != 'VIEWPORT') == 0: continue
+        try: add(lay, False)
+        except Exception as e: print('layout skipped:', name, e, file=sys.stderr)
+    if not len(out): raise RuntimeError("This drawing is empty")
+    out.save(dst, garbage=3, deflate=True)
+
+def _dwg_to_pdf(src, dst):
+    """DWG: the free ODA File Converter turns it into DXF; without it, the preview picture inside the file."""
+    oda = _program_path(r'C:\Program Files\ODA\ODAFileConverter*\ODAFileConverter.exe', r'C:\Program Files (x86)\ODA\ODAFileConverter*\ODAFileConverter.exe')
+    if oda:
+        tmp_in, tmp_out = tempfile.mkdtemp(dir=TEMP_DIR, prefix='dwg_'), tempfile.mkdtemp(dir=TEMP_DIR, prefix='dxf_')
+        try:
+            shutil.copy(src, tmp_in)
+            subprocess.run([oda, tmp_in, tmp_out, 'ACAD2018', 'DXF', '0', '1'], timeout=300, capture_output=True, creationflags=0x08000000)
+            dxf = [os.path.join(tmp_out, f) for f in os.listdir(tmp_out) if f.lower().endswith('.dxf')]
+            if dxf: return _dxf_to_pdf(dxf[0], dst)
+        finally:
+            shutil.rmtree(tmp_in, ignore_errors=True); shutil.rmtree(tmp_out, ignore_errors=True)
+    try:
+        return _preview_to_pdf(src, dst, note="To open the full drawing, install the free ODA File Converter (opendesign.com/guestfiles/oda_file_converter), then open this file again.")
+    except Exception:
+        raise RuntimeError("DWG drawings open with the free ODA File Converter. Install it from opendesign.com, then open this file again.")
+
+def _hpgl_to_pdf(src, dst):
+    """HP-GL plotter files (.plt), as cutters and pattern systems write them: pen moves become lines."""
+    raw = open(src, 'rb').read().decode('latin-1')
+    raw = re.sub(r'\x1b[^A-Za-z]*[A-Za-z]', '', raw)   # printer escape codes
+    paths, cur, pen_down, pos, absolute, color = [], [], False, (0.0, 0.0), True, 1
+    colors = {1: (0, 0, 0), 2: (0.85, 0, 0), 3: (0, 0.55, 0), 4: (0.9, 0.7, 0), 5: (0, 0, 0.8), 6: (0.7, 0, 0.7), 7: (0, 0.6, 0.7), 8: (0.4, 0.4, 0.4)}
+    def flush():
+        nonlocal cur
+        if len(cur) > 1: paths.append((color, cur))
+        cur = []
+    for cmd in re.split(r'[;\n\r]+', raw):
+        cmd = cmd.strip()
+        if len(cmd) < 2: continue
+        op, args = cmd[:2].upper(), cmd[2:]
+        nums = [float(n) for n in re.findall(r'-?\d+(?:\.\d+)?', args)]
+        pts = list(zip(nums[0::2], nums[1::2]))
+        if op == 'SP': flush(); color = int(nums[0]) if nums else 1
+        elif op == 'PA': absolute = True
+        elif op == 'PR': absolute = False
+        elif op in ('PU', 'PD'):
+            if op == 'PU': flush()
+            else:
+                if not cur: cur = [pos]
+            pen_down = op == 'PD'
+            for x, y in pts:
+                pos = (x, y) if absolute else (pos[0] + x, pos[1] + y)
+                if pen_down: cur.append(pos)
+            if op == 'PU' and pts: cur = []
+        elif op in ('PA', 'PR') or op == 'IN': pass
+    flush()
+    if not paths: raise RuntimeError("No drawing found in this plotter file")
+    xs = [x for _, p in paths for x, _ in p]; ys = [y for _, p in paths for _, y in p]
+    x0, y0, x1, y1 = min(xs), min(ys), max(xs), max(ys)
+    k = 72 / 1016   # plotter units are 1/40 mm
+    w, h = (x1 - x0) * k + 36, (y1 - y0) * k + 36
+    doc = fitz.open(); page = doc.new_page(width=max(w, 72), height=max(h, 72))
+    for c, p in paths:
+        sh = page.new_shape()
+        sh.draw_polyline([(18 + (x - x0) * k, h - 18 - (y - y0) * k) for x, y in p])
+        sh.finish(color=colors.get(c, (0, 0, 0)), width=0.6, closePath=False); sh.commit()
+    doc.save(dst, garbage=3, deflate=True)
+
+def _picture_to_pdf(src, dst):
+    """Photoshop, iPhone (HEIC), TGA, EMF/WMF and the like: their picture (Photoshop's merged layers) as a page."""
+    low = src.lower()
+    if low.endswith(('.heic', '.heif', '.avif')):
+        import pillow_heif; pillow_heif.register_heif_opener()
+    if low.endswith('.svgz'):
+        import gzip
+        svg = os.path.join(TEMP_DIR, 'svgz_' + hashlib.md5(src.encode()).hexdigest() + '.svg')
+        open(svg, 'wb').write(gzip.open(src).read())
+        d = fitz.open(svg); fitz.open('pdf', d.convert_to_pdf()).save(dst, garbage=3, deflate=True); return
+    with Image.open(src) as im:
+        if low.endswith(('.wmf', '.emf')):
+            try: im.load(dpi=200)
+            except TypeError: im.load()
+        dpi = (im.info.get('dpi') or (72, 72))[0] or 72
+        rgb = im.convert('RGBA') if im.mode in ('RGBA', 'LA', 'P') else im.convert('RGB')
+        if rgb.mode == 'RGBA':   # see-through parts on white, like the designer sees them
+            bg = Image.new('RGB', rgb.size, 'white'); bg.paste(rgb, mask=rgb.split()[3]); rgb = bg
+        buf = BytesIO(); rgb.save(buf, 'PNG')
+        w, h = rgb.size[0] * 72 / dpi, rgb.size[1] * 72 / dpi
+    doc = fitz.open(); pg = doc.new_page(width=w, height=h); pg.insert_image(pg.rect, stream=buf.getvalue())
+    doc.save(dst, garbage=3, deflate=True)
+
+def _vector_to_pdf(src, dst):
+    """Illustrator (.ai is a PDF inside when saved with PDF compatibility, the default), EPS and PostScript
+    (through Ghostscript when it's installed, otherwise the preview inside the EPS)."""
+    if src.lower().endswith('.ai'):
+        try:
+            d = fitz.open(src, filetype='pdf')
+            if d.page_count: d.save(dst, garbage=3, deflate=True); return
+        except Exception: pass
+    gs = _program_path(r'C:\Program Files\gs\gs*\bin\gswin64c.exe', r'C:\Program Files (x86)\gs\gs*\bin\gswin32c.exe')
+    if gs:
+        r = subprocess.run([gs, '-dSAFER', '-dBATCH', '-dNOPAUSE', '-dEPSCrop', '-sDEVICE=pdfwrite', f'-sOutputFile={dst}', src],
+                           timeout=300, capture_output=True, creationflags=0x08000000)
+        if os.path.exists(dst) and os.path.getsize(dst) > 0: return
+    try:
+        return _preview_to_pdf(src, dst, note="To open the full artwork, install the free Ghostscript (ghostscript.com), then open this file again.")
+    except Exception:
+        raise RuntimeError("This file needs the free Ghostscript to open (ghostscript.com). Install it, then open this file again.")
+
+def _load_mesh(src):
+    """Triangles of a 3D model: STL (text or binary), OBJ, PLY (text), OFF."""
+    import numpy as np, struct
+    low = src.lower(); raw = open(src, 'rb').read()
+    if low.endswith('.stl'):
+        if raw[:5].lower() == b'solid' and b'facet' in raw[:2000]:
+            v = [list(map(float, m)) for m in re.findall(rb'vertex\s+(\S+)\s+(\S+)\s+(\S+)', raw)]
+            return np.array(v, dtype=float).reshape(-1, 3, 3)
+        n = struct.unpack('<I', raw[80:84])[0]
+        a = np.frombuffer(raw[84:84 + n * 50], dtype=np.dtype([('n', '<f4', 3), ('v', '<f4', (3, 3)), ('a', '<u2')]))
+        return a['v'].astype(float)
+    text = raw.decode('latin-1').splitlines()
+    verts, faces = [], []
+    if low.endswith('.obj'):
+        for line in text:
+            if line.startswith('v '): verts.append([float(x) for x in line.split()[1:4]])
+            elif line.startswith('f '):
+                idx = [int(t.split('/')[0]) for t in line.split()[1:]]
+                idx = [i - 1 if i > 0 else len(verts) + i for i in idx]
+                faces += [[idx[0], idx[i], idx[i + 1]] for i in range(1, len(idx) - 1)]
+    elif low.endswith('.off'):
+        rows = [l for l in text if l.strip() and not l.startswith('#')]
+        nv, nf = map(int, rows[1].split()[:2])
+        verts = [list(map(float, r.split()[:3])) for r in rows[2:2 + nv]]
+        for r in rows[2 + nv:2 + nv + nf]:
+            idx = list(map(int, r.split()))[1:]; faces += [[idx[0], idx[i], idx[i + 1]] for i in range(1, len(idx) - 1)]
+    else:   # ply, text form
+        head = text.index('end_header'); nv = nf = 0
+        for l in text[:head]:
+            if l.startswith('element vertex'): nv = int(l.split()[2])
+            if l.startswith('element face'): nf = int(l.split()[2])
+        verts = [list(map(float, l.split()[:3])) for l in text[head + 1:head + 1 + nv]]
+        for l in text[head + 1 + nv:head + 1 + nv + nf]:
+            idx = list(map(int, l.split()))[1:]; faces += [[idx[0], idx[i], idx[i + 1]] for i in range(1, len(idx) - 1)]
+    v = np.array(verts, dtype=float)
+    return v[np.array(faces, dtype=int)]
+
+def _model_to_pdf(src, dst):
+    """A 3D model drawn from four sides (3D view, front, top, side), shaded, with its size."""
+    import numpy as np
+    tri = _load_mesh(src)
+    if not len(tri): raise RuntimeError("No 3D shapes found in this file")
+    if len(tri) > 60000: tri = tri[np.random.default_rng(0).choice(len(tri), 60000, replace=False)]
+    lo, hi = tri.reshape(-1, 3).min(0), tri.reshape(-1, 3).max(0); size = hi - lo
+    tri = tri - (lo + hi) / 2
+    def view(R):
+        t = tri @ R.T
+        n = np.cross(t[:, 1] - t[:, 0], t[:, 2] - t[:, 0]); ln = np.linalg.norm(n, axis=1) + 1e-12
+        shade = np.abs(n[:, 2]) / ln
+        order = np.argsort(t[:, :, 2].mean(1))   # far ones first
+        return t, shade, order
+    def rot(ax, ay):
+        cx, sx, cy, sy = np.cos(ax), np.sin(ax), np.cos(ay), np.sin(ay)
+        return np.array([[cy, 0, sy], [0, 1, 0], [-sy, 0, cy]]) @ np.array([[1, 0, 0], [0, cx, -sx], [0, sx, cx]])
+    views = [('3D view', rot(np.radians(-60), np.radians(35))), ('Front', rot(np.radians(-90), 0)), ('Top', np.eye(3)), ('Side', rot(np.radians(-90), np.radians(90)))]
+    doc = fitz.open(); page = doc.new_page(width=792, height=612)
+    cells = [fitz.Rect(36, 50, 396, 320), fitz.Rect(396, 50, 756, 320), fitz.Rect(36, 330, 396, 590), fitz.Rect(396, 330, 756, 590)]
+    for (name, R), cell in zip(views, cells):
+        t, shade, order = view(R)
+        xs, ys = t[:, :, 0], t[:, :, 1]
+        span = max(xs.max() - xs.min(), ys.max() - ys.min()) or 1
+        k = min(cell.width - 30, cell.height - 40) / span
+        cx, cy = cell.x0 + cell.width / 2, cell.y0 + 20 + (cell.height - 20) / 2
+        sh = page.new_shape()
+        for i in order:
+            pts = [(cx + t[i, j, 0] * k, cy - t[i, j, 1] * k) for j in range(3)]
+            g = 0.35 + 0.6 * shade[i]
+            sh.draw_polyline(pts + [pts[0]]); sh.finish(fill=(g * 0.75, g * 0.82, g), color=None, width=0)
+        sh.commit()
+        page.insert_text((cell.x0 + 6, cell.y0 + 14), name, fontsize=10, color=(0.3, 0.3, 0.3))
+    page.insert_text((36, 32), f"{os.path.basename(src)}  ·  {size[0]:.4g} × {size[1]:.4g} × {size[2]:.4g} (file units)  ·  {len(tri):,} triangles", fontsize=11)
+    doc.save(dst, garbage=3, deflate=True)
+
+def _preview_to_pdf(src, dst, note=None):
+    """A file whose program isn't on this PC: the preview the program saved inside it. Apple's Pages,
+    Numbers and Keynote keep a whole preview PDF; others (SketchUp, Revit, InDesign, CorelDRAW, Figma, camera
+    RAW photos...) keep a picture."""
+    import zipfile
+    ext = os.path.splitext(src)[1].lower()
+    best, pdf = None, None
+    if zipfile.is_zipfile(src):
+        with zipfile.ZipFile(src) as z:
+            names = z.namelist()
+            for n in names:
+                if n.lower().endswith('preview.pdf') or (n.lower().endswith('.pdf') and 'quicklook' in n.lower()): pdf = z.read(n); break
+            if not pdf:
+                pics = [n for n in names if n.lower().endswith(('.png', '.jpg', '.jpeg')) and re.search(r'thumb|preview|quicklook|docprops', n, re.I)]
+                pics = pics or [n for n in names if n.lower().endswith(('.png', '.jpg', '.jpeg'))]
+                if pics: best = max((z.read(n) for n in pics), key=len)
+    if pdf:
+        fitz.open('pdf', pdf).save(dst, garbage=3, deflate=True); return
+    if best is None:   # look through the file for the largest picture stored in it
+        raw = open(src, 'rb').read()
+        found = []
+        for m in re.finditer(rb'\x89PNG\r\n\x1a\n', raw):
+            end = raw.find(b'IEND', m.start())
+            if end > 0: found.append(raw[m.start():end + 8])
+        for m in re.finditer(rb'\xff\xd8\xff[\xe0-\xef\xdb]', raw):
+            end = raw.find(b'\xff\xd9', m.start() + 4)
+            while end > 0 and end - m.start() < 200:   # a tiny segment: keep looking for the real end
+                end = raw.find(b'\xff\xd9', end + 2)
+            if end > 0: found.append(raw[m.start():end + 2])
+        good = []
+        for f in found:
+            try:
+                with Image.open(BytesIO(f)) as im: im.load(); good.append((im.size[0] * im.size[1], f))
+            except Exception: continue
+        if not good: raise RuntimeError(f"{os.path.basename(src)} has no preview inside, and {KIND_NAME.get(ext, 'its program')} isn't on this PC")
+        best = max(good)[1]
+    with Image.open(BytesIO(best)) as im:
+        w, h = im.size; buf = BytesIO(); im.convert('RGB').save(buf, 'PNG')
+    k = min(1.0, 1400 / max(w, h)) * 0.75
+    pw, ph = max(w * k, 300), h * k + 30
+    doc = fitz.open(); page = doc.new_page(width=pw, height=ph)
+    page.insert_image(fitz.Rect((pw - w * k) / 2, 0, (pw + w * k) / 2, h * k), stream=buf.getvalue())
+    prog = KIND_NAME.get(ext)
+    caption = note or (f"Preview saved inside this file. Open it in {prog} for the full version." if prog else "Preview picture saved inside this file.")
+    page.insert_textbox(fitz.Rect(10, h * k + 6, pw - 10, ph - 2), caption, fontsize=7.5, color=(0.45, 0.45, 0.45), align=1)
+    doc.save(dst, garbage=3, deflate=True)
+
+def _mail_to_pdf(src, dst):
+    """An email (.eml): who it's from and to, the subject and date, its message, and its attachments listed."""
+    import email, html as _h
+    from email import policy
+    msg = email.message_from_bytes(open(src, 'rb').read(), policy=policy.default)
+    body = msg.get_body(preferencelist=('html', 'plain'))
+    content = body.get_content() if body else ''
+    if body is not None and body.get_content_type() == 'text/plain': content = '<pre style="white-space:pre-wrap;font-family:inherit">' + _h.escape(content) + '</pre>'
+    files = [p.get_filename() for p in msg.iter_attachments() if p.get_filename()]
+    head = ''.join(f'<tr><td style="color:#666;padding-right:12px">{k}</td><td>{_h.escape(str(msg.get(k) or ""))}</td></tr>' for k in ('From', 'To', 'Cc', 'Date') if msg.get(k))
+    page = (f'<html><head><meta charset="utf-8"></head><body style="font-family:Segoe UI,Arial;font-size:11pt">'
+            f'<h2 style="margin:0 0 8px">{_h.escape(str(msg.get("Subject") or "(no subject)"))}</h2><table style="font-size:10pt;margin-bottom:10px">{head}</table>'
+            + (f'<p style="font-size:10pt;color:#666">Attachments: {_h.escape(", ".join(files))}</p>' if files else '') + '<hr>' + content + '</body></html>')
+    tmp = os.path.join(TEMP_DIR, 'mail_' + hashlib.md5(src.encode()).hexdigest() + '.html')
+    open(tmp, 'w', encoding='utf-8').write(page)
+    _web_to_pdf(tmp, dst)
+
+def _design_to_pdf(src, dst):
+    low = src.lower()
+    try:
+        if low.endswith('.dxf'): return _dxf_to_pdf(src, dst)
+        if low.endswith('.dwg'): return _dwg_to_pdf(src, dst)
+        if low.endswith('.dwfx'):
+            d = fitz.open(src, filetype='xps'); fitz.open('pdf', d.convert_to_pdf()).save(dst, garbage=3, deflate=True); return
+        if low.endswith(('.plt', '.hpgl', '.hpg', '.hgl', '.prn')): return _hpgl_to_pdf(src, dst)
+        if low.endswith(PICTURE_EXT): return _picture_to_pdf(src, dst)
+        if low.endswith(VECTOR_EXT): return _vector_to_pdf(src, dst)
+        if low.endswith(MODEL_EXT): return _model_to_pdf(src, dst)
+        if low.endswith(MAIL_EXT): return _mail_to_pdf(src, dst)
+    except Exception as e:
+        if low.endswith(('.dwg', '.ai', '.eps', '.ps', '.epsf')): raise
+        try: return _preview_to_pdf(src, dst)   # last try: a preview inside the file
+        except Exception: raise RuntimeError(f"Couldn't open {os.path.basename(src)}: {e}")
+    return _preview_to_pdf(src, dst)
+
 def _com_to_pdf(src, dst):
     """Convert a Word/Excel/PowerPoint file to PDF using a private Office instance
     (DispatchEx) so we never touch documents the user already has open, and always Quit().
     Pictures, e-books, web pages and text files have their own converters."""
     low = src.lower()
     if low.endswith(IMAGE_EXT): return _images_to_pdf(src, dst)
+    if low.endswith(DESIGN_EXT): return _design_to_pdf(src, dst)
     if low.endswith(BOOK_EXT):
         d = fitz.open(src); fitz.open('pdf', d.convert_to_pdf()).save(dst, garbage=3, deflate=True); return
     if low.endswith(WEB_EXT): return _web_to_pdf(src, dst)
@@ -244,7 +559,7 @@ def libreoffice_to_pdf(src, dst):
 
 def office_to_pdf(src, dst):
     """Use Microsoft Office when it is installed, otherwise LibreOffice."""
-    if src.lower().endswith(IMAGE_EXT + BOOK_EXT + WEB_EXT + TEXT_EXT):
+    if src.lower().endswith(IMAGE_EXT + BOOK_EXT + WEB_EXT + TEXT_EXT + DESIGN_EXT):
         return _com_to_pdf(src, dst)
     try:
         _com_to_pdf(src, dst)
@@ -253,7 +568,7 @@ def office_to_pdf(src, dst):
             raise RuntimeError("No Office converter found. Install Microsoft Office or the free LibreOffice, then try again.")
         libreoffice_to_pdf(src, dst)
 
-CONVERTER_VERSION = '3'   # bump when office_to_pdf output changes (2: cut-off Excel columns widened, 3: many more formats)
+CONVERTER_VERSION = '5'   # bump when office_to_pdf output changes (2: cut-off Excel columns widened, 3: many more formats)
 
 # ---------- forms ----------
 FIELD_KINDS = {fitz.PDF_WIDGET_TYPE_TEXT: 'text', fitz.PDF_WIDGET_TYPE_CHECKBOX: 'checkbox', fitz.PDF_WIDGET_TYPE_RADIOBUTTON: 'radio',
@@ -1225,9 +1540,32 @@ def _add_shape(doc, page, d, x_off=0, y_off=0):
     a.set_opacity(float(d.get('opacity', 1)))
     a.set_info(subject='Shape', title=os.environ.get('USERNAME', ''))
     a.update()
-    keep = {k: d.get(k) for k in ('kind', 'box', 'color', 'fill', 'size', 'opacity')}
+    keep = {k: d.get(k) for k in ('kind', 'box', 'color', 'fill', 'size', 'opacity', 'rot', 'text', 'textColor', 'textSize', 'group', 'id')}
     doc.xref_set_key(a.xref, 'MyPDFKitShape', fitz.get_pdf_str(json.dumps(keep)))
+    if (d.get('text') or '').strip() and d['kind'] not in LINE_SHAPES:
+        _shape_text(doc, page, d, x_off, y_off)
     return a
+
+def _shape_text(doc, page, d, x_off=0, y_off=0):
+    """The words inside a shape: a borderless text box centered in it (upright, as the app shows it)."""
+    x0, y0, x1, y1 = d['box']; x0, x1 = sorted((x0, x1)); y0, y1 = sorted((y0, y1))
+    size = float(d.get('textSize') or 12); pad = max(4, (x1 - x0) * 0.06)
+    width = max(10, x1 - x0 - 2 * pad)
+    lines = 0
+    for para in d['text'].split('\n'):   # how many lines it wraps to, to center it up and down
+        n, cur = 1, 0.0
+        for w in para.split(' '):
+            lw = fitz.get_text_length(w + ' ', fontname='helv', fontsize=size)
+            if cur and cur + lw > width: n += 1; cur = lw
+            else: cur += lw
+        lines += n
+    h = lines * size * 1.25 + 4
+    cy = (y0 + y1) / 2
+    r = fitz.Rect(x0 + pad + x_off, cy - h / 2 + y_off, x1 - pad + x_off, cy + h / 2 + y_off)
+    t = page.add_freetext_annot(r, d['text'], fontsize=size, fontname='helv', text_color=parse_color(d.get('textColor') or '#111111'),
+                                align=fitz.TEXT_ALIGN_CENTER)
+    t.set_border(width=0); t.set_info(subject='Shape text'); t.update()
+    doc.xref_set_key(t.xref, 'MyPDFKitShapeText', fitz.get_pdf_str(str(d.get('id') or '')))
 
 @app.route('/take_shape', methods=['POST'])
 def take_shape():
@@ -1241,11 +1579,82 @@ def take_shape():
             if t != 'string': break
             shape = json.loads(v)
             page.delete_annot(a)
+            if shape.get('id'):   # its words go with it
+                for t in list(page.annots(types=[fitz.PDF_ANNOT_FREE_TEXT]) or []):
+                    tt, tv = doc.xref_get_key(t.xref, 'MyPDFKitShapeText')
+                    if tt == 'string' and tv == str(shape['id']): page.delete_annot(t)
+            # the rest of its group comes too
+            group = []
+            if shape.get('group'):
+                for b in list(page.annots(types=[fitz.PDF_ANNOT_POLYGON, fitz.PDF_ANNOT_LINE]) or []):
+                    bt, bv = doc.xref_get_key(b.xref, 'MyPDFKitShape')
+                    if bt != 'string': continue
+                    other = json.loads(bv)
+                    if other.get('group') != shape['group']: continue
+                    page.delete_annot(b); group.append(other)
+                    if other.get('id'):
+                        for t in list(page.annots(types=[fitz.PDF_ANNOT_FREE_TEXT]) or []):
+                            tt, tv = doc.xref_get_key(t.xref, 'MyPDFKitShapeText')
+                            if tt == 'string' and tv == str(other['id']): page.delete_annot(t)
+            shape['others'] = group
             out = _temp_out(fp, 'tshape', json.dumps(d))
             doc.save(out, garbage=3, deflate=True); doc.close()
             return jsonify({"success": True, "shape": shape, "new_file": out})
         doc.close()
         return jsonify({"success": True, "shape": None})
+    except Exception as e: return jsonify({"error": str(e)}), 500
+
+# ---------- find and replace ----------
+@app.route('/replace_text', methods=['POST'])
+def replace_text():
+    """Replace a word or phrase everywhere it appears, in the same font, size and color as the text around it."""
+    d = request.json; fp = d['filepath']; find = d.get('find') or ''
+    if not find.strip(): return jsonify({"error": "Type what to find"}), 400
+    try:
+        flags = 0 if d.get('case') else re.I
+        pat = re.compile((r'(?<!\w)' + re.escape(find) + r'(?!\w)') if d.get('whole') else re.escape(find), flags)
+        repl = d.get('replace') or ''
+        doc = fitz.open(fp); count = pages = 0
+        for page in doc:
+            edits = []
+            for sp in _page_spans(page):
+                n = len(pat.findall(sp['text']))
+                if not n: continue
+                new = pat.sub(lambda m: repl, sp['text'])
+                edits.append({'rect': list(sp['bbox']), 'base_y': sp['origin'][1], 'new_text': new if new.strip() else ' '}); count += n
+            if edits: _rewrite_text(doc, page, edits); pages += 1
+        if not count: doc.close(); return jsonify({"success": True, "count": 0})
+        try: doc.subset_fonts()
+        except Exception: pass
+        out = _temp_out(fp, 'repl', json.dumps(d))
+        doc.save(out, garbage=3, deflate=True); doc.close()
+        return jsonify({"success": True, "count": count, "pages": pages, "new_file": out})
+    except Exception as e: return jsonify({"error": str(e)}), 500
+
+# ---------- Bates numbers ----------
+@app.route('/bates', methods=['POST'])
+def bates():
+    """A running number (ABC000001, ABC000002...) on every page of each file, continuing from file to file."""
+    d = request.json
+    try:
+        n = int(d.get('start') or 1); digits = max(1, min(12, int(d.get('digits') or 6)))
+        prefix, suffix = d.get('prefix') or '', d.get('suffix') or ''
+        size = float(d.get('size') or 10); rgb = parse_color(d.get('color') or '#111111')
+        where = d.get('position') or 'br'
+        outs = []
+        for fp in d['files']:
+            doc = fitz.open(fp)
+            for page in doc:
+                label = f"{prefix}{n:0{digits}d}{suffix}"; n += 1
+                r = page.rect; w = fitz.get_text_length(label, fontname='helv', fontsize=size); m = 22
+                x = {'l': m, 'c': (r.width - w) / 2, 'r': r.width - m - w}[where[1]]
+                y = m + size if where[0] == 't' else r.height - m
+                # unrotated page coordinates, so the number sits upright where it reads
+                pt = fitz.Point(x, y) * page.derotation_matrix
+                page.insert_text(pt, label, fontsize=size, fontname='helv', color=rgb, rotate=page.rotation)
+            out = _temp_out(fp, 'bates', json.dumps(d) + str(n))
+            doc.save(out, garbage=3, deflate=True); doc.close(); outs.append(out)
+        return jsonify({"success": True, "files": outs, "next": n})
     except Exception as e: return jsonify({"error": str(e)}), 500
 
 # ---------- the eraser, on pen strokes already in the file ----------
@@ -2594,19 +3003,29 @@ def split_pdf():
 @app.route('/merge_queue', methods=['POST'])
 def merge_queue():
     data = request.json
-    files = data.get('files', []) 
+    files = data.get('files', [])
+    names = data.get('names') or []
     original_folder = os.path.dirname(data.get('first_original_path', ''))
     try:
-        merged_doc = fitz.open()
-        for pdf_path in files:
+        merged_doc = fitz.open(); toc = []
+        for i, pdf_path in enumerate(files):
             if os.path.exists(pdf_path):
                 pdf_to_insert = fitz.open(pdf_path)
+                start = merged_doc.page_count
                 merged_doc.insert_pdf(pdf_to_insert)
+                if data.get('bookmarks'):   # each file starts a bookmark (its own bookmarks go under it)
+                    toc.append([1, os.path.splitext(names[i] if i < len(names) else os.path.basename(pdf_path))[0], start + 1])
+                    for lvl, title, pg in pdf_to_insert.get_toc(simple=True): toc.append([lvl + 1, title, pg + start])
                 pdf_to_insert.close()
-        out_path = get_unique_filename(os.path.join(original_folder, "Combined_Document.pdf"))
-        merged_doc.save(out_path)
+        if toc:
+            try: merged_doc.set_toc(toc)
+            except Exception as e: print('bookmarks skipped:', e, file=sys.stderr)
+        name = re.sub(r'[\\/:*?"<>|]+', '-', (data.get('name') or 'Combined_Document').strip()) or 'Combined_Document'
+        if not name.lower().endswith('.pdf'): name += '.pdf'
+        out_path = get_unique_filename(os.path.join(original_folder, name))
+        merged_doc.save(out_path, garbage=3, deflate=True)
         merged_doc.close()
-        return jsonify({"success": True, "message": f"Saved {os.path.basename(out_path)}"})
+        return jsonify({"success": True, "path": out_path, "message": f"Saved {os.path.basename(out_path)}"})
     except Exception as e: return jsonify({"error": str(e)}), 500
 
 @app.route('/save_modified', methods=['POST'])

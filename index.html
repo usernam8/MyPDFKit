@@ -233,7 +233,7 @@
     #workspace { flex:1; display:flex; flex-direction:row; overflow:hidden; background:var(--canvas); position:relative; min-width:0; }
 
     #thumbnail-sidebar { width:140px; background:#202124; border-right:1px solid var(--line); overflow-y:auto; padding:14px 12px; box-sizing:border-box; display:none; flex-direction:column; gap:14px; z-index:50; transition:opacity .2s; }
-    .thumb-wrapper { position:relative; cursor:grab; border:2px solid transparent; border-radius:3px; overflow:hidden; background:#fff; min-height:150px; display:flex; justify-content:center; align-items:center; }
+    .thumb-wrapper { position:relative; flex:none; cursor:grab; border:2px solid transparent; border-radius:3px; overflow:hidden; background:#fff; min-height:150px; display:flex; justify-content:center; align-items:center; }
     .thumb-wrapper:hover { border-color:#5a5b63; }
     .thumb-wrapper.active { border-color:var(--accent); }
     .thumb-wrapper.drag-over { border-top:4px solid var(--accent); }
@@ -678,6 +678,32 @@
     #shape-sel.line { border-color:transparent; }
     .sh-h { position:absolute; width:10px; height:10px; margin:-6px 0 0 -6px; background:#fff; border:1.5px solid #2f6fd0; border-radius:50%; pointer-events:auto; }
     .sh-del { position:absolute; right:-12px; top:-30px; width:22px; height:22px; border:0; border-radius:50%; background:#e05252; color:#fff; font:700 11px Segoe UI, sans-serif; cursor:pointer; pointer-events:auto; box-shadow:0 2px 6px rgba(0,0,0,.3); }
+    .sh-rot { position:absolute; left:50%; top:-26px; width:12px; height:12px; margin-left:-7px; border-radius:50%; background:#fff; border:1.5px solid #2f6fd0; pointer-events:auto; cursor:grab; }
+    .sh-rot::after { content:""; position:absolute; left:50%; top:12px; width:1px; height:13px; background:#2f6fd0; }
+    .sh-txt { position:absolute; left:50%; bottom:-30px; transform:translateX(-50%); height:22px; padding:0 9px; border:0; border-radius:5px; background:#2a2b30; color:#fff; font:12px Segoe UI, sans-serif; cursor:pointer; pointer-events:auto; white-space:nowrap; box-shadow:0 2px 8px rgba(0,0,0,.3); }
+    #shape-sel { transform-origin:center center; }
+    .shape-text-edit { position:absolute; z-index:15; box-sizing:border-box; padding:4px; border:1.5px dashed #2f6fd0; background:transparent; resize:none; outline:none;
+      text-align:center; font-family:Helvetica, Arial, sans-serif; line-height:1.25; display:flex; overflow:hidden; }
+    #guide-layer { position:absolute; inset:0; width:100%; height:100%; z-index:12; pointer-events:none; overflow:visible; }
+    #guide-layer line { stroke:#ec4899; stroke-width:1; stroke-dasharray:4 3; }
+    .is-bar select.is-align { height:24px; background:var(--raised); color:var(--text); border:1px solid var(--line); border-radius:5px; font:12px Segoe UI, sans-serif; }
+    .ink-dot.recent { box-shadow:inset 0 0 0 2px rgba(255,255,255,.25); }
+    .merge-dlg { width:440px; }
+    .merge-tip { margin:0 0 10px; font-size:12.5px; }
+    .merge-list { max-height:300px; overflow:auto; border:1px solid var(--line); border-radius:7px; margin-bottom:12px; }
+    .merge-row { display:flex; align-items:center; gap:8px; padding:6px 10px; border-bottom:1px solid var(--line); background:var(--panel); cursor:grab; font-size:12.5px; }
+    .merge-row:last-child { border-bottom:0; }
+    .merge-row.dragging { opacity:.4; }
+    .m-grip { color:var(--dim); letter-spacing:-3px; }
+    .m-n { color:var(--dim); width:16px; text-align:right; }
+    .m-file { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .m-up, .m-down { color:var(--dim); cursor:pointer; font-size:10px; padding:2px 3px; }
+    .m-up:hover, .m-down:hover { color:var(--text); }
+    .merge-bm { margin-bottom:4px; }
+    .queue-item.drop-here { box-shadow:inset 0 2px 0 var(--accent); }
+    .queue-item.dragging { opacity:.4; }
+    .bm-star { color:#f5b301; font-size:11px; margin-left:2px; }
+    #my-marks { padding:0 6px 4px; max-height:40%; overflow-y:auto; border-bottom:1px solid var(--line); }
     .field-check { display:flex; flex-direction:row-reverse; justify-content:flex-end; align-items:center; gap:8px; }
     .field-check label { margin:0; }
     .sig-remember { display:flex; align-items:center; gap:6px; margin-top:10px; font-size:12.5px; color:var(--dim); }
@@ -826,7 +852,7 @@
     <button id="btn-save-modified" class="icon-tool" title="Save as a new PDF next to the original (Ctrl+S)"><svg class="ico"><use href="#i-save"/></svg></button>
   </div>
 
-  <div id="tools-view"><div class="tv-inner"><input id="tool-search" placeholder="Find any tool" spellcheck="false"><div id="recent-files"><div class="rf-head"><span>Recent</span><button id="rf-clear">Clear</button></div><div class="rf-list"></div></div><div class="tv-grid"><button class="tool-card" data-tool="create"><span class="tc-ico"><svg class="ico"><use href="#i-extract"/></svg></span><span>Create a PDF</span></button><button class="tool-card" data-tool="merge"><span class="tc-ico"><svg class="ico"><use href="#i-merge"/></svg></span><span>Combine files</span></button><button class="tool-card" data-tool="blank"><span class="tc-ico"><svg class="ico"><use href="#i-plus"/></svg></span><span>Blank page</span></button><button class="tool-card" data-tool="edit"><span class="tc-ico"><svg class="ico"><use href="#i-ibeam"/></svg></span><span>Edit a PDF</span></button><button class="tool-card" data-tool="headfoot"><span class="tc-ico"><svg class="ico"><use href="#i-headfoot"/></svg></span><span>Header and footer</span></button><button class="tool-card" data-tool="number"><span class="tc-ico"><svg class="ico"><use href="#i-hash"/></svg></span><span>Add page numbers</span></button><button class="tool-card" data-tool="convert"><span class="tc-ico"><svg class="ico"><use href="#i-convert"/></svg></span><span>Convert to PDF</span></button><button class="tool-card" data-tool="export"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>Export a PDF</span></button><button class="tool-card" data-tool="toword"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>PDF to Word</span></button><button class="tool-card" data-tool="toexcel"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>PDF to Excel</span></button><button class="tool-card" data-tool="toppt"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>PDF to PowerPoint</span></button><button class="tool-card" data-tool="compress"><span class="tc-ico"><svg class="ico"><use href="#i-compress"/></svg></span><span>Compress a PDF</span></button><button class="tool-card" data-tool="split"><span class="tc-ico"><svg class="ico"><use href="#i-split"/></svg></span><span>Split a PDF</span></button><button class="tool-card" data-tool="delpages"><span class="tc-ico"><svg class="ico"><use href="#i-trash"/></svg></span><span>Delete pages</span></button><button class="tool-card" data-tool="fillform"><span class="tc-ico"><svg class="ico"><use href="#i-ibeam"/></svg></span><span>Fill a form</span></button><button class="tool-card" data-tool="compare"><span class="tc-ico"><svg class="ico"><use href="#i-compare"/></svg></span><span>Compare files</span></button><button class="tool-card" data-tool="redact"><span class="tc-ico"><svg class="ico"><use href="#i-redact"/></svg></span><span>Redact</span></button><button class="tool-card" data-tool="comment"><span class="tc-ico"><svg class="ico"><use href="#i-comment"/></svg></span><span>Comment</span></button><button class="tool-card" data-tool="template"><span class="tc-ico"><svg class="ico"><use href="#i-table"/></svg></span><span>Fill from spreadsheet</span></button><button class="tool-card" data-tool="watermark"><span class="tc-ico"><svg class="ico"><use href="#i-watermark"/></svg></span><span>Watermark</span></button><button class="tool-card" data-tool="sidebyside"><span class="tc-ico"><svg class="ico"><use href="#i-columns"/></svg></span><span>Side by side</span></button><button class="tool-card" data-tool="insert"><span class="tc-ico"><svg class="ico"><use href="#i-insert"/></svg></span><span>Insert pages</span></button><button class="tool-card" data-tool="pagesize"><span class="tc-ico"><svg class="ico"><use href="#i-resize"/></svg></span><span>Page size and margins</span></button><button class="tool-card" data-tool="bookmarks"><span class="tc-ico"><svg class="ico"><use href="#i-bookmark"/></svg></span><span>Bookmarks</span></button><button class="tool-card" data-tool="certsign"><span class="tc-ico"><svg class="ico"><use href="#i-cert"/></svg></span><span>Sign with a digital ID</span></button><button class="tool-card" data-tool="certcheck"><span class="tc-ico"><svg class="ico"><use href="#i-cert"/></svg></span><span>Check signatures</span></button><button class="tool-card" data-tool="batch"><span class="tc-ico"><svg class="ico"><use href="#i-batch"/></svg></span><span>Many files at once</span></button><button class="tool-card" data-tool="read"><span class="tc-ico"><svg class="ico"><use href="#i-book"/></svg></span><span>Reading view</span></button><button class="tool-card" data-tool="measure"><span class="tc-ico"><svg class="ico"><use href="#i-ruler"/></svg></span><span>Measure</span></button><button class="tool-card" data-tool="shapes"><span class="tc-ico"><svg class="ico"><use href="#i-shapes"/></svg></span><span>Shapes</span></button><button class="tool-card" data-tool="stamps"><span class="tc-ico"><svg class="ico"><use href="#i-stamp"/></svg></span><span>Stamps and initials</span></button><button class="tool-card" data-tool="prepare"><span class="tc-ico"><svg class="ico"><use href="#i-fields"/></svg></span><span>Prepare for signing</span></button><button class="tool-card" data-tool="translate"><span class="tc-ico"><svg class="ico"><use href="#i-translate"/></svg></span><span>Translate</span></button><button class="tool-card" data-tool="speak"><span class="tc-ico"><svg class="ico"><use href="#i-speaker"/></svg></span><span>Read aloud</span></button><button class="tool-card" data-tool="exportall"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>Export all files</span></button><button class="tool-card" data-tool="extract"><span class="tc-ico"><svg class="ico"><use href="#i-extract"/></svg></span><span>Extract pages</span></button><button class="tool-card" data-tool="ocr"><span class="tc-ico"><svg class="ico"><use href="#i-scan"/></svg></span><span>Recognize text (OCR)</span></button><button class="tool-card" data-tool="print"><span class="tc-ico"><svg class="ico"><use href="#i-print"/></svg></span><span>Print</span></button><button class="tool-card" data-tool="protect"><span class="tc-ico"><svg class="ico"><use href="#i-lock"/></svg></span><span>Protect a PDF</span></button><button class="tool-card" data-tool="sign"><span class="tc-ico"><svg class="ico"><use href="#i-signature"/></svg></span><span>Fill and sign</span></button></div></div></div>
+  <div id="tools-view"><div class="tv-inner"><input id="tool-search" placeholder="Find any tool" spellcheck="false"><div id="recent-files"><div class="rf-head"><span>Recent</span><button id="rf-clear">Clear</button></div><div class="rf-list"></div></div><div class="tv-grid"><button class="tool-card" data-tool="create"><span class="tc-ico"><svg class="ico"><use href="#i-extract"/></svg></span><span>Create a PDF</span></button><button class="tool-card" data-tool="merge"><span class="tc-ico"><svg class="ico"><use href="#i-merge"/></svg></span><span>Combine files</span></button><button class="tool-card" data-tool="blank"><span class="tc-ico"><svg class="ico"><use href="#i-plus"/></svg></span><span>Blank page</span></button><button class="tool-card" data-tool="edit"><span class="tc-ico"><svg class="ico"><use href="#i-ibeam"/></svg></span><span>Edit a PDF</span></button><button class="tool-card" data-tool="headfoot"><span class="tc-ico"><svg class="ico"><use href="#i-headfoot"/></svg></span><span>Header and footer</span></button><button class="tool-card" data-tool="number"><span class="tc-ico"><svg class="ico"><use href="#i-hash"/></svg></span><span>Add page numbers</span></button><button class="tool-card" data-tool="convert"><span class="tc-ico"><svg class="ico"><use href="#i-convert"/></svg></span><span>Convert to PDF</span></button><button class="tool-card" data-tool="export"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>Export a PDF</span></button><button class="tool-card" data-tool="toword"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>PDF to Word</span></button><button class="tool-card" data-tool="toexcel"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>PDF to Excel</span></button><button class="tool-card" data-tool="toppt"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>PDF to PowerPoint</span></button><button class="tool-card" data-tool="compress"><span class="tc-ico"><svg class="ico"><use href="#i-compress"/></svg></span><span>Compress a PDF</span></button><button class="tool-card" data-tool="split"><span class="tc-ico"><svg class="ico"><use href="#i-split"/></svg></span><span>Split a PDF</span></button><button class="tool-card" data-tool="delpages"><span class="tc-ico"><svg class="ico"><use href="#i-trash"/></svg></span><span>Delete pages</span></button><button class="tool-card" data-tool="fillform"><span class="tc-ico"><svg class="ico"><use href="#i-ibeam"/></svg></span><span>Fill a form</span></button><button class="tool-card" data-tool="compare"><span class="tc-ico"><svg class="ico"><use href="#i-compare"/></svg></span><span>Compare files</span></button><button class="tool-card" data-tool="redact"><span class="tc-ico"><svg class="ico"><use href="#i-redact"/></svg></span><span>Redact</span></button><button class="tool-card" data-tool="comment"><span class="tc-ico"><svg class="ico"><use href="#i-comment"/></svg></span><span>Comment</span></button><button class="tool-card" data-tool="template"><span class="tc-ico"><svg class="ico"><use href="#i-table"/></svg></span><span>Fill from spreadsheet</span></button><button class="tool-card" data-tool="watermark"><span class="tc-ico"><svg class="ico"><use href="#i-watermark"/></svg></span><span>Watermark</span></button><button class="tool-card" data-tool="sidebyside"><span class="tc-ico"><svg class="ico"><use href="#i-columns"/></svg></span><span>Side by side</span></button><button class="tool-card" data-tool="insert"><span class="tc-ico"><svg class="ico"><use href="#i-insert"/></svg></span><span>Insert pages</span></button><button class="tool-card" data-tool="pagesize"><span class="tc-ico"><svg class="ico"><use href="#i-resize"/></svg></span><span>Page size and margins</span></button><button class="tool-card" data-tool="bookmarks"><span class="tc-ico"><svg class="ico"><use href="#i-bookmark"/></svg></span><span>Bookmarks</span></button><button class="tool-card" data-tool="certsign"><span class="tc-ico"><svg class="ico"><use href="#i-cert"/></svg></span><span>Sign with a digital ID</span></button><button class="tool-card" data-tool="certcheck"><span class="tc-ico"><svg class="ico"><use href="#i-cert"/></svg></span><span>Check signatures</span></button><button class="tool-card" data-tool="batch"><span class="tc-ico"><svg class="ico"><use href="#i-batch"/></svg></span><span>Many files at once</span></button><button class="tool-card" data-tool="read"><span class="tc-ico"><svg class="ico"><use href="#i-book"/></svg></span><span>Reading view</span></button><button class="tool-card" data-tool="measure"><span class="tc-ico"><svg class="ico"><use href="#i-ruler"/></svg></span><span>Measure</span></button><button class="tool-card" data-tool="replace"><span class="tc-ico"><svg class="ico"><use href="#i-search"/></svg></span><span>Find and replace</span></button><button class="tool-card" data-tool="bates"><span class="tc-ico"><svg class="ico"><use href="#i-hash"/></svg></span><span>Bates numbering</span></button><button class="tool-card" data-tool="shapes"><span class="tc-ico"><svg class="ico"><use href="#i-shapes"/></svg></span><span>Shapes</span></button><button class="tool-card" data-tool="stamps"><span class="tc-ico"><svg class="ico"><use href="#i-stamp"/></svg></span><span>Stamps and initials</span></button><button class="tool-card" data-tool="prepare"><span class="tc-ico"><svg class="ico"><use href="#i-fields"/></svg></span><span>Prepare for signing</span></button><button class="tool-card" data-tool="translate"><span class="tc-ico"><svg class="ico"><use href="#i-translate"/></svg></span><span>Translate</span></button><button class="tool-card" data-tool="speak"><span class="tc-ico"><svg class="ico"><use href="#i-speaker"/></svg></span><span>Read aloud</span></button><button class="tool-card" data-tool="exportall"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>Export all files</span></button><button class="tool-card" data-tool="extract"><span class="tc-ico"><svg class="ico"><use href="#i-extract"/></svg></span><span>Extract pages</span></button><button class="tool-card" data-tool="ocr"><span class="tc-ico"><svg class="ico"><use href="#i-scan"/></svg></span><span>Recognize text (OCR)</span></button><button class="tool-card" data-tool="print"><span class="tc-ico"><svg class="ico"><use href="#i-print"/></svg></span><span>Print</span></button><button class="tool-card" data-tool="protect"><span class="tc-ico"><svg class="ico"><use href="#i-lock"/></svg></span><span>Protect a PDF</span></button><button class="tool-card" data-tool="sign"><span class="tc-ico"><svg class="ico"><use href="#i-signature"/></svg></span><span>Fill and sign</span></button></div></div></div>
   <div id="main-content">
     <div id="left-sidebar" class="sidebar">
       <div id="side-scroll">
@@ -849,6 +875,8 @@
         <button id="btn-watermark" class="side-btn" title="A watermark or background on every page"><svg class="ico"><use href="#i-watermark"/></svg>Watermark</button>
         <button id="btn-pagesize" class="side-btn" title="Change the paper size, trim or add white margins"><svg class="ico"><use href="#i-resize"/></svg>Page size and margins</button>
         <button id="btn-insert" class="side-btn" title="Add pages from another file"><svg class="ico"><use href="#i-insert"/></svg>Insert pages</button>
+        <button id="btn-replace" class="side-btn" title="Change a word or phrase everywhere (Ctrl+H)"><svg class="ico"><use href="#i-search"/></svg>Find and replace</button>
+        <button id="btn-bates" class="side-btn" title="Running numbers on every page (ABC000001...), across all the files in the tab"><svg class="ico"><use href="#i-hash"/></svg>Bates numbering</button>
         <button id="btn-redact" class="side-btn" title="Black out text or pictures for good"><svg class="ico"><use href="#i-redact"/></svg>Redact</button>
         <button id="btn-ocr" class="side-btn" title="Find the words in scanned pages so you can search, copy and export them"><svg class="ico"><use href="#i-scan"/></svg>Recognize text (OCR)</button>
         </div>
@@ -891,7 +919,10 @@
     <div id="workspace">
       <div id="toast-message"></div>
 
-      <div id="bookmarks-panel"><div class="bm-head"><span>Bookmarks</span><span class="spacer"></span>
+      <div id="bookmarks-panel"><div class="bm-head"><span>My bookmarks</span><span class="spacer"></span>
+        <button id="my-mark-add" class="mini-btn" title="Bookmark this page (Ctrl+B)"><svg class="ico"><use href="#i-plus"/></svg>Add</button></div>
+        <div id="my-marks"></div>
+        <div class="bm-head"><span>In the file</span><span class="spacer"></span>
         <button id="bm-add" class="mini-btn" title="Bookmark this page"><svg class="ico"><use href="#i-plus"/></svg>Add</button>
         <button id="bm-auto" class="mini-btn" title="Make bookmarks from the headings">Auto</button></div>
         <div id="bm-list"></div></div>
@@ -961,6 +992,7 @@
             <svg id="measure-layer"></svg>
             <svg id="lasso-layer"></svg>
             <div id="shape-sel"><button class="sh-del" title="Delete (Delete key)">&#x2715;</button></div>
+            <svg id="guide-layer"></svg>
             <div id="ink-sel"><div class="is-bar"></div><span class="is-h" data-c="nw"></span><span class="is-h" data-c="ne"></span><span class="is-h" data-c="sw"></span><span class="is-h" data-c="se"></span></div>
           </div>
           </div>
@@ -980,6 +1012,8 @@
         <div class="sh-label">Fill</div><div class="ink-colors" id="shape-fill"></div>
         <div class="sh-label">Outline width</div><div class="size-row" id="shape-width"></div>
         <div class="slider-container"><label>Opacity</label><input type="range" id="shape-opacity" min="10" max="100" value="100"></div>
+        <div class="sh-label">Text inside (double-click a shape to type)</div><div class="ink-colors" id="shape-tcolor"></div>
+        <div class="size-row" id="shape-tsize"></div>
       </div>
       <div id="panel-measure" style="display:none;">
         <div class="tool-header active"><svg class="ico"><use href="#i-ruler"/></svg>Measure</div>
@@ -1645,10 +1679,13 @@
         del.title = 'Remove from list';
         div.append(dot, nameEl, del);
 
-        div.addEventListener('dragstart', () => { draggedFileItem = file; });
-        div.addEventListener('dragover', (e) => { e.preventDefault(); });
+        div.addEventListener('dragstart', () => { draggedFileItem = file; div.classList.add('dragging'); });
+        div.addEventListener('dragend', () => { div.classList.remove('dragging'); document.querySelectorAll('.queue-item').forEach(x => x.classList.remove('drop-here')); });
+        div.addEventListener('dragover', (e) => { e.preventDefault(); if (draggedFileItem) { document.querySelectorAll('.queue-item').forEach(x => x.classList.toggle('drop-here', x === div)); } });
         div.addEventListener('drop', (e) => {
           e.preventDefault();
+          if (!draggedFileItem || e.dataTransfer.files.length) return;
+          e.stopPropagation();
           let draggedIndex = fileQueue.indexOf(draggedFileItem);
           fileQueue.splice(draggedIndex, 1);
           fileQueue.splice(index, 0, draggedFileItem);
@@ -1883,6 +1920,7 @@
       document.getElementById('thumbnail-sidebar').style.display = 'none';
       
       let fileObj = fileQueue.find(f => f.originalPath === filePath);
+      if (fileObj) resumePage(fileObj);
       if (fileObj && fileObj.status === 'ready') {
           currentTempPdf = fileObj.pdfPath;
           pdfHistory = fileObj.history || (fileObj.history = []);
@@ -2575,17 +2613,7 @@
       });
     });
 
-    document.getElementById('btn-merge').addEventListener('click', async () => {
-      await syncEditsToPython();
-      let readyFiles = fileQueue.filter(f => f.status === 'ready').map(f => f.pdfPath);
-      if(readyFiles.length < 2) { return showToast("Add at least two converted files to merge.", true); }
-      fetch(BACKEND + '/merge_queue', {
-        method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ files: readyFiles, first_original_path: fileQueue[0].originalPath })
-      }).then(res=>res.json()).then(data => {
-        if(data.success) showToast(data.message);
-      });
-    });
+    document.getElementById('btn-merge').addEventListener('click', () => doMerge());
 
     document.getElementById('btn-save-modified').addEventListener('click', async () => {
       if(!currentTempPdf) return;
@@ -2743,7 +2771,8 @@
       ctx.restore();
     }
     const inkForPdf = s => {
-      if (s.shape) return { type: 'shape', kind: s.shape.kind, box: s.shape.box, points: s.points, color: s.color, fill: s.fill || null, size: s.size, opacity: s.opacity };
+      if (s.shape) return { type: 'shape', kind: s.shape.kind, box: s.shape.box, points: s.points, color: s.color, fill: s.fill || null, size: s.size, opacity: s.opacity,
+        rot: s.shape.rot || 0, text: s.shape.text || '', textColor: s.shape.textColor || '#111111', textSize: s.shape.textSize || 12, group: s.group || null, id: s.id || (s.id = Math.random().toString(36).slice(2)) };
       const o = { type: s.type, color: s.color, size: s.size, opacity: s.opacity, points: s.points };
       if (s.widths) { o.outline = inkOutline(s); o.widths = s.widths; }
       return o;
@@ -2797,6 +2826,10 @@
       };
       paint(); return paint;
     }
+    let recentColors = (() => { try { return JSON.parse(localStorage.getItem('recent-colors')) || []; } catch (e) { return []; } })();
+    const colorPainters = [];
+    function addRecentColor(c) { c = c.toLowerCase(); recentColors = [c].concat(recentColors.filter(x => x !== c)).slice(0, 8); try { localStorage.setItem('recent-colors', JSON.stringify(recentColors)); } catch (e) {} }
+    function paintAllColors() { colorPainters.forEach(f => f()); }
     function buildColors(box, colors, getColor, onPick, custom) {
       box.innerHTML = '';
       const light = c => { const n = parseInt(c.slice(1), 16); return ((n >> 16) * 299 + ((n >> 8) & 255) * 587 + (n & 255) * 114) / 1000 > 170; };
@@ -2804,15 +2837,27 @@
         const b = document.createElement('button'); b.className = 'ink-dot' + (light(c) ? ' light' : ''); b.style.background = c; b.dataset.c = c; b.title = c;
         b.addEventListener('click', () => onPick(c)); box.append(b);
       }
+      const recent = document.createElement('span'); recent.className = 'ink-recent'; recent.style.display = 'contents';
+      if (custom) box.append(recent);
       if (custom) {
         const b = document.createElement('label'); b.className = 'ink-dot ink-custom'; b.title = 'Any color';
-        b.innerHTML = '<input type="color">'; b.querySelector('input').addEventListener('input', e => onPick(e.target.value, true)); box.append(b);
+        b.innerHTML = '<input type="color">'; b.querySelector('input').addEventListener('input', e => onPick(e.target.value, true));
+        b.querySelector('input').addEventListener('change', e => { addRecentColor(e.target.value); paintAllColors(); });
+        box.append(b);
       }
       const paint = () => {
+        if (custom) {   // colors picked from the rainbow lately, ready to use again
+          recent.innerHTML = '';
+          for (const c of recentColors.filter(c => !colors.includes(c)).slice(0, 4)) {
+            const r = document.createElement('button'); r.className = 'ink-dot recent'; r.style.background = c; r.dataset.c = c; r.title = 'Recently used ' + c;
+            r.addEventListener('click', () => onPick(c)); recent.append(r);
+          }
+        }
         const cur = getColor().toLowerCase(); let found = false;
         box.querySelectorAll('.ink-dot[data-c]').forEach(b => { const on = b.dataset.c === cur; found = found || on; b.classList.toggle('selected', on); });
         const cu = box.querySelector('.ink-custom'); if (cu) { cu.classList.toggle('selected', !found); if (!found) cu.style.background = cur; else cu.style.background = ''; }
       };
+      colorPainters.push(paint);
       paint(); return paint;
     }
     // the page pen's panel
@@ -2923,7 +2968,13 @@
       ['hexagon', 'Hexagon'], ['octagon', 'Octagon'], ['star4', '4-point star'], ['star5', 'Star'], ['star6', '6-point star'], ['plus', 'Plus'],
       ['aright', 'Arrow right'], ['aleft', 'Arrow left'], ['aup', 'Arrow up'], ['adown', 'Arrow down'], ['bubble', 'Speech bubble'], ['roundbubble', 'Round speech bubble'],
       ['cloud', 'Cloud'], ['heart', 'Heart'], ['check', 'Check mark'], ['cross', 'Cross']];
-    function shapeOutline(kind, box) {   // points in page units; closed shapes repeat their first point
+    function shapeOutline(kind, box, rot) {   // turned about the box's middle when the shape is rotated
+      const pts = shapeOutline0(kind, box);
+      if (!rot || LINE_KINDS.includes(kind)) return pts;
+      const cx = (box[0] + box[2]) / 2, cy = (box[1] + box[3]) / 2, a = rot * Math.PI / 180, c = Math.cos(a), sn = Math.sin(a);
+      return pts.map(([x, y]) => [cx + (x - cx) * c - (y - cy) * sn, cy + (x - cx) * sn + (y - cy) * c]);
+    }
+    function shapeOutline0(kind, box) {   // points in page units; closed shapes repeat their first point
       const [bx0, by0, bx1, by1] = box;
       if (LINE_KINDS.includes(kind)) return [[bx0, by0], [bx1, by1]];
       const x0 = Math.min(bx0, bx1), y0 = Math.min(by0, by1), w = Math.abs(bx1 - bx0), h = Math.abs(by1 - by0);
@@ -3002,31 +3053,50 @@
         ctx.closePath();
         if (s.fill) { ctx.fillStyle = s.fill; ctx.fill(); }
         ctx.stroke();
+        if (s.shape.text && !s.editingText) drawShapeText(ctx, s, k);
       }
       ctx.restore();
     }
-    const shapeSet = (() => { const d = { kind: 'rect', color: '#2f6fd0', fill: null, size: 1.5, opacity: 100 }; try { Object.assign(d, JSON.parse(localStorage.getItem('shape-settings')) || {}); } catch (e) {} return d; })();
+    // words inside a shape: centered, wrapped to the shape's width, upright
+    function drawShapeText(ctx, s, k) {
+      const [a, b, c, d] = s.shape.box, x0 = Math.min(a, c), x1 = Math.max(a, c), y0 = Math.min(b, d), y1 = Math.max(b, d);
+      const size = (s.shape.textSize || 12) * k, pad = Math.max(4, (x1 - x0) * 0.06) * k, width = (x1 - x0) * k - 2 * pad;
+      ctx.save(); ctx.globalAlpha = 1; ctx.fillStyle = s.shape.textColor || '#111111';
+      ctx.font = `${size}px Helvetica, Arial, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      const lines = [];
+      for (const para of s.shape.text.split('\n')) {
+        let cur = '';
+        for (const w of para.split(' ')) { const t = cur ? cur + ' ' + w : w; if (cur && ctx.measureText(t).width > width) { lines.push(cur); cur = w; } else cur = t; }
+        lines.push(cur);
+      }
+      const lh = size * 1.25, top = (y0 + y1) / 2 * k - (lines.length - 1) * lh / 2;
+      lines.forEach((l, i) => ctx.fillText(l, (x0 + x1) / 2 * k, top + i * lh));
+      ctx.restore();
+    }
+    const shapeSet = (() => { const d = { kind: 'rect', color: '#2f6fd0', fill: null, size: 1.5, opacity: 100, textSize: 12, textColor: '#111111' }; try { Object.assign(d, JSON.parse(localStorage.getItem('shape-settings')) || {}); } catch (e) {} return d; })();
     const saveShapeSet = () => { try { localStorage.setItem('shape-settings', JSON.stringify(shapeSet)); } catch (e) {} };
     function makeShape(kind, box) {
       const s = { type: 'shape', shape: { kind, box }, color: shapeSet.color, fill: LINE_KINDS.includes(kind) ? null : shapeSet.fill, size: shapeSet.size, opacity: shapeSet.opacity / 100 };
       s.points = shapeOutline(kind, box); return s;
     }
-    const reshape = s => { s.points = shapeOutline(s.shape.kind, s.shape.box); };
+    const reshape = s => { s.points = shapeOutline(s.shape.kind, s.shape.box, s.shape.rot); };
     let selShape = null, shapeDrag = null, shapeDrawn = false;
     // the selected shape gets its own copy first, so undo still has it as it was
     function ownShape() {
       saveCanvasState();
       const c = Object.assign({}, selShape, { shape: Object.assign({}, selShape.shape, { box: selShape.shape.box.slice() }), points: selShape.points.map(p => p.slice()) });
+      if (inkSel && inkSel.includes(selShape)) inkSel = inkSel.map(x => x === selShape ? c : x);
       drawnStrokes = drawnStrokes.map(x => x === selShape ? c : x); selShape = c; hasUnsavedEdits = true;
     }
     function selectShape(s) {
       selShape = s; const el = document.getElementById('shape-sel');
       if (!el) return;
-      el.querySelectorAll('.sh-h').forEach(h => h.remove());
+      el.querySelectorAll('.sh-h, .sh-rot, .sh-txt').forEach(h => h.remove());
       if (!s) { el.classList.remove('show'); return; }
       const k = currentRenderScale, [a, b, c, d] = s.shape.box, line = LINE_KINDS.includes(s.shape.kind);
       const x0 = Math.min(a, c), y0 = Math.min(b, d), x1 = Math.max(a, c), y1 = Math.max(b, d);
-      Object.assign(el.style, { left: x0 * k + 'px', top: y0 * k + 'px', width: (x1 - x0) * k + 'px', height: (y1 - y0) * k + 'px' });
+      Object.assign(el.style, { left: x0 * k + 'px', top: y0 * k + 'px', width: (x1 - x0) * k + 'px', height: (y1 - y0) * k + 'px',
+        transform: !line && s.shape.rot ? `rotate(${s.shape.rot}deg)` : '' });
       el.classList.toggle('line', line); el.classList.add('show');
       const handles = line ? [['p0', a, b], ['p1', c, d]]
         : [['nw', x0, y0], ['n', (x0 + x1) / 2, y0], ['ne', x1, y0], ['e', x1, (y0 + y1) / 2], ['se', x1, y1], ['s', (x0 + x1) / 2, y1], ['sw', x0, y1], ['w', x0, (y0 + y1) / 2]];
@@ -3037,7 +3107,33 @@
         h.addEventListener('mousedown', e => { if (e.button) return; e.stopPropagation(); e.preventDefault(); ownShape(); shapeDrag = { mode: 'handle', h: id, box: selShape.shape.box.slice(), start: null, ratio: (x1 - x0) / ((y1 - y0) || 1) }; });
         el.append(h);
       }
+      if (!line) {
+        const r = document.createElement('span'); r.className = 'sh-rot'; r.title = 'Drag to turn (Shift: 15-degree steps)';
+        r.addEventListener('mousedown', e => { if (e.button) return; e.stopPropagation(); e.preventDefault(); ownShape(); shapeDrag = { mode: 'rotate', c: [(x0 + x1) / 2, (y0 + y1) / 2] }; });
+        el.append(r);
+        const t = document.createElement('button'); t.className = 'sh-txt'; t.textContent = s.shape.text ? 'Edit text' : 'Add text'; t.title = 'Type inside the shape (or double-click it)';
+        if (s.shape.rot) t.style.transform = `translateX(-50%) rotate(${-s.shape.rot}deg)`;   // stays upright to read
+        t.addEventListener('mousedown', e => { e.stopPropagation(); e.preventDefault(); editShapeText(selShape); });
+        el.append(t);
+      }
       paintShapePanel();
+    }
+    // type inside a shape: a box over it while typing, the shape draws the words afterwards
+    function editShapeText(s) {
+      if (!s || LINE_KINDS.includes(s.shape.kind)) return;
+      selShape = s; ownShape(); s = selShape;
+      const k = currentRenderScale, [a, b, c, d] = s.shape.box, x0 = Math.min(a, c), x1 = Math.max(a, c), y0 = Math.min(b, d), y1 = Math.max(b, d);
+      const ta = document.createElement('textarea'); ta.className = 'shape-text-edit'; ta.value = s.shape.text || '';
+      Object.assign(ta.style, { left: x0 * k + 'px', top: y0 * k + 'px', width: (x1 - x0) * k + 'px', height: (y1 - y0) * k + 'px',
+        fontSize: (s.shape.textSize || shapeSet.textSize) * k + 'px', color: s.shape.textColor || shapeSet.textColor });
+      if (!s.shape.textSize) { s.shape.textSize = shapeSet.textSize; s.shape.textColor = shapeSet.textColor; }
+      s.editingText = true; redrawCanvases();
+      document.getElementById('canvas-wrapper').append(ta);
+      ta.focus(); ta.select();
+      const done = () => { if (!ta.isConnected) return; s.shape.text = ta.value.trim(); delete s.editingText; ta.remove(); hasUnsavedEdits = true; redrawCanvases(); selectShape(s); };
+      ta.addEventListener('blur', done);
+      ta.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Escape' || (e.key === 'Enter' && (e.ctrlKey || !e.shiftKey) && !e.altKey && e.ctrlKey)) { e.preventDefault(); ta.blur(); } });
+      ta.addEventListener('mousedown', e => e.stopPropagation());
     }
     function shapeAt(p) {   // the topmost shape under the pointer (inside it, or near its line)
       for (let i = drawnStrokes.length - 1; i >= 0; i--) {
@@ -3056,7 +3152,16 @@
     }
     async function shapeDown(p, e) {
       const hit = shapeAt(p);
-      if (hit) { selectShape(hit); ownShape(); shapeDrag = { mode: 'move', start: p, box: selShape.shape.box.slice() }; return; }
+      if (hit && (e.shiftKey || (inkSel && inkSel.length) || hit.group)) {   // several at once: the shared selection box
+        let sel = inkSel ? inkSel.slice() : (selShape ? [selShape] : []);
+        const add = hit.group ? drawnStrokes.filter(x => x.group === hit.group) : [hit];
+        if (e.shiftKey && sel.includes(hit)) sel = sel.filter(x => !add.includes(x)); else for (const x of add) if (!sel.includes(x)) sel.push(x);
+        if (!e.shiftKey && !hit.group) sel = [hit];
+        selectShape(null);
+        if (sel.length === 1 && !sel[0].group) { clearInkSel(); selectShape(sel[0]); ownShape(); shapeDrag = { mode: 'move', start: p, box: selShape.shape.box.slice() }; return; }
+        inkSel = sel; showInkSel(); return;
+      }
+      if (hit) { clearInkSel(); selectShape(hit); ownShape(); shapeDrag = { mode: 'move', start: p, box: selShape.shape.box.slice() }; return; }
       // a shape saved in the file earlier: take it back out to edit it
       const saved = pageNotes.find(n => n.subject === 'Shape' && p[0] >= n.rect[0] - 3 && p[0] <= n.rect[2] + 3 && p[1] >= n.rect[1] - 3 && p[1] <= n.rect[3] + 3);
       if (saved) {
@@ -3066,13 +3171,15 @@
         if (!d.success || !d.shape) { pdfHistory.pop(); if (!d.success) showToast(d.error || "Couldn't open that shape", true); return; }
         await takeNewFile(d);
         await currentPdfDoc.getPage(pageNum); await new Promise(r => setTimeout(r, 30));
-        const sh = d.shape, s = { type: 'shape', shape: { kind: sh.kind, box: sh.box }, color: sh.color, fill: sh.fill, size: sh.size, opacity: sh.opacity };
-        reshape(s); drawnStrokes = [s]; undoStack = []; redoStack = []; updateInkButtons(); hasUnsavedEdits = true; redrawCanvases();
-        selectShape(s); return;
+        const make = sh => { const x = { type: 'shape', shape: { kind: sh.kind, box: sh.box, rot: sh.rot || 0, text: sh.text || '', textColor: sh.textColor, textSize: sh.textSize }, color: sh.color, fill: sh.fill, size: sh.size, opacity: sh.opacity, group: sh.group || undefined, id: sh.id }; reshape(x); return x; };
+        const all = [make(d.shape)].concat((d.shape.others || []).map(make));
+        drawnStrokes = all; undoStack = []; redoStack = []; updateInkButtons(); hasUnsavedEdits = true; redrawCanvases();
+        if (all.length > 1) { inkSel = all; showInkSel(); } else selectShape(all[0]);
+        return;
       }
-      // clicking away after drawing (or from a selected shape) goes back to Select, like other drawing apps;
+      // clicking away after drawing (or from a selection) goes back to Select, like other drawing apps;
       // to draw another, pick a shape again
-      if (selShape || shapeDrawn) { selectShape(null); shapeDrawn = false; hideToolPop(); switchTool('btn-pointer', 'pointer'); return; }
+      if (selShape || shapeDrawn || (inkSel && inkSel.length)) { selectShape(null); clearInkSel(); shapeDrawn = false; hideToolPop(); switchTool('btn-pointer', 'pointer'); return; }
       selectShape(null);
       saveCanvasState();
       const s = makeShape(shapeSet.kind, [p[0], p[1], p[0], p[1]]);
@@ -3080,36 +3187,77 @@
       shapeDrag = { mode: 'new', start: p };
       hideToolPop();
     }
+    // snap guides: edges and middles of the other shapes, and the page's middle
+    function snapTargets(except) {
+      const xs = [], ys = [], wrap = document.getElementById('canvas-wrapper'), k = currentRenderScale;
+      xs.push(wrap.clientWidth / k / 2); ys.push(wrap.clientHeight / k / 2);
+      for (const o of drawnStrokes) {
+        if (!o.shape || except.includes(o)) continue;
+        const [a, b, c, d] = o.shape.box; xs.push(Math.min(a, c), (a + c) / 2, Math.max(a, c)); ys.push(Math.min(b, d), (b + d) / 2, Math.max(b, d));
+      }
+      return { xs, ys };
+    }
+    function drawGuides(gx, gy) {
+      const svg = document.getElementById('guide-layer'), k = currentRenderScale; if (!svg) return;
+      svg.innerHTML = (gx !== null ? `<line x1="${gx * k}" y1="0" x2="${gx * k}" y2="100%"/>` : '') + (gy !== null ? `<line x1="0" y1="${gy * k}" x2="100%" y2="${gy * k}"/>` : '');
+    }
+    function snapValue(vals, targets, tol) {   // the smallest nudge that puts one of vals on a target
+      let best = null;
+      for (const v of vals) for (const t of targets) { const dd = t - v; if (Math.abs(dd) <= tol && (best === null || Math.abs(dd) < Math.abs(best.d))) best = { d: dd, at: t }; }
+      return best;
+    }
     function shapeMove(p, e) {
       const d = shapeDrag, s = selShape; if (!s) return;
-      const line = LINE_KINDS.includes(s.shape.kind);
+      const line = LINE_KINDS.includes(s.shape.kind), tol = 6 / currentRenderScale, T = e.altKey ? { xs: [], ys: [] } : snapTargets([s]);
+      let gx = null, gy = null;
+      const snapPoint = q => {   // a corner or end being dragged lines up with others
+        const sx = snapValue([q[0]], T.xs, tol), sy = snapValue([q[1]], T.ys, tol);
+        if (sx) { q = [q[0] + sx.d, q[1]]; gx = sx.at; } if (sy) { q = [q[0], q[1] + sy.d]; gy = sy.at; }
+        return q;
+      };
       if (d.mode === 'new') {
-        let x = p[0], y = p[1];
+        let [x, y] = snapPoint(p);
         if (e.shiftKey) {   // Shift: even sides (squares, circles), or lines at 45-degree steps
           if (line) { const an = Math.round(Math.atan2(y - d.start[1], x - d.start[0]) / (Math.PI / 4)) * Math.PI / 4, L = Math.hypot(x - d.start[0], y - d.start[1]); x = d.start[0] + L * Math.cos(an); y = d.start[1] + L * Math.sin(an); }
           else { const m = Math.max(Math.abs(x - d.start[0]), Math.abs(y - d.start[1])); x = d.start[0] + Math.sign(x - d.start[0] || 1) * m; y = d.start[1] + Math.sign(y - d.start[1] || 1) * m; }
         }
         s.shape.box = line ? [d.start[0], d.start[1], x, y] : [Math.min(d.start[0], x), Math.min(d.start[1], y), Math.max(d.start[0], x), Math.max(d.start[1], y)];
       } else if (d.mode === 'move') {
-        const dx = p[0] - d.start[0], dy = p[1] - d.start[1], b = d.box;
+        let dx = p[0] - d.start[0], dy = p[1] - d.start[1]; const b = d.box;
+        const xs = [Math.min(b[0], b[2]) + dx, (b[0] + b[2]) / 2 + dx, Math.max(b[0], b[2]) + dx], ys = [Math.min(b[1], b[3]) + dy, (b[1] + b[3]) / 2 + dy, Math.max(b[1], b[3]) + dy];
+        const sx = snapValue(xs, T.xs, tol), sy = snapValue(ys, T.ys, tol);
+        if (sx) { dx += sx.d; gx = sx.at; } if (sy) { dy += sy.d; gy = sy.at; }
         s.shape.box = [b[0] + dx, b[1] + dy, b[2] + dx, b[3] + dy];
-      } else {   // a handle
-        const b = d.box.slice(), h = d.h;
-        if (h === 'p0') { b[0] = p[0]; b[1] = p[1]; } else if (h === 'p1') { b[2] = p[0]; b[3] = p[1]; }
+      } else if (d.mode === 'rotate') {
+        let deg = Math.atan2(p[1] - d.c[1], p[0] - d.c[0]) * 180 / Math.PI + 90;
+        deg = e.shiftKey ? Math.round(deg / 15) * 15 : (Math.abs(((deg % 90) + 90) % 90) < 3 || Math.abs(((deg % 90) + 90) % 90) > 87 ? Math.round(deg / 90) * 90 : deg);
+        s.shape.rot = ((deg % 360) + 360) % 360;
+      } else {   // a handle, worked out in the shape's own (turned) frame so the far side stays put
+        const b = d.box.slice(), h = d.h, rot = (s.shape.rot || 0) * Math.PI / 180;
+        if (h === 'p0') { const q = snapPoint(p); b[0] = q[0]; b[1] = q[1]; } else if (h === 'p1') { const q = snapPoint(p); b[2] = q[0]; b[3] = q[1]; }
         else {
-          if (h.includes('w')) b[0] = Math.min(p[0], b[2] - 2); if (h.includes('e')) b[2] = Math.max(p[0], b[0] + 2);
-          if (h.includes('n')) b[1] = Math.min(p[1], b[3] - 2); if (h.includes('s')) b[3] = Math.max(p[1], b[1] + 2);
+          const c0 = [(d.box[0] + d.box[2]) / 2, (d.box[1] + d.box[3]) / 2], cs = Math.cos(-rot), sn = Math.sin(-rot);
+          let q = [c0[0] + (p[0] - c0[0]) * cs - (p[1] - c0[1]) * sn, c0[1] + (p[0] - c0[0]) * sn + (p[1] - c0[1]) * cs];
+          if (!rot) q = snapPoint(q);
+          if (h.includes('w')) b[0] = Math.min(q[0], b[2] - 2); if (h.includes('e')) b[2] = Math.max(q[0], b[0] + 2);
+          if (h.includes('n')) b[1] = Math.min(q[1], b[3] - 2); if (h.includes('s')) b[3] = Math.max(q[1], b[1] + 2);
           if (e.shiftKey && h.length === 2) {   // Shift on a corner keeps the shape's proportions
             const w = b[2] - b[0], hh = w / d.ratio;
             if (h.includes('n')) b[1] = b[3] - hh; else b[3] = b[1] + hh;
           }
+          if (rot) {   // the middle moved in the turned frame: carry the box along so the far side doesn't jump
+            const c1 = [(b[0] + b[2]) / 2, (b[1] + b[3]) / 2], dx = c1[0] - c0[0], dy = c1[1] - c0[1];
+            const wx = c0[0] + dx * Math.cos(rot) - dy * Math.sin(rot), wy = c0[1] + dx * Math.sin(rot) + dy * Math.cos(rot);
+            b[0] += wx - c1[0]; b[2] += wx - c1[0]; b[1] += wy - c1[1]; b[3] += wy - c1[1];
+          }
         }
         s.shape.box = b;
       }
+      drawGuides(gx, gy);
       reshape(s); redrawCanvases(); selectShape(s);
     }
     function shapeUp() {
-      const d = shapeDrag; shapeDrag = null; const s = selShape; if (!s) return;
+      const d = shapeDrag; shapeDrag = null; drawGuides(null, null); const s = selShape; if (!s) return;
       const [a, b, c, e] = s.shape.box;
       if (d.mode === 'new' && Math.hypot(c - a, e - b) < 4) {   // a click, not a drag: a shape of a standard size there
         const w = LINE_KINDS.includes(s.shape.kind) ? 100 : 90, h = LINE_KINDS.includes(s.shape.kind) ? 0 : (['rect', 'roundrect', 'bubble', 'aright', 'aleft', 'parallelogram', 'trapezoid'].includes(s.shape.kind) ? 60 : 90);
@@ -3140,7 +3288,7 @@
       }
     });
     // the panel: picking a kind, colors, width and opacity (applied to the selected shape too)
-    let paintShapeLine, paintShapeFill, paintShapeWidth;
+    let paintShapeLine, paintShapeFill, paintShapeWidth, paintShapeTColor, paintShapeTSize;
     function applyToShape(fn) { if (!selShape) return; ownShape(); fn(selShape); reshape(selShape); redrawCanvases(); selectShape(selShape); }
     (() => {
       const grid = document.getElementById('shape-grid');
@@ -3161,19 +3309,28 @@
       fillBox.prepend(none);
       paintShapeWidth = buildSizeRow(document.getElementById('shape-width'), [0.75, 1.5, 3, 5, 8], () => (selShape ? selShape.size : shapeSet.size),
         w => { shapeSet.size = w; saveShapeSet(); if (selShape) { selShape.size = w; hasUnsavedEdits = true; redrawCanvases(); } }, () => '#8a8f98', [0.25, 16]);
+      paintShapeTColor = buildColors(document.getElementById('shape-tcolor'), ['#111111', '#ffffff', '#2f6fd0', '#e03c3c', '#22a559', '#f59e0b'], () => (selShape && selShape.shape.textColor) || shapeSet.textColor,
+        c => { shapeSet.textColor = c; saveShapeSet(); applyToShape(s => { s.shape.textColor = c; }); paintShapePanel(); }, true);
+      paintShapeTSize = buildSizeRow(document.getElementById('shape-tsize'), [9, 12, 16, 24, 36], () => (selShape && selShape.shape.textSize) || shapeSet.textSize,
+        w => { shapeSet.textSize = w; saveShapeSet(); if (selShape) { selShape.shape.textSize = w; hasUnsavedEdits = true; redrawCanvases(); } }, () => '#8a8f98', [6, 72]);
       const op = document.getElementById('shape-opacity');
       op.addEventListener('pointerdown', () => { if (selShape) ownShape(); });
       op.addEventListener('input', () => { shapeSet.opacity = +op.value; saveShapeSet(); if (selShape) { selShape.opacity = +op.value / 100; redrawCanvases(); } });
     })();
     function paintShapePanel() {
       document.querySelectorAll('.shape-btn').forEach(b => b.classList.toggle('selected', b.dataset.k === (selShape ? selShape.shape.kind : shapeSet.kind)));
-      if (paintShapeLine) { paintShapeLine(); paintShapeFill(); paintShapeWidth(); }
+      if (paintShapeLine) { paintShapeLine(); paintShapeFill(); paintShapeWidth(); paintShapeTColor(); paintShapeTSize(); }
       const noFill = !(selShape ? selShape.fill : shapeSet.fill), fb = document.getElementById('shape-fill');
       fb.querySelector('.none').classList.toggle('selected', noFill);
       if (noFill) { const cu = fb.querySelector('.ink-custom'); cu.classList.remove('selected'); cu.style.background = ''; }
       document.getElementById('shape-opacity').value = selShape ? Math.round(selShape.opacity * 100) : shapeSet.opacity;
     }
     document.getElementById('btn-shape').addEventListener('click', () => { shapeDrawn = false; switchTool('btn-shape', 'shape'); paintShapePanel(); });
+    document.getElementById('event-glass').addEventListener('dblclick', e => {
+      if (currentTool !== 'shape') return;
+      const r = document.getElementById('canvas-wrapper').getBoundingClientRect(), p = [(e.clientX - r.left) / currentRenderScale, (e.clientY - r.top) / currentRenderScale];
+      const hit = shapeAt(p); if (hit) { clearInkSel(); editShapeText(hit); }
+    });
     // with the Select arrow, clicking a shape's outline (or inside a filled one) picks it up to edit it
     function shapeUnder(p) {
       for (let i = drawnStrokes.length - 1; i >= 0; i--) {
@@ -3198,6 +3355,156 @@
       shapeDrawn = false; switchTool('btn-shape', 'shape'); hideToolPop();
       shapeDown(p, e);
     }, true);
+
+    // ---------- copy and paste: shapes, strokes, stamps, signatures, text boxes ----------
+    // Ctrl+C / Ctrl+V (Ctrl+D duplicates). A picture copied in another program pastes in as a picture,
+    // copied text as a text box.
+    let clip = null;
+    const CLIP_MARK = 'MyPDFKit clipboard ';
+    function cloneInk(x, dx, dy) {
+      const c = Object.assign({}, x, { points: x.points.map(p => [p[0] + dx, p[1] + dy]), widths: x.widths && x.widths.slice(), id: undefined });
+      if (x.shape) { const b = x.shape.box; c.shape = Object.assign({}, x.shape, { box: [b[0] + dx, b[1] + dy, b[2] + dx, b[3] + dy] }); }
+      return c;
+    }
+    function copySelection() {
+      const k = currentRenderScale, el = activeTextObj;
+      if (inkSel && inkSel.length) clip = { kind: 'ink', items: inkSel.map(x => cloneInk(x, 0, 0)) };
+      else if (selShape) clip = { kind: 'ink', items: [cloneInk(selShape, 0, 0)] };
+      else if (el && el.isConnected && el.classList.contains('pdf-image')) clip = { kind: 'image', src: el.querySelector('img').src, w: el.offsetWidth / k, h: el.offsetHeight / k, x: parseFloat(el.style.left) / k, y: parseFloat(el.style.top) / k };
+      else if (el && el.isConnected && el.classList.contains('new-text') && el.textContent.trim()) clip = { kind: 'text', text: el.textContent, size: +el.dataset.customSize || 14, color: el.style.color, x: parseFloat(el.style.left) / k, y: parseFloat(el.style.top) / k };
+      else return false;
+      clip.from = currentActiveFile + '#' + pageNum; clip.id = Date.now();
+      require('electron').clipboard.writeText(CLIP_MARK + clip.id);
+      return true;
+    }
+    function pasteClip() {
+      const k = currentRenderScale, cb = require('electron').clipboard, txt = cb.readText();
+      const ours = clip && txt === CLIP_MARK + clip.id;
+      if (!ours) {   // something copied in another program
+        const img = cb.readImage();
+        if (!img.isEmpty()) { const sz = img.getSize(), w = Math.min(300, sz.width * 0.75); spawnImageOnCanvas(img.toDataURL(), w * k + 'px', w * sz.height / sz.width * k + 'px'); showToast('Pasted the picture. Drag its corners to resize it'); return true; }
+        if (txt && txt.trim()) { addTextAt(72, 72, txt.trim().slice(0, 5000), 12); showToast('Pasted the text as a text box'); return true; }
+        return false;
+      }
+      const same = clip.from === currentActiveFile + '#' + pageNum, off = same ? 12 : 0;
+      if (clip.kind === 'ink') {
+        saveCanvasState();
+        const items = clip.items.map(x => cloneInk(x, off, off));
+        if (same) clip.items = items.map(x => cloneInk(x, 0, 0));   // pasting again steps further along
+        const groups = {}; items.forEach(x => { if (x.group) x.group = groups[x.group] = groups[x.group] || 'g' + Math.random().toString(36).slice(2, 8); });
+        drawnStrokes = drawnStrokes.concat(items); hasUnsavedEdits = true; redrawCanvases();
+        if (items.length === 1 && items[0].shape) { switchTool('btn-shape', 'shape'); hideToolPop(); clearInkSel(); selectShape(items[0]); }
+        else { inkSel = items; showInkSel(); }
+      } else if (clip.kind === 'image') {
+        const div = spawnImageOnCanvas(clip.src, clip.w * k + 'px', clip.h * k + 'px');
+        div.style.left = (clip.x + off) * k + 'px'; div.style.top = (clip.y + off) * k + 'px';
+        if (same) { clip.x += off; clip.y += off; }
+      } else {
+        addTextAt(clip.x + off, clip.y + off, clip.text, clip.size, clip.color);
+        if (same) { clip.x += off; clip.y += off; }
+      }
+      return true;
+    }
+    document.addEventListener('keydown', e => {
+      if (!e.ctrlKey || e.altKey || e.shiftKey || !currentTempPdf) return;
+      const t = document.activeElement, typing = t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));
+      const key = e.key.toLowerCase();
+      if (key === 'c' && !typing && !String(window.getSelection())) { if (copySelection()) { e.preventDefault(); showToast('Copied'); } }
+      else if (key === 'v' && !typing) { if (pasteClip()) e.preventDefault(); }
+      else if (key === 'd' && !typing) { if (copySelection()) { e.preventDefault(); pasteClip(); } }
+    });
+
+    // ---------- find and replace ----------
+    async function doReplace() {
+      if (!await needDoc()) return;
+      const sel = String(window.getSelection()).trim();
+      const v = await askDialog('Find and replace', [
+        { key: 'find', label: 'Find', value: sel || document.getElementById('find-box').value || '' },
+        { key: 'repl', label: 'Replace with', value: '' },
+        { key: 'case', label: 'Match capital letters', type: 'checkbox', value: false },
+        { key: 'whole', label: 'Whole words only', type: 'checkbox', value: true },
+      ], 'Replace all');
+      if (!v || !v.find.trim()) return;
+      showToast('Replacing...');
+      pushHistory();
+      const d = await api('replace_text', { filepath: currentTempPdf, find: v.find, replace: v.repl, case: v.case, whole: v.whole });
+      if (d.success && !d.count) { pdfHistory.pop(); return showToast(`"${v.find}" isn't in this PDF`, true); }
+      await takeNewFile(d, d.success ? `Replaced ${d.count} ${d.count === 1 ? 'time' : 'times'} on ${d.pages} ${d.pages === 1 ? 'page' : 'pages'}. Ctrl+Z puts it back` : '');
+    }
+    document.getElementById('btn-replace').addEventListener('click', doReplace);
+    document.addEventListener('keydown', e => { if (e.ctrlKey && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'h') { e.preventDefault(); doReplace(); } });
+
+    // ---------- Bates numbering ----------
+    async function doBates() {
+      if (!await needDoc()) return;
+      const many = fileQueue.filter(f => f.status === 'ready').length > 1;
+      let last = {}; try { last = JSON.parse(localStorage.getItem('bates')) || {}; } catch (e) {}
+      const v = await askDialog('Bates numbering', [
+        { key: 'prefix', label: 'Before the number', value: last.prefix ?? 'ABC', hint: 'e.g. a case or client code' },
+        { key: 'start', label: 'Start at', type: 'number', min: 0, step: 1, value: last.next || 1 },
+        { key: 'digits', label: 'Digits', type: 'number', min: 1, max: 12, step: 1, value: last.digits || 6 },
+        { key: 'suffix', label: 'After the number (optional)', value: last.suffix || '' },
+        { key: 'position', label: 'Where', type: 'select', value: last.position || 'br', options: [['br', 'Bottom right'], ['bc', 'Bottom center'], ['bl', 'Bottom left'], ['tr', 'Top right'], ['tc', 'Top center'], ['tl', 'Top left']] },
+        { key: 'size', label: 'Size', type: 'number', min: 6, max: 24, step: 1, value: last.size || 10 },
+        ...(many ? [{ key: 'all', label: 'Every file in this tab, in order (numbers carry on from file to file)', type: 'checkbox', value: true }] : []),
+      ], 'Number pages');
+      if (!v) return;
+      const targets = v.all ? fileQueue.filter(f => f.status === 'ready') : [fileQueue.find(f => f.originalPath === currentActiveFile)];
+      showToast('Numbering...');
+      const d = await api('bates', { files: targets.map(f => f.originalPath === currentActiveFile ? currentTempPdf : f.pdfPath), prefix: v.prefix, start: +v.start, digits: +v.digits, suffix: v.suffix, position: v.position, size: +v.size });
+      if (!d.success) return showToast(d.error || "Couldn't number the pages", true);
+      try { localStorage.setItem('bates', JSON.stringify({ prefix: v.prefix, next: d.next, digits: +v.digits, suffix: v.suffix, position: v.position, size: +v.size })); } catch (e) {}
+      for (let i = 0; i < targets.length; i++) {
+        const f = targets[i];
+        if (f.originalPath === currentActiveFile) { pushHistory(); await takeNewFile({ success: true, new_file: d.files[i] }); continue; }
+        (f.history = f.history || []).push(f.pdfPath); f.pdfPath = d.files[i];
+      }
+      showToast(`Numbered up to ${v.prefix}${String(d.next - 1).padStart(+v.digits, '0')}${v.suffix}. The next file starts at ${d.next}. Save to keep it`);
+    }
+    document.getElementById('btn-bates').addEventListener('click', doBates);
+
+    // ---------- merge, in the order you choose ----------
+    async function doMerge() {
+      await syncEditsToPython();
+      const files = fileQueue.filter(f => f.status === 'ready');
+      if (files.length < 2) return showToast('Add at least two files to this tab to combine them', true);
+      const bd = document.createElement('div'); bd.className = 'backdrop';
+      bd.innerHTML = `<div class="dialog merge-dlg"><h3>Combine into one PDF</h3><p class="merge-tip">Drag to put them in order. Untick any to leave out.</p><div class="merge-list"></div>
+        <div class="field"><label>Name</label><input class="m-name" value="Combined"></div>
+        <label class="field-check merge-bm"><input type="checkbox" class="m-bm" checked> Add a bookmark for each file</label>
+        <div class="dialog-actions"><button class="btn quiet m-cancel">Cancel</button><button class="btn primary m-go">Combine</button></div></div>`;
+      const list = bd.querySelector('.merge-list'); let order = files.slice(), dragged = null;
+      const draw = () => {
+        list.innerHTML = '';
+        order.forEach((f, i) => {
+          const row = document.createElement('div'); row.className = 'merge-row'; row.draggable = true;
+          row.innerHTML = `<span class="m-grip">&#8942;&#8942;</span><input type="checkbox" checked><span class="m-n">${i + 1}</span><span class="m-file"></span><span class="m-up" title="Move up">&#9650;</span><span class="m-down" title="Move down">&#9660;</span>`;
+          row.querySelector('.m-file').textContent = f.name; row.querySelector('input').checked = !f.leaveOut;
+          row.querySelector('input').addEventListener('change', e => { f.leaveOut = !e.target.checked; });
+          row.querySelector('.m-up').onclick = () => { if (i) { [order[i - 1], order[i]] = [order[i], order[i - 1]]; draw(); } };
+          row.querySelector('.m-down').onclick = () => { if (i < order.length - 1) { [order[i + 1], order[i]] = [order[i], order[i + 1]]; draw(); } };
+          row.addEventListener('dragstart', () => { dragged = f; row.classList.add('dragging'); });
+          row.addEventListener('dragend', () => row.classList.remove('dragging'));
+          row.addEventListener('dragover', e => { e.preventDefault(); e.stopPropagation(); });
+          row.addEventListener('drop', e => { e.preventDefault(); e.stopPropagation(); if (!dragged || dragged === f) return; order = order.filter(x => x !== dragged); order.splice(order.indexOf(f) + (e.offsetY > row.offsetHeight / 2 ? 1 : 0), 0, dragged); draw(); });
+          list.append(row);
+        });
+      };
+      draw(); document.body.append(bd);
+      const close = () => { files.forEach(f => delete f.leaveOut); bd.remove(); };
+      bd.querySelector('.m-cancel').onclick = close;
+      bd.querySelector('.m-go').onclick = async () => {
+        const use = order.filter(f => !f.leaveOut);
+        if (use.length < 2) return showToast('Pick at least two files', true);
+        const name = bd.querySelector('.m-name').value, bm = bd.querySelector('.m-bm').checked; close();
+        showToast('Combining...');
+        const d = await api('merge_queue', { files: use.map(f => f.originalPath === currentActiveFile ? currentTempPdf : f.pdfPath), names: use.map(f => f.name), first_original_path: use[0].originalPath, bookmarks: bm, name });
+        if (!d.success) return showToast(d.error || "Couldn't combine them", true);
+        fileQueue.push({ name: d.path.split(/[\\/]/).pop(), originalPath: d.path, pdfPath: null, status: 'pending' });
+        renderQueueUI(); backgroundProcessQueue(); processAndLoad(d.path); showToast(d.message);
+      };
+      bd.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
+    }
 
     // ---------- snapping rough shapes ----------
     function rdp(P, eps) {   // the few points that keep a line's shape (Ramer-Douglas-Peucker)
@@ -3296,6 +3603,11 @@
     function showInkSel() {
       const el = document.getElementById('ink-sel'), k = currentRenderScale;
       if (!inkSel || !inkSel.length) return clearInkSel();
+      const many = inkSel.length > 1, grouped = many && inkSel.every(x => x.group && x.group === inkSel[0].group);
+      el.querySelector('.is-align').style.display = many ? '' : 'none';
+      el.querySelector('[data-a=group]').style.display = many ? '' : 'none';
+      el.querySelector('[data-a=group]').textContent = grouped ? 'Ungroup' : 'Group';
+      el.querySelector('[data-a=text]').style.display = inkSel.some(x => !x.shape) ? '' : 'none';
       const b = inkBox(inkSel), pad = 4;
       Object.assign(el.style, { left: (b[0] - pad) * k + 'px', top: (b[1] - pad) * k + 'px', width: (b[2] - b[0] + 2 * pad) * k + 'px', height: (b[3] - b[1] + 2 * pad) * k + 'px' });
       el.classList.add('show');
@@ -3303,20 +3615,30 @@
     // the selection's own copies, so undo still has the strokes as they were
     function ownSel() {
       saveCanvasState();
-      const copies = inkSel.map(s => Object.assign({}, s, { points: s.points.map(p => p.slice()), widths: s.widths && s.widths.slice(), shape: s.shape && Object.assign({}, s.shape) }));
+      const copies = inkSel.map(s => Object.assign({}, s, { points: s.points.map(p => p.slice()), widths: s.widths && s.widths.slice(), shape: s.shape && Object.assign({}, s.shape, { box: s.shape.box.slice() }) }));
       drawnStrokes = drawnStrokes.map(s => { const i = inkSel.indexOf(s); return i < 0 ? s : copies[i]; });
       inkSel = copies; hasUnsavedEdits = true;
     }
     (() => {
       const el = document.getElementById('ink-sel'), bar = el.querySelector('.is-bar');
       bar.innerHTML = INK_COLORS.slice(0, 7).map(c => `<button class="ink-dot" data-c="${c}" style="background:${c}" title="Make it this color"></button>`).join('') +
+        `<select class="is-align" title="Line them up"><option value="">Align</option><option value="left">Left edges</option><option value="hcenter">Centers (across)</option><option value="right">Right edges</option>
+          <option value="top">Tops</option><option value="vcenter">Middles (up and down)</option><option value="bottom">Bottoms</option><option value="hdist">Space evenly across</option><option value="vdist">Space evenly up and down</option></select>` +
+        `<button class="txt" data-a="group" title="Keep them together">Group</button><button class="txt" data-a="save" title="Keep in your stamps library to place again">Save as stamp</button>` +
         `<button class="txt" data-a="text" title="Read the handwriting and replace it with typed text">To text</button><button class="txt del" data-a="del" title="Delete (Delete key)">Delete</button>`;
       bar.addEventListener('mousedown', e => e.stopPropagation());
+      bar.querySelector('.is-align').addEventListener('change', e => { const v = e.target.value; e.target.value = ''; if (v && inkSel && inkSel.length > 1) alignSel(v); });
       bar.addEventListener('click', async e => {
         const b = e.target.closest('button'); if (!b || !inkSel) return;
         if (b.dataset.c) { ownSel(); inkSel.forEach(s => s.color = b.dataset.c); redrawCanvases(); return; }
         if (b.dataset.a === 'del') return deleteInkSel();
         if (b.dataset.a === 'text') inkToText();
+        if (b.dataset.a === 'group') {
+          ownSel(); const grouped = inkSel.every(x => x.group && x.group === inkSel[0].group), id = grouped ? undefined : 'g' + Math.random().toString(36).slice(2, 8);
+          inkSel.forEach(x => { if (id) x.group = id; else delete x.group; }); showInkSel();
+          showToast(id ? 'Grouped: they move and resize together' : 'Ungrouped');
+        }
+        if (b.dataset.a === 'save') saveSelectionAsStamp(inkSel);
       });
       el.addEventListener('mousedown', e => {
         if (e.button !== 0 || !inkSel) return;
@@ -3350,6 +3672,26 @@
         window.addEventListener('mousemove', move); window.addEventListener('mouseup', up);
       });
     })();
+    // line up the selected things, or space them evenly
+    function moveInk(s, dx, dy) {
+      s.points = s.points.map(p => [p[0] + dx, p[1] + dy]);
+      if (s.shape) { const b = s.shape.box; s.shape = Object.assign({}, s.shape, { box: [b[0] + dx, b[1] + dy, b[2] + dx, b[3] + dy] }); }
+    }
+    function alignSel(how) {
+      ownSel();
+      const B = inkBox(inkSel), items = inkSel.map(x => ({ x, b: inkBox([x]) }));
+      if (how === 'hdist' || how === 'vdist') {
+        const i0 = how === 'hdist' ? 0 : 1, sorted = items.sort((a, b) => (a.b[i0] + a.b[i0 + 2]) - (b.b[i0] + b.b[i0 + 2]));
+        const total = sorted.reduce((t, it) => t + it.b[i0 + 2] - it.b[i0], 0), gap = (B[i0 + 2] - B[i0] - total) / (sorted.length - 1);
+        let at = B[i0];
+        for (const it of sorted) { const d = at - it.b[i0]; moveInk(it.x, i0 === 0 ? d : 0, i0 === 1 ? d : 0); at += it.b[i0 + 2] - it.b[i0] + gap; }
+      } else for (const it of items) {
+        const b = it.b, dx = { left: B[0] - b[0], right: B[2] - b[2], hcenter: (B[0] + B[2] - b[0] - b[2]) / 2 }[how] || 0;
+        const dy = { top: B[1] - b[1], bottom: B[3] - b[3], vcenter: (B[1] + B[3] - b[1] - b[3]) / 2 }[how] || 0;
+        moveInk(it.x, dx, dy);
+      }
+      redrawCanvases(); showInkSel();
+    }
     function deleteInkSel() {
       if (!inkSel) return;
       saveCanvasState(); const gone = new Set(inkSel);
@@ -3481,7 +3823,23 @@
       if (line2) { g.font = f2; g.fillText(line2, W / 2, 46 * S); }
       return c.toDataURL('image/png');
     }
+    // the selected shapes (and strokes) kept in the stamps library, to place again anywhere
+    async function saveSelectionAsStamp(items) {
+      if (!items || !items.length) return;
+      const v = await askDialog('Save as a stamp', [{ key: 'n', label: 'Name', value: items.length === 1 && items[0].shape ? (items[0].shape.text || 'Shape') : 'My shapes' }], 'Save');
+      if (!v) return;
+      const b = inkBox(items), kept = items.map(x => cloneInk(x, -b[0], -b[1]));
+      const all = await loadStamps(); all.push({ id: Date.now().toString(36), kind: 'shapes', name: v.n.trim() || 'Shapes', items: kept, w: b[2] - b[0], h: b[3] - b[1] });
+      await saveStamps(all); showToast('Saved in Stamps and initials (E-Sign)');
+    }
+    function shapesPreview(st) {
+      const c = document.createElement('canvas'), k = Math.min(3, 400 / Math.max(st.w, st.h, 1));
+      c.width = Math.max(8, st.w * k + 8); c.height = Math.max(8, st.h * k + 8);
+      const g = c.getContext('2d'); g.translate(4, 4); st.items.forEach(x => drawInk(g, x, k));
+      return c.toDataURL('image/png');
+    }
     async function stampImage(st) {
+      if (st.kind === 'shapes') return shapesPreview(st);
       if (st.kind === 'text') return textStampImage(st);
       if (st.kind === 'date') return textStampImage({ text: 'Received', line2: '{date}', color: '#2f6fd0', style: 'rounded' });
       if (st.kind === 'initials') return savedInitials();
@@ -3503,6 +3861,14 @@
         cell.addEventListener('click', e => {
           if (e.target.classList.contains('sc-del')) return;
           bd.remove();
+          if (st.kind === 'shapes') {
+            return startPlacing({ kind: 'shapes', make: (x, y) => {
+              saveCanvasState();
+              const items = st.items.map(it => cloneInk(it, x - st.w / 2, y - st.h / 2)), gid = 'g' + Math.random().toString(36).slice(2, 8);
+              if (items.length > 1) items.forEach(it => it.group = gid);
+              drawnStrokes = drawnStrokes.concat(items); hasUnsavedEdits = true; redrawCanvases();
+            } }, 'Click where it goes');
+          }
           const im = new Image();
           im.onload = () => {
             const wPt = st.kind === 'initials' ? 40 : st.kind === 'image' ? Math.min(140, im.width / 3) : Math.min(220, im.width / 4.4);
@@ -3752,6 +4118,76 @@
     }
     document.getElementById('btn-translate').addEventListener('click', doTranslate);
 
+    // ---------- reading: where you were in every file, and your own bookmarks ----------
+    // Kept on this PC (the PDF itself isn't changed), in a file written as you read, so even if the
+    // computer shuts off suddenly you come back to the page you were on.
+    const STATE_FILE = require('path').join(ipcRenderer.sendSync('user-data-sync'), 'reading.json');
+    let reading = (() => {
+      let a = {}, b = {};
+      try { a = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8')); } catch (e) {}
+      try { b = JSON.parse(localStorage.getItem('reading')) || {}; } catch (e) {}
+      const out = Object.assign({}, b);
+      for (const [k, v] of Object.entries(a)) if (!out[k] || (v.at || 0) >= (out[k].at || 0)) out[k] = v;   // the newer of the two
+      return out;
+    })();
+    let readingTimer = null;
+    const rkey = p => require('path').resolve(p).toLowerCase();   // the same file however its path is written
+    reading = Object.entries(reading).reduce((out, [k, v]) => {   // records of the same file written two ways: one record, every bookmark kept
+      const key = rkey(k), o = out[key];
+      if (!o) out[key] = v;
+      else {
+        const newer = (v.at || 0) > (o.at || 0) ? v : o, marks = (o.marks || []).concat(v.marks || []);
+        out[key] = Object.assign({}, newer, { marks: marks.filter((m, i) => marks.findIndex(x => x.page === m.page && x.note === m.note) === i) });
+      }
+      return out;
+    }, {});
+    function saveReading() {
+      clearTimeout(readingTimer);
+      readingTimer = setTimeout(() => {
+        try { localStorage.setItem('reading', JSON.stringify(reading)); } catch (e) {}
+        try { const tmp = STATE_FILE + '.tmp'; fs.writeFileSync(tmp, JSON.stringify(reading)); fs.renameSync(tmp, STATE_FILE); } catch (e) {}
+      }, 400);
+    }
+    function noteReading(n) {
+      if (!currentActiveFile || !currentPdfDoc) return;
+      const r = reading[rkey(currentActiveFile)] = reading[rkey(currentActiveFile)] || {};
+      r.page = n; r.pages = currentPdfDoc.numPages; r.at = Date.now(); saveReading();
+    }
+    // a file opened again: back to the page you were on
+    function resumePage(f) {
+      const r = reading[rkey(f.originalPath)];
+      if (!f.lastPage && r && r.page > 1) { f.lastPage = r.page; f.resumed = r.page; }
+    }
+    function myMarks() { const r = currentActiveFile && reading[rkey(currentActiveFile)]; return (r && r.marks) || []; }
+    function drawMyMarks() {
+      const box = document.getElementById('my-marks'); if (!box) return;
+      const marks = myMarks().slice().sort((a, b) => a.page - b.page);
+      box.innerHTML = marks.length ? '' : '<div class="bm-empty">Your own bookmarks: they stay on this PC and don\'t change the file. Press Ctrl+B on any page.</div>';
+      for (const m of marks) {
+        const row = document.createElement('div'); row.className = 'bm-row' + (m.page === pageNum ? ' here' : ''); row.style.paddingLeft = '6px'; row.dataset.page = m.page;
+        row.innerHTML = `<span class="bm-star">&#9733;</span><span class="bm-title"></span><span class="bm-pg">${m.page}</span><span class="bm-act"><button data-a="del" title="Remove">&#x2715;</button></span>`;
+        row.querySelector('.bm-title').textContent = m.note || `Page ${m.page}`;
+        row.title = (m.note ? m.note + ' · ' : '') + `page ${m.page}` + (m.at ? ' · ' + new Date(m.at).toLocaleDateString() : '');
+        row.addEventListener('click', async e => {
+          if (e.target.closest('button')) { const r = reading[rkey(currentActiveFile)]; r.marks = r.marks.filter(x => x !== m); saveReading(); drawMyMarks(); return; }
+          await syncEditsToPython(); pageNum = Math.min(m.page, currentPdfDoc.numPages); renderPage(pageNum);
+          if (reader) reader.col.scrollTo(pageNum, true);
+        });
+        box.append(row);
+      }
+    }
+    async function addMyMark() {
+      if (!currentTempPdf) return;
+      const n = reader ? (reader.page || pageNum) : pageNum;
+      const v = await askDialog(`Bookmark page ${n}`, [{ key: 'note', label: 'Note (optional)', value: '' }], 'Bookmark');
+      if (!v) return;
+      const r = reading[rkey(currentActiveFile)] = reading[rkey(currentActiveFile)] || { page: n };
+      (r.marks = r.marks || []).push({ page: n, note: v.note.trim(), at: Date.now() }); r.at = Date.now(); saveReading();
+      if (!rootEl.classList.contains('bm-open') && !reader) openBookmarks(true);
+      drawMyMarks(); showToast(`Bookmarked page ${n}`);
+    }
+    document.addEventListener('keydown', e => { if (e.ctrlKey && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'b' && !(document.activeElement && document.activeElement.isContentEditable)) { e.preventDefault(); addMyMark(); } });
+
     // ---------- open tabs come back next time ----------
     // What's open is kept as you work; next start, every tab returns with its files and pages, including
     // changes not saved yet (their working copies are kept until then).
@@ -3765,16 +4201,28 @@
           name: f.name, originalPath: f.originalPath, lastPage: f.lastPage || 1,
           pdfPath: f.pdfPath && f.pdfPath !== f.originalPath && fs.existsSync(f.pdfPath) && ((f.history || []).length || f.keepEdits) ? f.pdfPath : null })) });
         const list = tabs.map(keep).filter(t => t.files.length);
-        localStorage.setItem('session', JSON.stringify({ active: Math.max(0, tabs.filter(t => keep(t).files.length).indexOf(activeTab)), tabs: list }));
+        const sess = JSON.stringify({ active: Math.max(0, tabs.filter(t => keep(t).files.length).indexOf(activeTab)), tabs: list, at: Date.now() });
+        if (sess !== lastSession) {
+          lastSession = sess;
+          localStorage.setItem('session', sess);
+          try { const f2 = STATE_FILE.replace(/reading\.json$/, 'session.json'); fs.writeFileSync(f2 + '.tmp', sess); fs.renameSync(f2 + '.tmp', f2); } catch (e) {}
+        }
       } catch (e) {}
     }
     window.addEventListener('beforeunload', saveSession);
     setInterval(saveSession, 4000);
-    let sessionRestored = false;
+    let sessionRestored = false, lastSession = '';
     function restoreSession() {
       if (sessionRestored) return; sessionRestored = true;
-      let data = null; try { data = JSON.parse(localStorage.getItem('session')); } catch (e) {}
-      if (!data || !data.tabs || !data.tabs.length || fileQueue.length) return;
+      let data = null, disk = null;
+      try { data = JSON.parse(localStorage.getItem('session')); } catch (e) {}
+      try { disk = JSON.parse(fs.readFileSync(STATE_FILE.replace(/reading\.json$/, 'session.json'), 'utf8')); } catch (e) {}
+      if (disk && (!data || (disk.at || 0) > (data.at || 0))) data = disk;   // whichever was saved last
+      if (!data || !data.tabs || !data.tabs.length) return;
+      const opened = fileQueue.length ? tabs.filter(t => t.files.length) : [];   // the app was opened with files: keep their tabs too
+      const openedPaths = new Set(opened.flatMap(t => t.files.map(f => rkey(f.originalPath))));
+      data.tabs = data.tabs.map(t => Object.assign({}, t, { files: t.files.filter(f => !openedPaths.has(rkey(f.originalPath))) })).filter(t => t.files.length);
+      if (!data.tabs.length) return;
       let edits = 0;
       tabs = [];
       for (const t of data.tabs) {
@@ -3783,7 +4231,8 @@
           : { name: f.name, originalPath: f.originalPath, pdfPath: null, status: 'pending', lastPage: f.lastPage });
         tab.open = t.open;
       }
-      enterTab(tabs[data.active] || tabs[0]);
+      if (opened.length) { tabs = tabs.concat(opened); renderTabs(); }
+      else enterTab(tabs[data.active] || tabs[0]);
       renderTabs(); backgroundProcessQueue();
       showToast(edits ? "Your files are back as you left them, with the changes you hadn't saved yet" : 'Your files are back as you left them');
     }
@@ -4177,7 +4626,9 @@
       showSignatureBanner(pdfPath, pdfData);
       setTimeout(checkSignHere, 400);
       pdfjsLib.getDocument({data: pdfData}).promise.then(function(pdf) {
-        currentPdfDoc = pdf; 
+        currentPdfDoc = pdf;
+        const fr = fileQueue.find(f => f.originalPath === currentActiveFile && f.resumed);
+        if (fr && targetPage === fr.resumed) { const pg = fr.resumed; setTimeout(() => showToast(`Carrying on from page ${pg}, where you left off`), 600); delete fr.resumed; }
         pageNum = Math.min(Math.max(1, targetPage), pdf.numPages); 
         renderPage(pageNum);
         generateThumbnails();
@@ -4250,12 +4701,13 @@
 
         document.querySelectorAll('.thumb-wrapper').forEach(w => w.classList.remove('active'));
         const activeThumb = document.querySelector(`.thumb-wrapper[data-page-index="${num - 1}"]`);
-        if (activeThumb) activeThumb.classList.add('active');
+        if (activeThumb) { activeThumb.classList.add('active'); activeThumb.scrollIntoView({ block: 'nearest' }); }
 
         page.getTextContent().then(function(textContent) {
           // a page with no text is probably a scan: offer OCR once per file
           const f = fileQueue.find(x => x.originalPath === currentActiveFile);
-          if (f && !f.ocrHinted && !textContent.items.some(it => it.str.trim())) {
+          const drawingFile = f && /\.(dxf|dwg|dwfx?|plt|hpgl?|hgl|stl|obj|ply|off|ai|eps|ps|psd|psb|skp|rvt|rfa|3dm|max|blend|ifc|dgn|step|stp|iges|igs|sld\w+|ipt|iam|f3d|c4d|fbx|dae|3ds|svgz?)$/i.test(f.originalPath);
+          if (f && !f.ocrHinted && !drawingFile && !textContent.items.some(it => it.str.trim())) {
             f.ocrHinted = true;
             showToast('This page looks like a scan. Use Recognize text (OCR) in Edit to search and copy its words');
           }
@@ -4980,6 +5432,8 @@
     // things that follow the page on screen
     function pageChanged(num) {
       clearInkSel(); selectShape(null);
+      noteReading(num);
+      document.querySelectorAll('#my-marks .bm-row').forEach(r => r.classList.toggle('here', +r.dataset.page === num));
       if (side && document.getElementById('sv-sync').checked && side.doc.numPages >= num) side.col.scrollTo(num, true);
       document.querySelectorAll('.bm-row').forEach(r => r.classList.toggle('here', +r.dataset.page === num));
       if (num !== lastShownPage && currentTool === 'measure') clearMeasure();
@@ -5085,9 +5539,11 @@
       if (currentPdfDoc) renderPage(pageNum);
     }
     railBm.addEventListener('click', () => openBookmarks());
+    document.getElementById('my-mark-add').addEventListener('click', () => addMyMark());
     try { if (localStorage.getItem('bm-open') === '1') { rootEl.classList.add('bm-open'); railBm.classList.add('active'); } } catch (e) {}
     async function refreshBookmarks() {
       if (!rootEl.classList.contains('bm-open') || !currentTempPdf) return;
+      drawMyMarks();
       const path = currentTempPdf, d = await api('toc', { filepath: path });
       if (path !== currentTempPdf) return;
       bookmarks = d.toc || []; drawBookmarks();
@@ -5169,10 +5625,12 @@
           <button class="icon-tool rd-out" title="Smaller (-)"><svg class="ico"><use href="#i-zout"/></svg></button>
           <button class="icon-tool rd-in" title="Bigger (+)"><svg class="ico"><use href="#i-zin"/></svg></button>
           <button class="icon-tool rd-dark" title="Dark pages"><svg class="ico"><use href="#i-moon"/></svg></button>
+          <button class="icon-tool rd-mark" title="Bookmark this page (Ctrl+B)"><svg class="ico"><use href="#i-bookmark"/></svg></button>
           <button class="btn quiet rd-exit" title="Back to editing (Esc)">Exit reading view</button></div><div class="rd-body"></div>`;
         document.body.append(el);
         el.querySelector('.rd-exit').onclick = closeReader;
         el.querySelector('.rd-dark').onclick = () => setDark(!rootEl.classList.contains('dark-pages'));
+        el.querySelector('.rd-mark').onclick = () => addMyMark();
         el.querySelector('.rd-in').onclick = () => zoomReader(1.15);
         el.querySelector('.rd-out').onclick = () => zoomReader(1 / 1.15);
       }
@@ -5183,7 +5641,7 @@
       let zoom = 1;
       try { zoom = +localStorage.getItem('reader-zoom') || 1; } catch (e) {}
       const width = () => Math.min(body.clientWidth - 40, 860) * zoom;
-      reader = { el, zoom, col: pageColumn(body, doc, { width, onPage: n => { reader.page = n; pageText(n); } }), page: pageNum, width };
+      reader = { el, zoom, col: pageColumn(body, doc, { width, onPage: n => { reader.page = n; pageText(n); noteReading(n); } }), page: pageNum, width };
       pageText(pageNum);
       reader.col.scrollTo(pageNum);
       body.tabIndex = -1; body.focus();
@@ -5655,7 +6113,7 @@
       compress: () => document.getElementById('btn-compress').click(), split: () => document.getElementById('btn-split').click(),
       number: () => document.getElementById('btn-number').click(), delpages: showPageDelete,
       exportall: doExportAll, extract: showPagePicking, ocr: doOcr, print: doPrint, fillform: startFilling, compare: doCompare, redact: startRedacting, comment: () => startMarkup(), template: doTemplate, watermark: doWatermark, sidebyside: openSideBySide, insert: () => doInsertPages(), pagesize: doPageSize,
-      bookmarks: () => { goTab('edit'); openBookmarks(true); }, certsign: doCertSign, certcheck: () => checkSignatures(), batch: doBatch, read: openReader, measure: startMeasure, shapes: () => { goTab('edit'); switchTool('btn-shape', 'shape'); }, stamps: openStamps, prepare: startPrepare, translate: doTranslate, speak: () => startSpeaking(), edit: () => goTab('edit'), sign: () => { goTab('sign'); }
+      bookmarks: () => { goTab('edit'); openBookmarks(true); }, certsign: doCertSign, certcheck: () => checkSignatures(), batch: doBatch, read: openReader, measure: startMeasure, replace: doReplace, bates: doBates, shapes: () => { goTab('edit'); switchTool('btn-shape', 'shape'); }, stamps: openStamps, prepare: startPrepare, translate: doTranslate, speak: () => startSpeaking(), edit: () => goTab('edit'), sign: () => { goTab('sign'); }
     };
     // Delete pages: bring up the page thumbnails with their trash buttons showing for a moment
     async function showPageDelete() {

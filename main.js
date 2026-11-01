@@ -20,7 +20,12 @@ if (!gotLock) {
 const OPENABLE = new RegExp('\\.(' +['pdf', 'doc', 'docx', 'docm', 'dot', 'dotx', 'dotm', 'rtf', 'odt', 'wps', 'wpd',
   'xls', 'xlsx', 'xlsm', 'xlsb', 'xlt', 'xltx', 'csv', 'tsv', 'ods', 'ppt', 'pptx', 'pptm', 'pps', 'ppsx', 'pot', 'potx', 'odp',
   'jpg', 'jpeg', 'jfif', 'png', 'bmp', 'gif', 'tif', 'tiff', 'webp', 'ico', 'pnm', 'jxr', 'xps', 'oxps', 'epub', 'fb2', 'cbz', 'mobi', 'svg',
-  'html', 'htm', 'mhtml', 'mht', 'xhtml', 'txt', 'md', 'markdown', 'log', 'json', 'xml', 'yaml', 'yml', 'ini', 'cfg', 'conf'].join('|') + ')$', 'i');
+  'html', 'htm', 'mhtml', 'mht', 'xhtml', 'txt', 'md', 'markdown', 'log', 'json', 'xml', 'yaml', 'yml', 'ini', 'cfg', 'conf',
+  // design, CAD, 3D and photo files
+  'dxf', 'dwg', 'dwf', 'dwfx', 'plt', 'hpgl', 'hpg', 'hgl', 'psd', 'psb', 'heic', 'heif', 'avif', 'tga', 'dds', 'pcx', 'jp2', 'j2k', 'emf', 'wmf', 'svgz',
+  'ai', 'eps', 'ps', 'stl', 'obj', 'ply', 'off', 'skp', 'rvt', 'rfa', '3dm', 'max', 'blend', 'indd', 'idml', 'cdr', 'afdesign', 'afphoto', 'afpub',
+  'sketch', 'fig', 'xd', 'pages', 'numbers', 'key', 'vsd', 'vsdx', 'pub', 'ifc', 'dgn', 'step', 'stp', 'iges', 'igs', 'sldprt', 'sldasm', 'slddrw',
+  'ipt', 'iam', 'f3d', 'c4d', 'fbx', 'dae', '3ds', 'cr2', 'cr3', 'nef', 'arw', 'dng', 'raf', 'orf', 'rw2', 'pef', 'srw', 'clo', 'zprj', 'avt', 'pds', 'eml'].join('|') + ')$', 'i');
 function filesFromArgv(argv) {
   return argv.slice(app.isPackaged ? 1 : 2).filter(a => OPENABLE.test(a) && fs.existsSync(a));
 }
@@ -127,6 +132,7 @@ function setupAutoUpdate() {
 }
 ipcMain.handle('app-version', () => app.getVersion());
 ipcMain.handle('user-data', () => app.getPath('userData'));
+ipcMain.on('user-data-sync', e => { e.returnValue = app.getPath('userData'); });
 ipcMain.handle('pick-folder', async () => {
   const r = await dialog.showOpenDialog(win, { properties: ['openDirectory'], title: 'Pick a folder' });
   return r.canceled ? null : r.filePaths[0];

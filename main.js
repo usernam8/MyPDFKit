@@ -72,6 +72,8 @@ function createWindow() {
   });
   if (app.isPackaged) Menu.setApplicationMenu(null);
   win.once('ready-to-show', () => win.show());
+  // closing the main window ends the app, even if a hidden helper window (printing) is still open
+  win.on('closed', () => { win = null; app.quit(); });
   // Safety net: never leave the window hidden if the first paint is delayed or fails
   setTimeout(() => { if (win && !win.isDestroyed() && !win.isVisible()) win.show(); }, 2500);
 
@@ -88,7 +90,7 @@ function createWindow() {
 }
 
 app.on('second-instance', (_e, argv) => {
-  if (!win) return;
+  if (!win || win.isDestroyed()) return;
   if (win.isMinimized()) win.restore();
   win.focus();
   const files = filesFromArgv(argv);
@@ -139,11 +141,12 @@ ipcMain.handle('print-pages', async (_e, pages) => {
   </style>` + pages.map(p => `<div class="pg"><img src="${require('url').pathToFileURL(p.path).href}"></div>`).join('');
   const file = path.join(path.dirname(pages[0].path), 'print.html');
   fs.writeFileSync(file, html);
-  const pw = new BrowserWindow({ show: false, webPreferences: { sandbox: true } });
+  const pw = new BrowserWindow({ show: false, parent: win, webPreferences: { sandbox: true } });
   try {
     await pw.loadFile(file);
     await pw.webContents.executeJavaScript('Promise.all([...document.images].map(i => i.decode().catch(() => {})))');
-    return await new Promise(resolve => pw.webContents.print({ silent: false, printBackground: true, landscape, margins: { marginType: 'none' } },
+    // pageSize must be given: Electron 34 otherwise sends an empty page size and no dialog ever opens
+    return await new Promise(resolve => pw.webContents.print({ silent: false, printBackground: true, landscape, pageSize: 'Letter', margins: { marginType: 'none' } },
       (ok, reason) => resolve(ok || reason === 'cancelled' || reason === 'Print job canceled' ? { ok } : { error: "Couldn't print: " + reason })));
   } finally {
     pw.destroy();

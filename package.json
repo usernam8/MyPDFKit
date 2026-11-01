@@ -8,7 +8,7 @@
     "start": "electron .",
     "build:server": "python -m PyInstaller --noconfirm --onedir --noconsole --name server --hidden-import win32timezone --hidden-import fontTools.subset --collect-submodules winrt --collect-data docx --collect-data pptx server.py",
     "build": "npm run build:server && electron-builder --win",
-    "release": "npm run build:server && electron-builder --win && powershell -NoProfile -ExecutionPolicy Bypass -File publish-release.ps1"
+    "release": "npm run build:server && electron-builder --win --publish never && powershell -NoProfile -ExecutionPolicy Bypass -File publish-release.ps1"
   },
   "dependencies": {
     "electron-updater": "^6.3.9",

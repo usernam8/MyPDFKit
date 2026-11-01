@@ -1631,7 +1631,9 @@ def render_pages():
         doc = fitz.open(fp)
         out = tempfile.mkdtemp(dir=TEMP_DIR, prefix='print_')
         pages = []
-        for i, p in enumerate(doc):
+        wanted = request.json.get('pages') or range(1, doc.page_count + 1)   # 1-based; all when not given
+        for n in wanted:
+            i, p = n - 1, doc[n - 1]
             f = os.path.join(out, f'{i + 1}.jpg')
             p.get_pixmap(dpi=200).save(f, jpg_quality=92)
             pages.append({"path": f, "w": p.rect.width, "h": p.rect.height})

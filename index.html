@@ -2118,18 +2118,21 @@
     async function doPrint() {
       if (!await needDoc()) return;
       if (document.querySelector('.print-bd')) return;
-      showToast('Getting the pages ready to print...');
+      // The preview is drawn here by pdf.js, one sheet at a time, so the window opens at once; print-quality
+      // pictures are made by the backend only for the chosen pages, when Print is pressed.
+      const hadEdits = hasUnsavedEdits;
       await syncEditsToPython();
-      const [d, printers] = await Promise.all([api('render_pages', { filepath: currentTempPdf }), ipcRenderer.invoke('printers').catch(() => [])]);
-      if (!d.success) return showToast(d.error || "Couldn't print", true);
-      document.getElementById('toast-message').classList.remove('show');
+      const doc = hadEdits ? await pdfjsLib.getDocument({ data: new Uint8Array(fs.readFileSync(currentTempPdf)) }).promise : currentPdfDoc;
+      const [all, printers] = await Promise.all([
+        Promise.all(Array.from({ length: doc.numPages }, (_, i) => doc.getPage(i + 1).then(p => { const v = p.getViewport({ scale: 1 }); return { w: v.width, h: v.height }; }))),
+        ipcRenderer.invoke('printers').catch(() => [])]);
       const saved = (() => { try { return JSON.parse(localStorage.getItem('print-settings')) || {}; } catch (e) { return {}; } })();
-      const all = d.pages, here = pageNum;
+      const here = pageNum;
 
       const bd = document.createElement('div'); bd.className = 'backdrop print-bd';
       bd.innerHTML = `<div class="dialog print-dlg">
         <div class="pp-left">
-          <div class="pp-stage"><div class="pp-sheet"><img alt=""></div></div>
+          <div class="pp-stage"><div class="pp-sheet"><canvas></canvas></div></div>
           <div class="pp-nav"><button class="mini-btn pp-prev" title="Previous sheet">&#8249;</button><span class="pp-count"></span><button class="mini-btn pp-next" title="Next sheet">&#8250;</button></div>
         </div>
         <div class="pp-right">
@@ -2167,12 +2170,13 @@
         if (o !== 'auto') return o === 'landscape';
         return list.filter(n => all[n - 1].w > all[n - 1].h).length > list.length / 2;
       };
-      const draw = () => {
+      let task = null, drawn = '';
+      const draw = async () => {
         const list = chosen();
         const printBtn = bd.querySelector('.pp-print');
         $('custom').classList.toggle('bad', $('range').value === 'custom' && !list && $('custom').value.trim() !== '');
         printBtn.disabled = !list;
-        const sh = bd.querySelector('.pp-sheet'), img = sh.querySelector('img');
+        const sh = bd.querySelector('.pp-sheet'), img = sh.querySelector('canvas');
         if (!list) { img.style.display = 'none'; bd.querySelector('.pp-count').textContent = 'Type the pages to print'; return; }
         sheet = Math.min(sheet, list.length - 1);
         let [pw, ph] = PAPER[$('paper').value];
@@ -2184,10 +2188,21 @@
         const fit = Math.min(pw / p.w, ph / p.h);
         const f = scale === 'fit' ? fit : scale === 'shrink' ? Math.min(1, fit) : 1;
         Object.assign(img.style, { display: '', width: p.w * f * k + 'px', height: p.h * f * k + 'px', filter: $('color').value === 'bw' ? 'grayscale(1)' : '' });
-        img.src = require('url').pathToFileURL(p.path).href;
         bd.querySelector('.pp-count').textContent = `Sheet ${sheet + 1} of ${list.length}` + (list.length < all.length || list[sheet] !== sheet + 1 ? ` (page ${list[sheet]})` : '');
         bd.querySelector('.pp-prev').disabled = sheet === 0;
         bd.querySelector('.pp-next').disabled = sheet >= list.length - 1;
+        // draw the page only when it or its size on screen changed (color and the rest are just CSS)
+        const zoom = p.w * f * k * devicePixelRatio / p.w, key = list[sheet] + '@' + zoom.toFixed(3);
+        if (key === drawn) return;
+        drawn = key;
+        if (task) task.cancel();
+        const page = await doc.getPage(list[sheet]);
+        const vp = page.getViewport({ scale: zoom });
+        const off = document.createElement('canvas'); off.width = Math.ceil(vp.width); off.height = Math.ceil(vp.height);
+        task = page.render({ canvasContext: off.getContext('2d'), viewport: vp, annotationMode: pdfjsLib.AnnotationMode.ENABLE_STORAGE });
+        try { await task.promise; } catch (e) { return; }   // cancelled by a newer draw
+        task = null;
+        img.width = off.width; img.height = off.height; img.getContext('2d').drawImage(off, 0, 0);
       };
       bd.querySelectorAll('select, input').forEach(el => el.addEventListener('input', () => {
         if (el === $('range')) { $('custom').style.display = el.value === 'custom' ? '' : 'none'; if (el.value === 'custom') $('custom').focus(); sheet = 0; }
@@ -2202,8 +2217,16 @@
         const list = chosen(); if (!list) return;
         const s = { printer: sel.value, paper: $('paper').value, orient: $('orient').value, scale: $('scale').value, color: $('color').value, duplex: $('duplex').value };
         try { localStorage.setItem('print-settings', JSON.stringify(s)); } catch (e) {}
+        const btn = bd.querySelector(system ? '.pp-system' : '.pp-print'), label = btn.textContent;
+        bd.querySelectorAll('button, select, input').forEach(el => el.disabled = true);
+        btn.textContent = 'Preparing...';
+        const d = await api('render_pages', { filepath: currentTempPdf, pages: list });
+        if (!d.success) {
+          bd.querySelectorAll('button, select, input').forEach(el => el.disabled = false); btn.textContent = label;
+          return showToast(d.error || "Couldn't print", true);
+        }
         close();
-        const r = await ipcRenderer.invoke('print-pages', list.map(n => all[n - 1]), {
+        const r = await ipcRenderer.invoke('print-pages', d.pages, {
           system, deviceName: s.printer, copies: Math.max(1, Math.min(999, parseInt($('copies').value) || 1)), paper: s.paper,
           paperSize: PAPER[s.paper], landscape: landscapeFor(list), scale: s.scale, color: s.color === 'color', duplex: s.duplex });
         if (r && r.error) showToast(r.error, true);

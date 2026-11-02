@@ -468,12 +468,22 @@
     .rail-btn.active { background:var(--accent-soft); color:var(--accent); }
     .rail-btn .ico { width:18px; height:18px; }
     .rail-sep { width:24px; height:1px; background:var(--line); margin:4px 0; }
-      #drop-message { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:380px; max-width:90%; text-align:center; color:var(--dim); pointer-events:none; }
-    #drop-message .drop-box { border:1.5px dashed #484950; border-radius:10px; padding:40px 28px 34px; }
-    #drop-message .ico-lg { color:var(--faint); }
-    #drop-message h2 { margin:14px 0 6px; font-size:17px; font-weight:600; color:var(--text); }
-    #drop-message p { margin:0 0 20px; line-height:1.55; }
-    #drop-message .btn { pointer-events:auto; }
+      #drop-message { position:absolute; z-index:5; top:50%; left:50%; transform:translate(-50%,-50%); width:380px; max-width:90%; text-align:center; color:var(--dim); pointer-events:none; }
+    #drop-message .drop-box { border:1.5px dashed rgba(255,255,255,.10); border-radius:22px; padding:44px 28px 36px; background:rgba(255,255,255,.015); transition:border-color .18s, background .18s, transform .18s; }
+    #drop-message .drop-orb { width:68px; height:68px; margin:0 auto; border-radius:50%; display:grid; place-items:center; background:var(--accent-soft); color:var(--accent); transition:transform .18s; }
+    #drop-message .drop-orb .ico { width:30px; height:30px; stroke-width:1.6; }
+    #drop-message h2 { margin:18px 0 4px; font-size:19px; font-weight:600; letter-spacing:.2px; color:var(--text); }
+    #drop-message .drop-link { pointer-events:auto; background:none; border:0; color:var(--accent); font:inherit; font-size:13px; cursor:pointer; padding:4px 8px; border-radius:6px; }
+    #drop-message .drop-link:hover { background:var(--accent-soft); }
+    body.dragging-in #drop-message .drop-box { border-color:var(--accent); background:var(--accent-soft); transform:scale(1.03); }
+    body.dragging-in #drop-message .drop-orb { transform:translateY(-4px); }
+    .welcome { max-width:430px; text-align:center; padding:30px 30px 24px; }
+    .welcome .drop-orb { width:64px; height:64px; margin:0 auto 14px; border-radius:50%; display:grid; place-items:center; background:var(--accent-soft); color:var(--accent); }
+    .welcome .drop-orb .ico { width:28px; height:28px; }
+    .welcome h2 { margin:0 0 8px; font-size:20px; font-weight:600; color:var(--text); }
+    .welcome p { margin:0 0 18px; color:var(--dim); line-height:1.6; font-size:13.5px; }
+    .welcome .kinds { display:flex; flex-wrap:wrap; justify-content:center; gap:6px; margin:0 0 22px; }
+    .welcome .kinds span { font-size:12px; padding:4px 10px; border-radius:999px; background:var(--raised); border:1px solid var(--line); color:var(--text); }
 
     #page-nav { display:none; flex-direction:column; gap:4px; align-items:center; margin-top:auto; user-select:none; }
     .nav-btn { display:flex; align-items:center; justify-content:center; width:34px; height:30px; background:transparent; border:0; border-radius:7px; color:var(--dim); cursor:pointer; }
@@ -1020,10 +1030,9 @@
             <button id="redact-find" class="btn quiet">Find words...</button><button id="redact-cancel" class="btn quiet">Cancel</button><button id="redact-apply" class="btn danger-btn">Apply</button></div>
           <div id="drop-message">
             <div class="drop-box">
-              <svg class="ico ico-lg"><use href="#i-docup"/></svg>
-              <h2>Drop files here</h2>
-              <p>PDFs, Office files, pictures, web pages, e-books and text files.<br>Everything opens as a PDF you can edit.</p>
-              <button id="drop-choose" class="btn primary">Choose files</button>
+              <div class="drop-orb"><svg class="ico"><use href="#i-docup"/></svg></div>
+              <h2>Drop files</h2>
+              <button id="drop-choose" class="drop-link">or choose files</button>
             </div>
           </div>
 
@@ -5327,6 +5336,27 @@
     // ---- interface additions ----
     document.getElementById('popup-cancel').addEventListener('click', () => { document.getElementById('custom-popup').style.display = 'none'; });
     document.getElementById('drop-choose').addEventListener('click', () => document.getElementById('btn-add-files').click());
+    // the drop area lights up while files are dragged over the window
+    { let depth = 0;
+      window.addEventListener('dragenter', e => { if (e.dataTransfer && [...e.dataTransfer.types].includes('Files')) { depth++; document.body.classList.add('dragging-in'); } });
+      window.addEventListener('dragleave', () => { if (depth && --depth === 0) document.body.classList.remove('dragging-in'); });
+      window.addEventListener('drop', () => { depth = 0; document.body.classList.remove('dragging-in'); }, true); }
+    // the first time the app opens: what it can do (after that the drop area just says "Drop files")
+    (() => {
+      let seen = false; try { seen = localStorage.getItem('welcome-seen') === '1' || recentFiles().length > 0; } catch (e) {}
+      if (seen) return;
+      try { localStorage.setItem('welcome-seen', '1'); } catch (e) {}
+      const bd = document.createElement('div'); bd.className = 'backdrop';
+      bd.innerHTML = `<div class="dialog welcome"><div class="drop-orb"><svg class="ico"><use href="#i-docup"/></svg></div>
+        <h2>Welcome to MyPDFKit</h2>
+        <p>Drop any file on the window, or choose files. Everything opens as a PDF you can edit, sign, print and share.</p>
+        <div class="kinds"><span>PDF</span><span>Word</span><span>Excel</span><span>PowerPoint</span><span>Pictures</span><span>Web pages</span><span>E-books</span><span>Text</span><span>CAD and design</span><span>Email</span></div>
+        <button class="btn primary">Get started</button></div>`;
+      const close = () => bd.remove();
+      bd.querySelector('button').addEventListener('click', close);
+      bd.addEventListener('click', e => { if (e.target === bd) close(); });
+      document.body.append(bd);
+    })();
 
     // mark the picked swatch, and clear the mark when a custom color is chosen
     document.querySelectorAll('.color-row').forEach(row => {

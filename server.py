@@ -1108,6 +1108,30 @@ def _label_pages(doc):
                     'po': po, 'qty_field': qty[0].field_name if qty else None})
     return out
 
+def _qty_box(page, w):
+    """The box the quantity goes in, as it looks on the label: the drawn frame around the field (a frame
+    that runs off the page edge counts to the edge), inside its border. Without one, the field itself."""
+    c = (w.rect.tl + w.rect.br) / 2
+    best = None
+    for d in page.get_drawings():
+        r = d['rect'] & page.rect
+        if d.get('color') is None or not r.contains(c) or r.width > page.rect.width * 0.8: continue
+        if best is None or r.get_area() < best[0].get_area(): best = (r, d.get('width') or 1)
+    if not best: return w.rect
+    r, bw = best
+    x0 = r.x0 + bw / 2 if r.x0 > page.rect.x0 + 1 else r.x0
+    y0 = r.y0 + bw / 2 if r.y0 > page.rect.y0 + 1 else r.y0
+    x1 = r.x1 - bw / 2 if r.x1 < page.rect.x1 - 1 else r.x1
+    y1 = r.y1 - bw / 2 if r.y1 < page.rect.y1 - 1 else r.y1
+    return fitz.Rect(x0, y0, x1, y1)
+
+def _write_centered(page, box, text, size):
+    """Text in Helvetica, centered both ways in the box (by the height of the digits, not the font's line)."""
+    size = min(size, box.width * 0.8 / max(fitz.get_text_length(text, 'helv', 1), 0.01), box.height * 0.7 / 0.72)
+    tw = fitz.get_text_length(text, 'helv', size)
+    cx, cy = (box.x0 + box.x1) / 2, (box.y0 + box.y1) / 2
+    page.insert_text((cx - tw / 2, cy + 0.716 * size / 2), text, fontname='helv', fontsize=size, color=(0, 0, 0))
+
 @app.route('/box_labels', methods=['POST'])
 def box_labels():
     data = request.json or {}
@@ -1142,10 +1166,12 @@ def box_labels():
     out = fitz.open()
     for carton, size, q, l in plan:
         one = fitz.open(src); one.select([l['page']])
-        for w in one[0].widgets():
+        page = one[0]
+        for w in list(page.widgets()):
             if w.field_name == l['qty_field']:
-                w.field_value = str(q); w.update()
-        one.bake(annots=False, widgets=True)   # the number becomes part of the label, same in every viewer and printer
+                box, fs = _qty_box(page, w), w.text_fontsize or 48
+                page.delete_widget(w)
+                _write_centered(page, box, str(q), fs)   # the number becomes part of the label, same in every viewer and printer
         out.insert_pdf(one); one.close()
     out.set_toc([[1, f'Carton {c}: {s} x {q}', i + 1] for i, (c, s, q, _) in enumerate(plan)])
     base = os.path.splitext(os.path.basename(orig))[0]

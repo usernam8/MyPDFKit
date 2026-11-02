@@ -477,6 +477,12 @@
     #drop-message .drop-link:hover { background:var(--accent-soft); }
     body.dragging-in #drop-message .drop-box { border-color:var(--accent); background:var(--accent-soft); transform:scale(1.03); }
     body.dragging-in #drop-message .drop-orb { transform:translateY(-4px); }
+    #labels-bar { position:fixed; left:50%; bottom:22px; transform:translateX(-50%); z-index:3000; display:flex; align-items:center; gap:8px; padding:8px 8px 8px 16px; border-radius:14px; background:var(--raised); border:1px solid var(--line); box-shadow:0 10px 30px rgba(0,0,0,.45); font-size:13px; color:var(--text); }
+    #labels-bar .lb-text { margin-right:8px; color:var(--dim); } #labels-bar .lb-text b { color:var(--text); font-weight:600; }
+    #labels-bar .lb-btn { height:32px; padding:0 14px; border-radius:8px; border:1px solid var(--line); background:transparent; color:var(--text); font:inherit; cursor:pointer; }
+    #labels-bar .lb-btn:hover { border-color:var(--accent); }
+    #labels-bar .lb-btn.primary { background:var(--accent); border-color:var(--accent); color:var(--accent-ink); font-weight:600; }
+    #labels-bar .lb-x { width:28px; height:28px; border:0; background:none; color:var(--faint); cursor:pointer; border-radius:6px; } #labels-bar .lb-x:hover { color:var(--text); background:rgba(255,255,255,.06); }
     .welcome { max-width:430px; text-align:center; padding:30px 30px 24px; }
     .welcome .drop-orb { width:64px; height:64px; margin:0 auto 14px; border-radius:50%; display:grid; place-items:center; background:var(--accent-soft); color:var(--accent); }
     .welcome .drop-orb .ico { width:28px; height:28px; }
@@ -5555,17 +5561,37 @@
       fileQueue.push({ name: fname, originalPath: d.path, pdfPath: null, status: 'pending' });
       renderQueueUI(); backgroundProcessQueue();
       processAndLoad(d.path);
-      const row = (t) => ({ key: Math.random().toString(36), label: t, type: 'hidden' });
-      const v = await askDialog(`${d.labels} labels for ${d.cartons} cartons, ${d.units} pieces`,
-        d.summary.map(([size, qs]) => row(`${size}:  ${qs.join(', ')}`))
-          .concat(d.warnings.map(w => row('⚠ ' + w)))
-          .concat([row(`Saved as ${fname}, next to the label file. Only the quantity box was filled in.`)]), 'Print');
-      if (!v) return;
-      // wait for the new labels to be on screen, so Print prints them (not the label file they came from)
-      const ready = () => { const f = fileQueue.find(x => x.originalPath === d.path); return f && f.status === 'ready' && currentActiveFile === d.path && currentTempPdf === f.pdfPath && currentPdfDoc && currentPdfDoc.numPages === d.labels; };
-      for (let t = 0; t < 150 && !ready(); t++) await new Promise(r => setTimeout(r, 100));
-      if (!ready()) return showToast('The labels are open: press Print when they show', true);
-      doPrint();
+      if (d.warnings.length) showToast('⚠ ' + d.warnings.join('. '), true);
+      labelsBar(d);
+    }
+    // a bar over the labels: look through them, then Print or Save (nothing is saved until you choose)
+    function labelsBar(d) {
+      document.getElementById('labels-bar')?.remove();
+      const bar = document.createElement('div'); bar.id = 'labels-bar';
+      bar.innerHTML = `<span class="lb-text"><b>${d.labels} labels</b> · ${d.cartons} cartons · ${d.units} pieces</span>
+        <button data-a="details" class="lb-btn">Details</button><button data-a="save" class="lb-btn">Save</button>
+        <button data-a="print" class="lb-btn primary">Print</button><button data-a="close" class="lb-x" title="Close this bar">&#x2715;</button>`;
+      document.body.append(bar);
+      const isOpen = () => currentActiveFile === d.path;
+      const watch = setInterval(() => { if (!document.body.contains(bar)) return clearInterval(watch); bar.style.display = isOpen() ? '' : 'none'; }, 300);
+      const ready = () => { const f = fileQueue.find(x => x.originalPath === d.path); return f && f.status === 'ready' && isOpen() && currentTempPdf === f.pdfPath && currentPdfDoc && currentPdfDoc.numPages === d.labels; };
+      bar.addEventListener('click', async e => {
+        const a = e.target.closest('button')?.dataset.a; if (!a) return;
+        if (a === 'close') { bar.remove(); return; }
+        if (a === 'details') {
+          const row = t => ({ key: Math.random().toString(36), label: t, type: 'hidden' });
+          return askDialog(`${d.labels} labels for ${d.cartons} cartons, ${d.units} pieces`, d.summary.map(([size, qs]) => row(`${size}:  ${qs.join(', ')}`))
+            .concat(d.warnings.map(w => row('⚠ ' + w))).concat([row('Only the quantity box was filled in.')]), 'OK');
+        }
+        if (a === 'save') {
+          const to = await ipcRenderer.invoke('save-copy', d.path, d.save_to);
+          if (to) showToast('Saved ' + to.split(/[\\/]/).pop());
+          return;
+        }
+        for (let t = 0; t < 150 && !ready(); t++) await new Promise(r => setTimeout(r, 100));
+        if (!ready()) return showToast('Open the labels tab first', true);
+        doPrint();
+      });
     }
     document.getElementById('btn-boxlabels').addEventListener('click', doBoxLabels);
 

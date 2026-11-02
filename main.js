@@ -137,6 +137,12 @@ ipcMain.handle('pick-folder', async () => {
   const r = await dialog.showOpenDialog(win, { properties: ['openDirectory'], title: 'Pick a folder' });
   return r.canceled ? null : r.filePaths[0];
 });
+ipcMain.handle('save-copy', async (_e, from, suggested) => {
+  const r = await dialog.showSaveDialog(win, { title: 'Save', defaultPath: suggested, filters: [{ name: 'PDF', extensions: ['pdf'] }] });
+  if (r.canceled || !r.filePath) return null;
+  fs.copyFileSync(from, r.filePath);
+  return r.filePath;
+});
 ipcMain.handle('pick-files', async () => {
   const r = await dialog.showOpenDialog(win, { properties: ['openFile', 'multiSelections'], title: 'Pick files' });
   return r.canceled ? [] : r.filePaths;

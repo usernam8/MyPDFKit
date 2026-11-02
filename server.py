@@ -1175,11 +1175,15 @@ def box_labels():
         out.insert_pdf(one); one.close()
     out.set_toc([[1, f'Carton {c}: {s} x {q}', i + 1] for i, (c, s, q, _) in enumerate(plan)])
     base = os.path.splitext(os.path.basename(orig))[0]
-    path = get_unique_filename(os.path.join(os.path.dirname(orig), f'{base} - {len(plan)} box labels.pdf'))
+    name = f'{base} - {len(plan)} box labels.pdf'
+    # kept aside until the user picks Save (they look through it first; Print works on it as is)
+    folder = os.path.join(TEMP_DIR, 'labels_' + hashlib.md5((orig + plist + str(_time.time())).encode()).hexdigest()[:10])
+    os.makedirs(folder, exist_ok=True)
+    path = os.path.join(folder, name)
     out.save(path, garbage=3, deflate=True); out.close()
     summary = {}
     for _, s, q, _ in plan: summary.setdefault(s, []).append(q)
-    return jsonify({'success': True, 'path': path, 'labels': len(plan), 'cartons': len({c for c, *_ in plan}), 'units': made,
+    return jsonify({'success': True, 'path': path, 'save_to': os.path.join(os.path.dirname(orig), name), 'labels': len(plan), 'cartons': len({c for c, *_ in plan}), 'units': made,
                     'summary': [[s, qs] for s, qs in summary.items()], 'warnings': warnings})
 
 @app.route('/fill_template', methods=['POST'])

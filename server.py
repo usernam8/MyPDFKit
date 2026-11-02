@@ -1018,6 +1018,144 @@ def template_info():
                         "spots": len(names) + len(fields)})
     except Exception as e: return jsonify({"error": str(e)}), 400
 
+# ---------- box labels from a packing list ----------
+# A customer's label PDF has one page per size with an empty quantity box. The packing list says how many
+# cartons of each size there are and how many pieces go in each. This makes one label per carton, in carton
+# order, with only the quantity filled in (nothing else on the label is touched), ready to print in one go.
+def _sheet_rows(path):
+    """Every row of the first sheet as a list of values (.xlsx/.xlsm, .xls through Excel, .csv)."""
+    low = path.lower()
+    if low.endswith(('.csv', '.tsv')):
+        import csv
+        with open(path, newline='', encoding='utf-8-sig', errors='replace') as f:
+            return [r for r in csv.reader(f, delimiter='\t' if low.endswith('.tsv') else ',')]
+    if low.endswith('.xls'):
+        tmp = os.path.join(TEMP_DIR, 'pl_' + hashlib.md5(path.encode()).hexdigest() + '.xlsx')
+        def job(o):
+            wb = o.get('excel').Workbooks.Open(path, ReadOnly=True, AddToMru=False)
+            try: wb.SaveAs(tmp, 51)
+            finally: wb.Close(False)
+        OFFICE.run(job); path = tmp
+    from openpyxl import load_workbook
+    wb = load_workbook(path, data_only=True, read_only=True)
+    return [list(r) for r in wb.worksheets[0].iter_rows(values_only=True)]
+
+def _num(v):
+    if isinstance(v, (int, float)) and not isinstance(v, bool): return v
+    try: return float(str(v).replace(',', '').strip())
+    except Exception: return None
+
+def _norm(v): return re.sub(r'\s+', ' ', str(v or '')).strip().upper()
+
+def _read_packing_list(path):
+    rows = _sheet_rows(path)
+    def after(label):   # the first filled cell to the right of a label like "STYLE:"
+        for r in rows:
+            for i, v in enumerate(r):
+                if _norm(v).rstrip(':').strip() == label:
+                    for w in r[i + 1:]:
+                        if w not in (None, ''): return w
+        return None
+    head = next((i for i, r in enumerate(rows) if any(_norm(v) == 'COLOR' for v in r)), None)
+    if head is None: raise ValueError("couldn't find the COLOR heading")
+    hr = rows[head]
+    c_color = next(i for i, v in enumerate(hr) if _norm(v) == 'COLOR')
+    end = next((i for i, v in enumerate(hr) if i > c_color and re.search(r'UNITS|TOTAL', _norm(v))), len(hr))
+    sizes = {i: _norm(v) for i, v in enumerate(hr) if c_color < i < end and v not in (None, '')}
+    if not sizes: raise ValueError("couldn't find the size columns")
+    sub = rows[head + 1] if head + 1 < len(rows) else []
+    def col(word, default):
+        for r in (hr, sub):
+            for i, v in enumerate(r):
+                if _norm(v) == word: return i
+        return default
+    c_from, c_to = col('FROM', 0), col('TO', 1)
+    cartons, started = [], False
+    for r in rows[head + 1:]:
+        a = _num(r[c_from]) if c_from < len(r) else None
+        if a is None:
+            if started: break
+            continue
+        started = True
+        b = _num(r[c_to]) if c_to < len(r) else None
+        b = a if b is None else b
+        color = _norm(r[c_color]) if c_color < len(r) else ''
+        packs = [(sz, int(_num(r[i]))) for i, sz in sizes.items() if i < len(r) and (_num(r[i]) or 0) > 0]
+        for n in range(int(a), int(b) + 1):
+            cartons.append({'carton': n, 'color': color, 'packs': packs})
+    total = _num(after('TOTAL UNITS'))
+    po = after('PO NUMBER')
+    if isinstance(po, float) and po.is_integer(): po = int(po)   # Excel keeps numbers as 1086173.0
+    return {'style': _norm(after('STYLE')), 'po': re.sub(r'\D', '', str(po or '')).lstrip('0'),
+            'cartons': cartons, 'total_units': int(total) if total else None}
+
+def _label_pages(doc):
+    """What each label page is for: its size, color, style and PO (read from the words printed on it)."""
+    out = []
+    for i, page in enumerate(doc):
+        words = page.get_text('words')
+        def right_of(label):
+            w0 = next((w for w in words if _norm(w[4]).rstrip(':') == label), None)
+            if not w0: return ''
+            cy = (w0[1] + w0[3]) / 2
+            line = sorted((w for w in words if w[0] > w0[2] - 1 and w[1] < cy < w[3]), key=lambda w: w[0])
+            return _norm(' '.join(w[4] for w in line))
+        text = page.get_text()
+        po = next((re.sub(r'\D', '', m).lstrip('0') for m in re.findall(r'PO\s*#?:?\s*0*\d{5,}', text, re.I)), '')
+        boxes = [w for w in page.widgets() if w.field_type == fitz.PDF_WIDGET_TYPE_TEXT]
+        qty = [w for w in boxes if re.search(r'QTY|QUANT|PCS|PIECES|UNITS', w.field_name or '', re.I)] or (boxes if len(boxes) == 1 else [])
+        out.append({'page': i, 'size': right_of('SIZE'), 'color': right_of('COLOR'), 'style': right_of('STYLE'),
+                    'po': po, 'qty_field': qty[0].field_name if qty else None})
+    return out
+
+@app.route('/box_labels', methods=['POST'])
+def box_labels():
+    data = request.json or {}
+    src, orig, plist = data.get('filepath'), data.get('original_path') or data.get('filepath'), data.get('packing_list')
+    if not src or not os.path.exists(src): return jsonify({'error': 'Open the label PDF first'}), 400
+    if not plist or not os.path.exists(plist): return jsonify({'error': 'Pick the packing list'}), 400
+    try: pl = _read_packing_list(plist)
+    except Exception as e: return jsonify({'error': f"Couldn't read the packing list: {e}"}), 400
+    if not pl['cartons']: return jsonify({'error': 'No cartons found in the packing list'}), 400
+    labels = _label_pages(fitz.open(src))
+    warnings = []
+    if not any(l['qty_field'] for l in labels): return jsonify({'error': 'This label has no quantity box to fill in'}), 400
+    lp = {l['po'] for l in labels if l['po']}
+    if pl['po'] and lp and pl['po'] not in lp: warnings.append(f"The labels are for PO {', '.join(sorted(lp))} but the packing list is PO {pl['po']}")
+    ls = {l['style'] for l in labels if l['style']}
+    if pl['style'] and ls and not any(pl['style'] in x or x in pl['style'] for x in ls): warnings.append(f"The labels are for style {', '.join(sorted(ls))} but the packing list is {pl['style']}")
+    def page_for(size, color):
+        same = [l for l in labels if l['size'] == size]
+        return next((l for l in same if not color or not l['color'] or l['color'] == color), same[0] if same else None)
+    plan, missing = [], set()
+    for c in pl['cartons']:
+        for size, q in c['packs']:
+            l = page_for(size, c['color'])
+            if l is None: missing.add(size); continue
+            if not l['qty_field']: warnings.append(f"The {size} label has no quantity box"); continue
+            plan.append((c['carton'], size, q, l))
+    if missing: warnings.append(f"No label page for size {', '.join(sorted(missing))}: those cartons were left out")
+    if not plan: return jsonify({'error': 'None of the sizes in the packing list have a label page'}), 400
+    made = sum(q for _, _, q, _ in plan)
+    if pl['total_units'] and made != pl['total_units'] and not missing:
+        warnings.append(f"The labels add up to {made} pieces but the packing list says {pl['total_units']}")
+    out = fitz.open()
+    for carton, size, q, l in plan:
+        one = fitz.open(src); one.select([l['page']])
+        for w in one[0].widgets():
+            if w.field_name == l['qty_field']:
+                w.field_value = str(q); w.update()
+        one.bake(annots=False, widgets=True)   # the number becomes part of the label, same in every viewer and printer
+        out.insert_pdf(one); one.close()
+    out.set_toc([[1, f'Carton {c}: {s} x {q}', i + 1] for i, (c, s, q, _) in enumerate(plan)])
+    base = os.path.splitext(os.path.basename(orig))[0]
+    path = get_unique_filename(os.path.join(os.path.dirname(orig), f'{base} - {len(plan)} box labels.pdf'))
+    out.save(path, garbage=3, deflate=True); out.close()
+    summary = {}
+    for _, s, q, _ in plan: summary.setdefault(s, []).append(q)
+    return jsonify({'success': True, 'path': path, 'labels': len(plan), 'cartons': len({c for c, *_ in plan}), 'units': made,
+                    'summary': [[s, qs] for s, qs in summary.items()], 'warnings': warnings})
+
 @app.route('/fill_template', methods=['POST'])
 def fill_template():
     """One filled PDF per spreadsheet row (named by a column), or all of them in one PDF."""

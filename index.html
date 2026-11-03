@@ -2574,7 +2574,8 @@
     // ---------- print ----------
     // Our own print window: the preview shows each sheet exactly as it will come out (paper, orientation,
     // scale, color), then main.js prints the same pictures with the same settings.
-    const PAPER = { Letter: [612, 792], Legal: [612, 1008], Tabloid: [792, 1224], A4: [595.28, 841.89], A3: [841.89, 1190.55], A5: [419.53, 595.28] };
+    const PAPER = { Letter: [612, 792], Legal: [612, 1008], Tabloid: [792, 1224], A4: [595.28, 841.89], A3: [841.89, 1190.55], A5: [419.53, 595.28],
+      '4 × 6 in (label)': [288, 432], '4 × 4 in (label)': [288, 288] };
     function parsePages(text, max) {   // "1-3, 5" -> [1, 2, 3, 5]; null if it makes no sense
       const out = [];
       for (const part of text.split(/[,;\s]+/).filter(Boolean)) {
@@ -2628,6 +2629,9 @@
       sel.value = printers.some(p => p.name === saved.printer) ? saved.printer : def ? def.name : sel.options[0].value;
       for (const k of ['paper', 'orient', 'scale', 'color', 'duplex']) if (saved[k]) $(k).value = saved[k];
       if (!saved.paper && !/^(en-US|en-CA|es-MX)/.test(navigator.language)) $('paper').value = 'A4';   // Letter in North America
+      // pages that are a paper size themselves (4x6 shipping labels, A4...) print on that paper, whatever was used last
+      const fits = Object.keys(PAPER).find(k => { const [a, b] = PAPER[k]; return all.every(p => (Math.abs(p.w - a) < 3 && Math.abs(p.h - b) < 3) || (Math.abs(p.w - b) < 3 && Math.abs(p.h - a) < 3)); });
+      if (fits) $('paper').value = fits;
 
       let sheet = 0;
       const chosen = () => {

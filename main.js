@@ -215,7 +215,11 @@ ipcMain.handle('print-pages', async (_e, pages, opt = {}) => {
     await pw.loadFile(file);
     await pw.webContents.executeJavaScript('Promise.all([...document.images].map(i => i.decode().catch(() => {})))');
     // pageSize must be given: Electron 34 otherwise sends an empty page size and no dialog ever opens
-    const settings = { silent: !opt.system, printBackground: true, landscape, pageSize: opt.paper || 'Letter', margins: { marginType: 'none' },
+    // named sizes go by name; others (4x6 labels) as their size in microns, narrow side first
+    const named = ['A3', 'A4', 'A5', 'Legal', 'Letter', 'Tabloid'].includes(opt.paper);
+    const [pw0, ph0] = (opt.paperSize || [612, 792]).slice().sort((a, b) => a - b);
+    const pageSize = named || !opt.paperSize ? (opt.paper || 'Letter') : { width: Math.round(pw0 / 72 * 25400), height: Math.round(ph0 / 72 * 25400) };
+    const settings = { silent: !opt.system, printBackground: true, landscape, pageSize, margins: { marginType: 'none' },
       copies: opt.copies || 1, color: opt.color !== false, duplexMode: opt.duplex || 'simplex' };
     if (opt.deviceName) settings.deviceName = opt.deviceName;
     return await new Promise(resolve => pw.webContents.print(settings,

@@ -38,6 +38,7 @@
     "nsis": {
       "oneClick": false,
       "perMachine": true,
+      "include": "build/installer.nsh",
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "artifactName": "MyPDFKit-Setup-${version}.${ext}"
@@ -46,13 +47,6 @@
       {
         "from": "dist/server",
         "to": "server"
-      }
-    ],
-    "fileAssociations": [
-      {
-        "ext": "pdf",
-        "name": "PDF Document",
-        "role": "Editor"
       }
     ],
     "publish": [

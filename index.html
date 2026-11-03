@@ -1249,6 +1249,16 @@
       toastTimer = setTimeout(() => toast.classList.remove('show'), busy ? 120000 : isError ? 5000 : 2800);
     }
 
+    // a file needed Office and neither Microsoft Office nor LibreOffice is installed: offer the free
+    // LibreOffice (once per run; the backend finds it as soon as it's installed, no restart needed)
+    let officeOffered = false;
+    async function offerLibreOffice(msg) {
+      if (officeOffered) return showToast(msg, true);
+      officeOffered = true;
+      const ok = await askDialog(msg + ' Install LibreOffice, then open the file again.', [], 'Get LibreOffice');
+      if (ok) require('electron').shell.openExternal('https://www.libreoffice.org/download/download-libreoffice/');
+    }
+
     // Backend check: quick retries while it starts, then every 10s. The installed app (loaded from
     // app.asar) hides the status line and only speaks up if the converter stops answering.
     const PACKAGED = location.href.includes('app.asar');
@@ -1941,7 +1951,8 @@
                     if (data.message) showToast(data.message);
                     if(data.error) {
                         fileObj.status = 'error';
-                        if (data.error !== 'locked') showToast(data.error, true);
+                        if (data.need_office) offerLibreOffice(data.error);
+                        else if (data.error !== 'locked') showToast(data.error, true);
                     } else {
                         fileObj.pdfPath = data.pdf_path;
                         fileObj.status = 'ready';
@@ -2428,7 +2439,7 @@
           fileQueue.forEach(f => f.status = 'ready');
           renderQueueUI();
           showToast(`Converted ${data.count} ${data.count === 1 ? "file" : "files"}`);
-        } else { showToast(data.error, true); }
+        } else if (data.need_office) { offerLibreOffice(data.error); } else { showToast(data.error, true); }
       });
     }
 

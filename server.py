@@ -649,6 +649,18 @@ def libreoffice_to_pdf(src, dst):
     finally:
         shutil.rmtree(outdir, ignore_errors=True)
 
+class NoOfficeError(RuntimeError):
+    """Neither Microsoft Office nor LibreOffice is here to open this file (the app offers a LibreOffice download)."""
+
+def _office_has(src):
+    """Is the Office app for this kind of file installed?"""
+    import winreg
+    low = src.lower()
+    kind = 'word' if low.endswith(WORD_EXT) else 'excel' if low.endswith(EXCEL_EXT) else 'ppt' if low.endswith(POWERPOINT_EXT) else None
+    if not kind: return False
+    try: winreg.CloseKey(winreg.OpenKey(winreg.HKEY_CLASSES_ROOT, _OfficeWorker.APPS[kind][0])); return True
+    except OSError: return False
+
 def office_to_pdf(src, dst):
     """Use Microsoft Office when it is installed, otherwise LibreOffice."""
     if src.lower().endswith(IMAGE_EXT + BOOK_EXT + WEB_EXT + TEXT_EXT + DESIGN_EXT):
@@ -656,9 +668,10 @@ def office_to_pdf(src, dst):
     try:
         _com_to_pdf(src, dst)
     except Exception as com_err:
-        if not find_soffice():
-            raise RuntimeError("No Office converter found. Install Microsoft Office or the free LibreOffice, then try again.")
-        libreoffice_to_pdf(src, dst)
+        if find_soffice(): return libreoffice_to_pdf(src, dst)
+        # Office is here but couldn't open this file: say what went wrong, not that Office is missing
+        if isinstance(com_err, ValueError) or _office_has(src): raise
+        raise NoOfficeError("Opening this file needs Microsoft Office or the free LibreOffice, and neither is installed.")
 
 CONVERTER_VERSION = '5'   # bump when office_to_pdf output changes (2: cut-off Excel columns widened, 3: many more formats)
 
@@ -2679,6 +2692,8 @@ def process_file():
         pythoncom.CoInitialize()
         try:
             office_to_pdf(path, temp_target)
+        except NoOfficeError as e:
+            return jsonify({"error": str(e), "need_office": True}), 500
         except ValueError as e:
             return jsonify({"error": str(e)}), 400
         except Exception as e:
@@ -2728,6 +2743,7 @@ def process_all_files():
             else:
                 office_to_pdf(source_to_process, target_pdf)
                 processed_count += 1
+    except NoOfficeError as e: return jsonify({"error": str(e), "need_office": True}), 500
     except Exception as e: return jsonify({"error": str(e)}), 500
     finally: pythoncom.CoUninitialize()
     
@@ -4335,6 +4351,38 @@ def search_pdf():
         return jsonify({"pages": pages, "count": count, "boxes": boxes})
     except Exception as e: return jsonify({"error": str(e)}), 500
 
+def _exit_with_parent():
+    """Close when the app that started us is gone, even if it never said goodbye (a crash, Task Manager),
+    so no old backend is left holding Office and the port."""
+    import ctypes
+    pid = int(os.environ.get('MYPDFKIT_PARENT_PID') or 0)
+    if not pid: return
+    k = ctypes.WinDLL('kernel32', use_last_error=True)
+    k.OpenProcess.restype = ctypes.c_void_p
+    k.WaitForSingleObject.argtypes = [ctypes.c_void_p, ctypes.c_uint32]
+    h = k.OpenProcess(0x00100000, False, pid)   # SYNCHRONIZE: enough to wait for it
+    if not h:
+        if ctypes.get_last_error() == 87: os._exit(0)   # no such process: the app is already gone
+        return
+    k.WaitForSingleObject(h, 0xFFFFFFFF)
+    try: OFFICE.shutdown()
+    except Exception: pass
+    os._exit(0)
+
+def _bind_port_alone():
+    """Werkzeug lets a second server share a port on Windows; then requests go to whichever one Windows
+    picks (an old leftover backend kept answering the new app). Bind so nobody else can use it."""
+    import socket
+    import werkzeug.serving as ws
+    bind = ws.BaseWSGIServer.server_bind
+    def server_bind(self):
+        self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        bind(self)
+    ws.BaseWSGIServer.allow_reuse_address = False
+    ws.BaseWSGIServer.server_bind = server_bind
+
 if __name__ == '__main__':
+    _threading.Thread(target=_exit_with_parent, daemon=True).start()
     _threading.Thread(target=_prewarm_office, daemon=True).start()
+    _bind_port_alone()
     app.run(host='127.0.0.1', port=int(os.environ.get('MYPDFKIT_PORT') or 5000), threaded=True)

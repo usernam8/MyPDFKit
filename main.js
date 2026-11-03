@@ -3,9 +3,20 @@ const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
 const http = require('http');
+const net = require('net');
 
-// a test copy can use its own backend port (MYPDFKIT_PORT) so it doesn't meet an installed copy's
-const SERVER_PORT = +process.env.MYPDFKIT_PORT || 5000;
+// The backend gets a free port of its own every launch, so it never meets another copy's backend
+// (a leftover one from an older version kept answering on 5000 and the app talked to it).
+// A test copy can still pin one with MYPDFKIT_PORT.
+let SERVER_PORT = +process.env.MYPDFKIT_PORT || 0;
+function pickPort() {
+  if (SERVER_PORT) return Promise.resolve(SERVER_PORT);
+  return new Promise(resolve => {
+    const s = net.createServer();
+    s.once('error', () => resolve(SERVER_PORT = 5000));
+    s.listen(0, '127.0.0.1', () => { SERVER_PORT = s.address().port; s.close(() => resolve(SERVER_PORT)); });
+  });
+}
 let serverProc = null;
 let win = null;
 
@@ -30,24 +41,50 @@ function filesFromArgv(argv) {
   return argv.slice(app.isPackaged ? 1 : 2).filter(a => OPENABLE.test(a) && fs.existsSync(a));
 }
 
+let serverReady = false, serverRestarts = 0, serverLog = '', serverExit = null;
 function startServer() {
+  // the backend closes itself if this app goes away without telling it (a crash or Task Manager)
+  const env = { ...process.env, MYPDFKIT_PORT: String(SERVER_PORT), MYPDFKIT_PARENT_PID: String(process.pid) };
+  // detached: outside the job Node puts children in, which kills them the instant the app dies; that left
+  // no time to close the hidden Word/Excel (started by Windows, not by us), so they stayed running.
+  // The backend watches this app's process and closes Office and itself when it's gone.
+  const opts = { windowsHide: true, env, detached: true };
   if (app.isPackaged) {
     // a PyInstaller folder build: starts at once, unlike a one-file exe that unpacks itself every launch
     const exe = path.join(process.resourcesPath, 'server', 'server.exe');
-    serverProc = spawn(exe, [], { windowsHide: true });
+    serverProc = spawn(exe, [], opts);
   } else {
     // Dev mode: run the Python script directly
-    serverProc = spawn('python', [path.join(__dirname, 'server.py')], { windowsHide: true });
+    serverProc = spawn('python', [path.join(__dirname, 'server.py')], opts);
   }
-  serverProc.on('error', err => dialog.showErrorBox('Backend failed to start', String(err)));
-  serverProc.stderr && serverProc.stderr.on('data', d => console.error('[server]', d.toString()));
+  serverExit = null;
+  const proc = serverProc;
+  proc.on('error', err => { serverExit = String(err); });
+  proc.stderr && proc.stderr.on('data', d => {
+    console.error('[server]', d.toString());
+    serverLog = (serverLog + d.toString()).slice(-3000);   // the last lines, for the error message
+  });
+  proc.on('exit', code => {
+    if (proc !== serverProc || closing) return;
+    serverExit = serverExit || `It closed with code ${code}.`;
+    // it was working and then went away: start it again on the same port (the page reconnects by itself)
+    if (serverReady && serverRestarts++ < 3) { console.error('[server] exited, restarting'); startServer(); }
+  });
+}
+
+function backendError(reason) {
+  const tail = serverLog.trim().split(/\r?\n/).slice(-12).join('\n');
+  dialog.showErrorBox('MyPDFKit could not start its converter',
+    'Opening and converting files won\'t work until it starts. Try closing MyPDFKit and opening it again. ' +
+    'If it keeps happening, reinstall MyPDFKit.\n\n' + reason + (tail ? '\n\nDetails:\n' + tail : ''));
 }
 
 function waitForServer(retries = 200) {
   return new Promise((resolve, reject) => {
     const attempt = n => {
+      if (serverExit) return reject(new Error(serverExit));
       http.get(`http://127.0.0.1:${SERVER_PORT}/ping`, res => { res.resume(); resolve(); })
-        .on('error', () => (n <= 0 ? reject(new Error('Backend did not start')) : setTimeout(() => attempt(n - 1), 150)));
+        .on('error', () => (n <= 0 ? reject(new Error('It didn\'t answer within 30 seconds.')) : setTimeout(() => attempt(n - 1), 150)));
     };
     attempt(retries);
   });
@@ -91,7 +128,7 @@ function createWindow() {
     const msg = e && e.message !== undefined ? e.message : a[2];
     console.log('[page]', msg);
   });
-  win.loadFile('index.html', SERVER_PORT !== 5000 ? { query: { port: String(SERVER_PORT) } } : undefined);
+  win.loadFile('index.html', { query: { port: String(SERVER_PORT) } });
   win.webContents.on('did-finish-load', () => { pageLoaded = true; flushOpenFiles(); });
 }
 
@@ -104,10 +141,11 @@ app.on('second-instance', (_e, argv) => {
 });
 
 if (gotLock) app.whenReady().then(async () => {
+  await pickPort();
   startServer();
   createWindow();   // show the window immediately; the backend finishes starting in parallel
-  try { await waitForServer(); serverUp = true; flushOpenFiles(); }
-  catch (e) { dialog.showErrorBox('MyPDFKit', e.message); }
+  try { await waitForServer(); serverReady = serverUp = true; flushOpenFiles(); }
+  catch (e) { backendError(e.message); }
   setupAutoUpdate();
 });
 

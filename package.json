@@ -37,6 +37,7 @@
     },
     "nsis": {
       "oneClick": false,
+      "perMachine": true,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "artifactName": "MyPDFKit-Setup-${version}.${ext}"

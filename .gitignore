@@ -6,3 +6,6 @@ build/*
 __pycache__/
 *.spec
 *.pyc
+
+# real work files used by the tests (box labels); kept on this PC only
+tests/samples/private/

@@ -1,4 +1,4 @@
-const { app, BrowserWindow, dialog, Menu, ipcMain } = require('electron');
+const { app, BrowserWindow, dialog, Menu, ipcMain, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
@@ -41,6 +41,19 @@ function filesFromArgv(argv) {
   return argv.slice(app.isPackaged ? 1 : 2).filter(a => OPENABLE.test(a) && fs.existsSync(a));
 }
 
+// a small log of what went wrong (the converter's errors, the page's errors), for "Send a problem report"
+let logFile = null;
+function logLine(src, text) {
+  try {
+    if (!logFile) { const dir = path.join(app.getPath('userData'), 'logs'); fs.mkdirSync(dir, { recursive: true }); logFile = path.join(dir, 'mypdfkit.log'); }
+    const lines = String(text).split(/\r?\n/).filter(l => l.trim() && !/"(GET|POST) \/[^ ]* HTTP\/1\.1" (200|304)/.test(l) && !/^ \* |Press CTRL\+C|development server|fitz` API is deprecated/.test(l));
+    if (!lines.length) return;
+    if (fs.existsSync(logFile) && fs.statSync(logFile).size > 1_000_000) fs.renameSync(logFile, logFile + '.old');
+    fs.appendFileSync(logFile, lines.map(l => `${new Date().toISOString()} [${src}] ${l}`).join('\n') + '\n');
+  } catch (e) {}
+}
+process.on('uncaughtException', e => logLine('app', e.stack || e));
+
 let serverReady = false, serverRestarts = 0, serverLog = '', serverExit = null;
 function startServer() {
   // the backend closes itself if this app goes away without telling it (a crash or Task Manager)
@@ -62,6 +75,7 @@ function startServer() {
   proc.on('error', err => { serverExit = String(err); });
   proc.stderr && proc.stderr.on('data', d => {
     console.error('[server]', d.toString());
+    logLine('converter', d.toString());
     serverLog = (serverLog + d.toString()).slice(-3000);   // the last lines, for the error message
   });
   proc.on('exit', code => {
@@ -73,10 +87,23 @@ function startServer() {
 }
 
 function backendError(reason) {
+  logLine('app', 'converter did not start: ' + reason);
+  const exe = path.join(process.resourcesPath, 'server', 'server.exe');
+  if (app.isPackaged && !fs.existsSync(exe)) {
+    // the usual reason: Windows Security mistook it for a threat and moved it away
+    dialog.showErrorBox('Windows Security blocked part of MyPDFKit',
+      'Windows Security removed a part of MyPDFKit it didn\'t recognize (it happens with apps from small makers). To bring it back:\n\n' +
+      '1. Open the Start menu and type Windows Security, then open it.\n' +
+      '2. Click Virus & threat protection, then Protection history.\n' +
+      '3. Click the item that mentions MyPDFKit or server.exe, then Actions, then Restore.\n' +
+      '4. Open MyPDFKit again.\n\nIf there\'s nothing to restore, install MyPDFKit again from the same download page.');
+    return;
+  }
   const tail = serverLog.trim().split(/\r?\n/).slice(-12).join('\n');
   dialog.showErrorBox('MyPDFKit could not start its converter',
     'Opening and converting files won\'t work until it starts. Try closing MyPDFKit and opening it again. ' +
-    'If it keeps happening, reinstall MyPDFKit.\n\n' + reason + (tail ? '\n\nDetails:\n' + tail : ''));
+    'If it keeps happening, reinstall MyPDFKit, or use All tools, then Send a problem report, and send that file to whoever helps you.\n\n' +
+    reason + (tail ? '\n\nDetails:\n' + tail : ''));
 }
 
 // up to 3 minutes: the first start on a new PC can be slow while Windows checks the new files
@@ -128,6 +155,8 @@ function createWindow() {
     const e = a[0];
     const msg = e && e.message !== undefined ? e.message : a[2];
     console.log('[page]', msg);
+    const level = e && e.level !== undefined ? e.level : a[1];
+    if ((level === 'error' || level === 3 || level === 'warning' || level === 2) && !/Electron Security Warning/.test(msg)) logLine('page', msg);
   });
   win.loadFile('index.html', { query: { port: String(SERVER_PORT) } });
   win.webContents.on('did-finish-load', () => { pageLoaded = true; flushOpenFiles(); });
@@ -171,6 +200,20 @@ function setupAutoUpdate() {
 }
 ipcMain.handle('app-version', () => app.getVersion());
 ipcMain.handle('user-data', () => app.getPath('userData'));
+// a text file on the desktop with the version, the PC and the recent problems, to send to whoever helps
+ipcMain.handle('problem-report', async (_e, extra) => {
+  const os = require('os');
+  let log = '';
+  try { log = fs.readFileSync(logFile || path.join(app.getPath('userData'), 'logs', 'mypdfkit.log'), 'utf8').split('\n').slice(-400).join('\n'); } catch (e) { log = '(no problems logged)'; }
+  const text = [`MyPDFKit ${app.getVersion()} problem report, ${new Date().toString()}`,
+    `Windows ${os.release()} ${os.arch()}, ${Math.round(os.totalmem() / 1073741824)} GB memory`,
+    `Installed in: ${path.dirname(process.execPath)}`, `Converter: ${serverReady ? 'running' : 'not running'}${serverExit ? ' (' + serverExit + ')' : ''}`,
+    extra ? `What the person wrote: ${extra}` : '', '', '--- Recent problems ---', log].join('\r\n');
+  const out = path.join(app.getPath('desktop'), 'MyPDFKit problem report.txt');
+  fs.writeFileSync(out, text);
+  shell.showItemInFolder(out);
+  return out;
+});
 ipcMain.on('user-data-sync', e => { e.returnValue = app.getPath('userData'); });
 ipcMain.handle('pick-folder', async () => {
   const r = await dialog.showOpenDialog(win, { properties: ['openDirectory'], title: 'Pick a folder' });

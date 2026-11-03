@@ -3537,6 +3537,36 @@ def translate_status():
 def formats():
     return jsonify({"extensions": [e[1:] for e in OPENABLE_EXT]})
 
+@app.route('/cleanup', methods=['POST'])
+def cleanup():
+    """Free disk space: the working folder keeps only what open tabs use and the previews of the recent
+    files; everything else (old previews, edit copies, print pictures) is deleted."""
+    d = request.json or {}
+    keep = {os.path.normcase(os.path.abspath(p)) for p in d.get('keep_paths') or [] if p}
+    for orig in d.get('keep_originals') or []:
+        try:
+            m = str(os.path.getmtime(orig))
+            keep.add(os.path.normcase(os.path.join(TEMP_DIR, f"prev_{hashlib.md5((orig + m + CONVERTER_VERSION).encode('utf-8')).hexdigest()}.pdf")))
+            keep.add(os.path.normcase(os.path.join(TEMP_DIR, f"prev_{hashlib.md5((orig + m + CONVERTER_VERSION).encode('utf-8')).hexdigest()}.pdf.builtin")))
+            for tag in ('fixed_', 'open_'):
+                keep.add(os.path.normcase(os.path.join(TEMP_DIR, tag + hashlib.md5((orig + m).encode()).hexdigest() + '.pdf')))
+        except OSError: pass
+    keep_dirs = {os.path.dirname(k) for k in keep}
+    freed, removed, now = 0, 0, _time.time()
+    for name in os.listdir(TEMP_DIR):
+        full = os.path.join(TEMP_DIR, name)
+        key = os.path.normcase(full)
+        try:
+            if key in keep or key in keep_dirs or now - os.path.getmtime(full) < 120: continue   # in use, or being made right now
+            if os.path.isdir(full):
+                size = sum(os.path.getsize(os.path.join(r, f)) for r, _, fs in os.walk(full) for f in fs)
+                shutil.rmtree(full)
+            else:
+                size = os.path.getsize(full); os.remove(full)
+            freed += size; removed += 1
+        except OSError: continue   # open in another program: next time
+    return jsonify({"success": True, "removed": removed, "freed_mb": round(freed / 1048576, 1)})
+
 @app.route('/shutdown', methods=['POST'])
 def shutdown():
     """The app is closing: close the hidden Word (nothing else is left running)."""

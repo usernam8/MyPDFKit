@@ -1264,12 +1264,20 @@
     const PACKAGED = location.href.includes('app.asar');
     if (PACKAGED) document.documentElement.classList.add('packaged');
     let backendWasUp = false, backendTries = 0;
+    // files and tools wait for the converter while it starts (the first start on a new PC can take a minute)
+    let markBackendUp; const backendUp = new Promise(r => markBackendUp = r);
+    async function whenBackendUp() {
+      let shown = false;
+      const t = setTimeout(() => { shown = true; showToast('Getting ready…'); }, 1500);
+      await backendUp; clearTimeout(t);
+      if (shown) document.getElementById('toast-message').classList.remove('show');
+    }
     function checkBackend() {
       backendTries++;
       const st = document.getElementById('brain-status');
       fetch(BACKEND + '/ping').then(res => res.json())
         .then(() => {
-          st.textContent = 'Backend connected'; st.classList.add('online');
+          st.textContent = 'Backend connected'; st.classList.add('online'); markBackendUp();
           setTimeout(restoreSession, 300);
           backendWasUp = true;
           loadInstalledFonts();
@@ -1277,7 +1285,7 @@
         }).catch(() => {
           st.textContent = 'Backend offline'; st.classList.remove('online');
           if (backendWasUp) { backendWasUp = false; showToast('The converter stopped responding. Restart MyPDFKit if this keeps happening.', true); }
-          setTimeout(checkBackend, backendTries < 100 ? 300 : 5000);   // starting up: retry fast for ~30s
+          setTimeout(checkBackend, backendTries < 600 ? 300 : 5000);   // starting up: retry fast for ~3 minutes
         });
     }
     checkBackend();
@@ -1927,6 +1935,7 @@
     async function backgroundProcessQueue() {
         if (isQueueRunning) return;
         isQueueRunning = true;
+        await whenBackendUp();
         
         // every tab's files get converted, not just the tab on screen
         let fileObj;
@@ -1964,7 +1973,11 @@
                             loadPDF(currentTempPdf, fileObj.lastPage || 1);
                         }
                     }
-                } catch(e) { fileObj.status = 'error'; }
+                } catch(e) {
+                    // the converter wasn't reachable (it restarts by itself if it stopped): try once more
+                    if (!fileObj.retried) { fileObj.retried = true; fileObj.status = 'pending'; await new Promise(r => setTimeout(r, 3000)); }
+                    else fileObj.status = 'error';
+                }
                 renderQueueUI();
         }
         isQueueRunning = false;
@@ -5489,7 +5502,7 @@
     moreMenu.addEventListener('click', () => moreMenu.classList.remove('open'));
   
     // ---------- new tools ----------
-    const api = async (path, body) => (await fetch(BACKEND + '/' + path, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) })).json();
+    const api = async (path, body) => { await backendUp; return (await fetch(BACKEND + '/' + path, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) })).json(); };
     async function needDoc() { if (!currentTempPdf) { showToast('Open a file first', true); return false; } await syncEditsToPython(); return true; }
 
     function askDialog(title, fields, okLabel) {

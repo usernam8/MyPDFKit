@@ -20,3 +20,4 @@ winrt-Windows.UI.Input.Inking
 winrt-Windows.Foundation.Numerics
 ezdxf
 pillow-heif
+xlrd

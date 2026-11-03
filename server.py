@@ -140,9 +140,21 @@ def _text_to_pdf(src, dst):
     writer.close()
 
 def _find_browser():
+    local = os.environ.get('LOCALAPPDATA', '')
     for p in (r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe", r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
-              r"C:\Program Files\Google\Chrome\Application\chrome.exe", r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"):
+              r"C:\Program Files\Google\Chrome\Application\chrome.exe", r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+              os.path.join(local, r"Microsoft\Edge\Application\msedge.exe"), os.path.join(local, r"Google\Chrome\Application\chrome.exe")):
         if os.path.exists(p): return p
+    try:   # wherever Windows says Edge or Chrome is
+        import winreg
+        for name in ('msedge.exe', 'chrome.exe'):
+            for root in (winreg.HKEY_LOCAL_MACHINE, winreg.HKEY_CURRENT_USER):
+                try:
+                    with winreg.OpenKey(root, "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\" + name) as k:
+                        v = winreg.QueryValue(k, None)
+                        if v and os.path.exists(v.strip('"')): return v.strip('"')
+                except OSError: continue
+    except Exception: pass
     return None
 
 def _web_to_pdf(src, dst):
@@ -543,6 +555,7 @@ def _prewarm_office():
     """Have Word, Excel and PowerPoint ready before the first file comes in (the ones installed)."""
     import winreg
     _time.sleep(3)
+    if NO_OFFICE_TEST: return
     for kind, (prog, _) in _OfficeWorker.APPS.items():
         try: winreg.CloseKey(winreg.OpenKey(winreg.HKEY_CLASSES_ROOT, prog))
         except OSError: continue
@@ -633,7 +646,860 @@ def _widen_cut_off_columns(wb, src):
                 best = max(best, col.ColumnWidth)
             col.ColumnWidth = best + 1 if best > orig else orig   # a little breathing room, like the original spacing
 
+# ---------- Word, Excel and PowerPoint without Office ----------
+# A new PC may have neither Microsoft Office nor LibreOffice. Rather than refuse, these files are laid out as a
+# web page (fonts, colors, tables, pictures, page size) and Edge, which every Windows 10/11 has, prints it to
+# PDF. Close to the original, not exact: Office (or LibreOffice) is still used whenever it's installed.
+import html as _html
+
+BUILTIN_EXT = ('.docx', '.docm', '.dotx', '.dotm', '.xlsx', '.xlsm', '.xltx', '.xltm', '.xls', '.csv', '.tsv',
+               '.pptx', '.pptm', '.ppsx', '.ppsm', '.potx', '.potm')
+
+def _esc(t): return _html.escape(str(t), quote=True)
+
+def _img_uri(blob, ctype=''):
+    """A picture as a data: link the browser can show (EMF/WMF and other kinds are turned into PNG)."""
+    if ctype in ('image/png', 'image/jpeg', 'image/gif', 'image/bmp', 'image/webp', 'image/svg+xml'):
+        return f'data:{ctype};base64,' + base64.b64encode(blob).decode()
+    try:
+        with Image.open(BytesIO(blob)) as im:
+            buf = BytesIO(); im.convert('RGBA').save(buf, 'PNG')
+        return 'data:image/png;base64,' + base64.b64encode(buf.getvalue()).decode()
+    except Exception: return None
+
+def _html_to_pdf(page_html, dst):
+    tmp = os.path.join(TEMP_DIR, 'builtin_' + hashlib.md5(dst.encode()).hexdigest() + '.html')
+    with open(tmp, 'w', encoding='utf-8') as f: f.write(page_html)
+    try: _web_to_pdf(tmp, dst)
+    finally:
+        try: os.remove(tmp)
+        except OSError: pass
+
+def _shade(hex6, amount):
+    """Lighten (amount > 0) or darken (< 0) a color the way Office tints and shades theme colors."""
+    r, g, b = (int(hex6[i:i + 2], 16) for i in (0, 2, 4))
+    f = (lambda c: c + (255 - c) * amount) if amount > 0 else (lambda c: c * (1 + amount))
+    return '%02X%02X%02X' % tuple(max(0, min(255, round(f(c)))) for c in (r, g, b))
+
+_PAGE_CSS = "body{margin:0;-webkit-print-color-adjust:exact;print-color-adjust:exact} p{margin:0} table{border-collapse:collapse}"
+
+# ----- Word -----
+def _docx_to_html(src):
+    import docx
+    from docx.oxml.ns import qn
+    from docx.text.run import Run
+    from docx.table import _Cell
+    d = docx.Document(src)
+    W = lambda tag: qn('w:' + tag)
+    sec = d.sections[0]
+    inch = lambda v, dflt: (v / 914400) if v is not None else dflt
+    pw, ph = inch(sec.page_width, 8.5), inch(sec.page_height, 11)
+    mt, mb, ml, mr = inch(sec.top_margin, 1), inch(sec.bottom_margin, 1), inch(sec.left_margin, 1), inch(sec.right_margin, 1)
+    hd = inch(sec.header_distance, 0.5)
+
+    # document defaults (font, size, spacing) that styles build on
+    styles_el = d.styles.element
+    def dflt(path, attr):
+        el = styles_el.find(W('docDefaults') + '/' + path)
+        return el.get(W(attr)) if el is not None else None
+    # the theme's fonts: most documents say "the theme's body font" rather than naming one
+    tfonts = {}
+    try:
+        from docx.opc.constants import RELATIONSHIP_TYPE as RT
+        from lxml import etree
+        th = etree.fromstring(d.part.part_related_by(RT.THEME).blob)
+        for kind in ('minor', 'major'):
+            lat = th.find(f".//{qn('a:' + kind + 'Font')}/{qn('a:latin')}")
+            if lat is not None and lat.get('typeface'): tfonts[kind] = lat.get('typeface')
+    except Exception: pass
+    def font_of(rfonts):
+        if rfonts is None: return None
+        if rfonts.get(W('ascii')): return rfonts.get(W('ascii'))
+        t = rfonts.get(W('asciiTheme')) or rfonts.get(W('hAnsiTheme'))
+        return tfonts.get('major' if t and t.startswith('major') else 'minor') if t else None
+    base_font = font_of(styles_el.find(f"{W('docDefaults')}/{W('rPrDefault')}/{W('rPr')}/{W('rFonts')}")) or tfonts.get('minor') or 'Calibri'
+    style_font = lambda st: st.font.name or font_of(st.element.find(f"{W('rPr')}/{W('rFonts')}"))
+    base_size = int(dflt(f"{W('rPrDefault')}/{W('rPr')}/{W('sz')}", 'val') or 22) / 2
+    base_after = int(dflt(f"{W('pPrDefault')}/{W('pPr')}/{W('spacing')}", 'after') or 0) / 20
+    base_line = dflt(f"{W('pPrDefault')}/{W('pPr')}/{W('spacing')}", 'line')
+    base_line = int(base_line) / 240 if base_line else 1.0
+
+    # numbering: list number formats per list and level
+    nums, counters = {}, {}
+    try:
+        nx = d.part.numbering_part.element
+        absmap = {}
+        for an in nx.findall(W('abstractNum')):
+            lv = {}
+            for l in an.findall(W('lvl')):
+                fmt, txt = l.find(W('numFmt')), l.find(W('lvlText'))
+                lv[int(l.get(W('ilvl')))] = (fmt.get(W('val')) if fmt is not None else 'bullet', txt.get(W('val')) if txt is not None else '•')
+            absmap[an.get(W('abstractNumId'))] = lv
+        for n in nx.findall(W('num')):
+            a = n.find(W('abstractNumId'))
+            if a is not None: nums[n.get(W('numId'))] = absmap.get(a.get(W('val')), {})
+    except Exception: pass
+
+    def roman(n):
+        out = ''
+        for v, s in ((1000, 'm'), (900, 'cm'), (500, 'd'), (400, 'cd'), (100, 'c'), (90, 'xc'), (50, 'l'), (40, 'xl'), (10, 'x'), (9, 'ix'), (5, 'v'), (4, 'iv'), (1, 'i')):
+            while n >= v: out += s; n -= v
+        return out
+    def number(n, fmt):
+        if fmt == 'lowerLetter': return chr(96 + (n - 1) % 26 + 1)
+        if fmt == 'upperLetter': return chr(64 + (n - 1) % 26 + 1)
+        if fmt == 'lowerRoman': return roman(n)
+        if fmt == 'upperRoman': return roman(n).upper()
+        return str(n)
+    def marker(p_el, style):
+        numPr = p_el.find(f"{W('pPr')}/{W('numPr')}")
+        s = style
+        while numPr is None and s is not None:
+            numPr = s.element.find(f"{W('pPr')}/{W('numPr')}"); s = s.base_style
+        if numPr is None: return None, 0
+        nid = numPr.find(W('numId')); il = numPr.find(W('ilvl'))
+        nid = nid.get(W('val')) if nid is not None else None
+        il = int(il.get(W('val'))) if il is not None else 0
+        if not nid or nid == '0' or nid not in nums: return None, 0
+        fmt, txt = nums[nid].get(il, ('bullet', '•'))
+        c = counters.setdefault(nid, {})
+        c[il] = c.get(il, 0) + 1
+        for k in [k for k in c if k > il]: del c[k]
+        if fmt == 'bullet':
+            ch = txt or '•'
+            return ('•' if (not ch or ord(ch[0]) >= 0xF000 or ch in ('o',)) and ch != '-' else ch), il
+        if fmt == 'none': return '', il
+        return re.sub(r'%(\d)', lambda m: number(c.get(int(m.group(1)) - 1, 1), nums[nid].get(int(m.group(1)) - 1, (fmt,))[0]), txt or '%1.'), il
+
+    def chain(style, get):
+        while style is not None:
+            v = get(style)
+            if v is not None: return v
+            style = style.base_style
+        return None
+
+    HL = {'YELLOW': 'yellow', 'BRIGHT_GREEN': '#00ff00', 'TURQUOISE': '#00ffff', 'PINK': '#ff00ff', 'BLUE': '#0000ff', 'RED': '#ff0000',
+          'DARK_BLUE': '#000080', 'TEAL': '#008080', 'GREEN': '#008000', 'VIOLET': '#800080', 'DARK_RED': '#800000', 'DARK_YELLOW': '#808000',
+          'GRAY_25': '#c0c0c0', 'GRAY_50': '#808080', 'BLACK': '#000000'}
+
+    def run_html(r, pstyle):
+        f = r.font
+        cstyle = r.style if r.style is not None and r.style.name != 'Default Paragraph Font' else None
+        def prop(name):
+            v = getattr(f, name)
+            if v is None and cstyle is not None: v = chain(cstyle, lambda s: getattr(s.font, name))
+            if v is None: v = chain(pstyle, lambda s: getattr(s.font, name))
+            return v
+        css = []
+        if prop('bold'): css.append('font-weight:bold')
+        if prop('italic'): css.append('font-style:italic')
+        deco = []
+        if prop('underline'): deco.append('underline')
+        if prop('strike'): deco.append('line-through')
+        if deco: css.append('text-decoration:' + ' '.join(deco))
+        size = prop('size')
+        if size is not None: css.append(f'font-size:{size.pt}pt')
+        name = f.name or font_of(r._r.find(f"{W('rPr')}/{W('rFonts')}"))
+        if name is None and cstyle is not None: name = chain(cstyle, style_font)
+        if name is None: name = chain(pstyle, style_font)
+        if name: css.append(f"font-family:'{name}','{base_font}',Calibri,Arial,sans-serif")
+        try:
+            c = f.color.rgb if f.color is not None and f.color.type is not None else None
+            if c is None and cstyle is not None: c = chain(cstyle, lambda s: s.font.color.rgb if s.font.color.type is not None else None)
+            if c is None: c = chain(pstyle, lambda s: s.font.color.rgb if s.font.color.type is not None else None)
+            if c is not None: css.append(f'color:#{c}')
+        except Exception: pass
+        try:
+            hl = f.highlight_color
+            if hl is not None and getattr(hl, 'name', '') in HL: css.append('background:' + HL[hl.name])
+        except Exception: pass
+        if prop('superscript'): css.append('vertical-align:super;font-size:smaller')
+        elif prop('subscript'): css.append('vertical-align:sub;font-size:smaller')
+        if prop('all_caps'): css.append('text-transform:uppercase')
+        elif prop('small_caps'): css.append('font-variant:small-caps')
+        out = []
+        for child in r._r.iterchildren():
+            tag = child.tag
+            if tag == W('t'): out.append(_esc(child.text or ''))
+            elif tag == W('tab'): out.append('<span style="display:inline-block;width:0.5in"></span>')
+            elif tag in (W('br'), W('cr')):
+                out.append('<span style="display:block;break-after:page"></span>' if child.get(W('type')) == 'page' else '<br>')
+            elif tag == W('drawing') or tag == W('pict'):
+                for blip in child.iter(qn('a:blip')):
+                    rid = blip.get(qn('r:embed')) or blip.get(qn('r:link'))
+                    part = r.part.related_parts.get(rid) if rid else None
+                    if part is None: continue
+                    uri = _img_uri(part.blob, part.content_type)
+                    if not uri: continue
+                    ext = next(child.iter(qn('wp:extent')), None)
+                    wpx = int(ext.get('cx')) / 9525 if ext is not None else None
+                    hpx = int(ext.get('cy')) / 9525 if ext is not None else None
+                    anchor = next(child.iter(qn('wp:anchor')), None)
+                    float_css = ''
+                    if anchor is not None:   # a floating picture: to the side it's placed on
+                        al = next(anchor.iter(qn('wp:align')), None)
+                        pos = next(anchor.iter(qn('wp:posOffset')), None)
+                        side = al.text if al is not None else ('right' if pos is not None and int(pos.text or 0) / 914400 > (pw - ml - mr) / 2 else 'left')
+                        float_css = f'float:{"right" if side == "right" else "left"};margin:0 8px 4px 8px;'
+                    size_css = f'width:{wpx:.1f}px;height:{hpx:.1f}px;' if wpx else 'max-width:100%;'
+                    out.append(f'<img src="{uri}" style="{float_css}{size_css}vertical-align:bottom">')
+                    break
+        if not out: return ''
+        body = ''.join(out)
+        return f'<span style="{";".join(css)}">{body}</span>' if css else body
+
+    def para_html(p_el, parent):
+        from docx.text.paragraph import Paragraph
+        p = Paragraph(p_el, parent)
+        style = p.style
+        pf = p.paragraph_format
+        def pprop(name):
+            v = getattr(pf, name)
+            return v if v is not None else chain(style, lambda s: getattr(s.paragraph_format, name))
+        css = []
+        al = pprop('alignment')
+        if al is not None:
+            css.append('text-align:' + {0: 'left', 1: 'center', 2: 'right', 3: 'justify'}.get(int(getattr(al, 'value', al)), 'left'))
+        sb, sa = pprop('space_before'), pprop('space_after')
+        css.append(f'margin-top:{sb.pt if sb is not None else 0}pt;margin-bottom:{sa.pt if sa is not None else base_after}pt')
+        ls = pprop('line_spacing')
+        if ls is None: css.append(f'line-height:{base_line * 1.15:.2f}')
+        elif isinstance(ls, float): css.append(f'line-height:{ls * 1.15:.2f}')
+        else: css.append(f'line-height:{ls.pt}pt')
+        li, fi, ri = pprop('left_indent'), pprop('first_line_indent'), pprop('right_indent')
+        mark, lvl = marker(p_el, style)
+        left = li.pt if li is not None else (0.25 * 72 * (lvl + 1) if mark is not None else 0)
+        if left: css.append(f'margin-left:{left}pt')
+        if ri is not None and ri.pt: css.append(f'margin-right:{ri.pt}pt')
+        if fi is not None and fi.pt and mark is None: css.append(f'text-indent:{fi.pt}pt')
+        if pprop('page_break_before'): css.append('break-before:page')
+        sz = chain(style, lambda s: s.font.size)
+        css.append(f'font-size:{sz.pt if sz is not None else base_size}pt')
+        fn = chain(style, style_font)
+        css.append(f"font-family:'{fn or base_font}',Calibri,Arial,sans-serif")
+        shd = p_el.find(f"{W('pPr')}/{W('shd')}")
+        if shd is not None and shd.get(W('fill')) not in (None, 'auto'): css.append(f"background:#{shd.get(W('fill'))}")
+        # the runs, in order, including those inside links, fields and content controls (not deleted ones)
+        parts = []
+        for r_el in p_el.iter(W('r')):
+            anc = r_el.getparent(); skip = False; link = None
+            while anc is not None and anc is not p_el:
+                if anc.tag in (W('del'), W('moveFrom'), qn('mc:Fallback'), W('txbxContent')): skip = True; break
+                if anc.tag == W('hyperlink'): link = anc
+                anc = anc.getparent()
+            if skip: continue
+            h = run_html(Run(r_el, p), style)
+            if link is not None and link.get(qn('r:id')):
+                try: h = f'<a href="{_esc(p.part.rels[link.get(qn("r:id"))].target_ref)}" style="color:inherit">{h}</a>'
+                except Exception: pass
+            parts.append(h)
+        inner = ''.join(parts) or '&nbsp;'
+        if mark:
+            inner = f'<span style="display:inline-block;min-width:0.25in;margin-left:-0.25in">{_esc(mark)}</span>' + inner
+        return f'<p style="{";".join(css)}">{inner}</p>'
+
+    def table_html(t_el, parent):
+        grid = [int(g.get(W('w')) or 0) / 20 for g in t_el.iterfind(f"{W('tblGrid')}/{W('gridCol')}")]
+        bord = t_el.find(f"{W('tblPr')}/{W('tblBorders')}")
+        sname = t_el.find(f"{W('tblPr')}/{W('tblStyle')}")
+        has_b = bord is not None and any(b.get(W('val')) not in ('nil', 'none', None) for b in bord)
+        if not has_b and sname is not None:
+            try:
+                st = d.styles.element.xpath(f'w:style[@w:styleId="{sname.get(W("val"))}"]')
+                has_b = bool(st and st[0].xpath('.//w:tblBorders/*[@w:val!="nil" and @w:val!="none"]'))
+            except Exception: pass
+        cell_b = 'border:0.75pt solid #000;' if has_b else ''
+        rows = [list(tr.iterfind(W('tc'))) for tr in t_el.iterfind(W('tr'))]
+        pos = []   # each row: [(grid column, span, tc)]
+        for cells in rows:
+            col, row = 0, []
+            for tc in cells:
+                gs = tc.find(f"{W('tcPr')}/{W('gridSpan')}")
+                span = int(gs.get(W('val'))) if gs is not None else 1
+                row.append((col, span, tc)); col += span
+            pos.append(row)
+        def vmerge(tc):
+            v = tc.find(f"{W('tcPr')}/{W('vMerge')}")
+            return None if v is None else (v.get(W('val')) or 'continue')
+        out = [f'<table style="border-collapse:collapse;table-layout:fixed;width:{sum(grid) or 468}pt;margin:2pt 0">']
+        if grid: out.append('<colgroup>' + ''.join(f'<col style="width:{g}pt">' for g in grid) + '</colgroup>')
+        for ri, row in enumerate(pos):
+            out.append('<tr>')
+            for col, span, tc in row:
+                vm = vmerge(tc)
+                if vm == 'continue': continue
+                rs = 1
+                if vm == 'restart':
+                    for nxt in pos[ri + 1:]:
+                        hit = next((t for c, s, t in nxt if c == col), None)
+                        if hit is not None and vmerge(hit) == 'continue': rs += 1
+                        else: break
+                css = cell_b + 'padding:0 5.4pt;vertical-align:top;'
+                tcb = tc.find(f"{W('tcPr')}/{W('tcBorders')}")
+                if tcb is not None:
+                    for side in ('top', 'left', 'bottom', 'right'):
+                        b = tcb.find(W(side))
+                        if b is not None:
+                            css += f"border-{side}:" + ('none;' if b.get(W('val')) in ('nil', 'none') else f"{max(0.5, int(b.get(W('sz')) or 4) / 8)}pt solid #{(b.get(W('color')) or '000000').replace('auto', '000000')};")
+                shd = tc.find(f"{W('tcPr')}/{W('shd')}")
+                if shd is not None and shd.get(W('fill')) not in (None, 'auto'): css += f"background:#{shd.get(W('fill'))};"
+                va = tc.find(f"{W('tcPr')}/{W('vAlign')}")
+                if va is not None: css += 'vertical-align:' + {'center': 'middle', 'bottom': 'bottom'}.get(va.get(W('val')), 'top') + ';'
+                cell = _Cell(tc, parent)
+                out.append(f'<td colspan="{span}" rowspan="{rs}" style="{css}">{blocks_html(tc, cell)}</td>')
+            out.append('</tr>')
+        out.append('</table>')
+        return ''.join(out)
+
+    def blocks_html(container, parent):
+        out = []
+        for el in container.iterchildren():
+            if el.tag == W('p'): out.append(para_html(el, parent))
+            elif el.tag == W('tbl'): out.append(table_html(el, parent))
+            elif el.tag == W('sdt'):
+                c = el.find(W('sdtContent'))
+                if c is not None: out.append(blocks_html(c, parent))
+        return ''.join(out)
+
+    body = blocks_html(d.element.body, d._body)
+    # the first page's header (letterheads, logos) sits in its top margin
+    header = ''
+    try:
+        hdr = sec.first_page_header if sec.different_first_page_header_footer else sec.header
+        if not hdr.is_linked_to_previous: header = blocks_html(hdr._element, hdr)
+    except Exception: header = ''
+    head_h = max(0.0, mt - hd)
+    page_css = (f"@page{{size:{pw}in {ph}in;margin:{mt}in {mr}in {mb}in {ml}in}}"
+                + (f"@page :first{{margin-top:{hd}in}}" if header else ''))
+    head_div = f'<div style="height:{head_h}in;overflow:hidden">{header}</div>' if header else ''
+    return (f'<!doctype html><html><head><meta charset="utf-8"><style>{page_css}{_PAGE_CSS}'
+            f"body{{font-family:'{base_font}',Calibri,Arial,sans-serif;font-size:{base_size}pt}} img{{max-width:100%}}</style></head>"
+            f'<body>{head_div}{body}</body></html>')
+
+# ----- Excel (and CSV): every sheet as a table laid out like the sheet -----
+_THEME_XL = ['FFFFFF', '000000', 'E7E6E6', '44546A', '4472C4', 'ED7D31', 'A5A5A5', 'FFC000', '5B9BD5', '70AD47']
+
+def _xl_color(c):
+    if c is None: return None
+    try:
+        if c.type == 'rgb' and isinstance(c.rgb, str): return c.rgb[-6:]
+        if c.type == 'theme' and c.theme is not None and c.theme < len(_THEME_XL):
+            return _shade(_THEME_XL[c.theme], c.tint or 0)
+        if c.type == 'indexed' and c.indexed is not None:
+            from openpyxl.styles.colors import COLOR_INDEX
+            if c.indexed < len(COLOR_INDEX): return COLOR_INDEX[c.indexed][-6:]
+            return '000000' if c.indexed == 64 else None
+    except Exception: pass
+    return None
+
+def _xl_fmt(v, fmt):
+    import datetime
+    if v is None: return ''
+    if isinstance(v, bool): return 'TRUE' if v else 'FALSE'
+    if isinstance(v, datetime.datetime) and (v.hour or v.minute) and 'h' in (fmt or '').lower():
+        return f"{v.month}/{v.day}/{v.year} {v.strftime('%I:%M %p').lstrip('0')}"
+    if isinstance(v, (datetime.datetime, datetime.date)):
+        f = (fmt or '').lower()
+        if 'mmmm' in f: return v.strftime('%B %d, %Y').replace(' 0', ' ')
+        if 'mmm' in f: return f"{v.day}-{v.strftime('%b')}" + (f"-{v.strftime('%y')}" if 'yy' in f else '')
+        return f"{v.month}/{v.day}/{v.year}"
+    if isinstance(v, datetime.time): return v.strftime('%I:%M %p').lstrip('0')
+    if isinstance(v, (int, float)):
+        f = fmt or 'General'
+        if f == 'General' or ('0' not in f and '#' not in f):
+            if isinstance(v, float):
+                return str(int(v)) if v.is_integer() and abs(v) < 1e15 else f'{v:.10g}'
+            return str(v)
+        sec = f.split(';')
+        body = re.sub(r'"[^"]*"|\[[^\]]*\]|_.|\\.|\*.', '', sec[0])
+        pct = '%' in body
+        x = v * 100 if pct else v
+        m = re.search(r'\.(0+)', body)
+        dec = len(m.group(1)) if m else 0
+        s = f'{abs(x):,.{dec}f}' if ',' in body else f'{abs(x):.{dec}f}'
+        cur = '$' if '$' in sec[0] else '€' if '€' in sec[0] else '£' if '£' in sec[0] else ''
+        s = cur + s + ('%' if pct else '')
+        if x < 0: s = f'({s})' if len(sec) > 1 and '(' in sec[1] else '-' + s
+        return s
+    return str(v)
+
+def _xlsx_sheets(src):
+    from openpyxl import load_workbook
+    from openpyxl.utils import get_column_letter
+    wb = load_workbook(src, data_only=True)
+    sheets = []
+    for ws in wb.worksheets:
+        if ws.sheet_state != 'visible': continue
+        # how far the sheet goes: the print area if it has one, else the last cell with a value or a border/fill
+        r0, c0, r1, c1 = 1, 1, 0, 0
+        area = None
+        try: area = ws.print_area
+        except Exception: pass
+        if area:
+            from openpyxl.utils.cell import range_boundaries
+            first = (area if isinstance(area, str) else area[0]).split(',')[0]
+            c0, r0, c1, r1 = range_boundaries(first.split('!')[-1].replace('$', ''))
+        else:
+            for row in ws.iter_rows():
+                for cell in row:
+                    b = cell.border
+                    if cell.value not in (None, '') or (cell.fill is not None and cell.fill.fill_type == 'solid') or \
+                            (b is not None and any(getattr(getattr(b, s), 'style', None) for s in ('left', 'right', 'top', 'bottom'))):
+                        r1, c1 = max(r1, cell.row), max(c1, cell.column)
+            for mr in ws.merged_cells.ranges:
+                if mr.min_row <= r1 + 1: r1, c1 = max(r1, mr.max_row), max(c1, mr.max_col)
+        if r1 == 0: continue
+        widths, hidden_c = {}, set()
+        dw = ws.sheet_format.defaultColWidth or 8.43
+        for cd in ws.column_dimensions.values():
+            for i in range((cd.min or 0), (cd.max or 0) + 1):
+                if cd.hidden: hidden_c.add(i)
+                if cd.width: widths[i] = cd.width
+        dh = ws.sheet_format.defaultRowHeight or 15
+        cols = [c for c in range(c0, c1 + 1) if c not in hidden_c]
+        rows = [r for r in range(r0, r1 + 1) if not ws.row_dimensions[r].hidden]
+        colw = {c: round(widths.get(c, dw) * 7 + 5) for c in cols}
+        rowh = {r: (ws.row_dimensions[r].height or dh) * 96 / 72 for r in rows}
+        span, covered = {}, set()
+        for mr in ws.merged_cells.ranges:
+            rr = [r for r in range(mr.min_row, mr.max_row + 1) if r in rowh]
+            cc = [c for c in range(mr.min_col, mr.max_col + 1) if c in colw]
+            if not rr or not cc: continue
+            span[(rr[0], cc[0])] = (len(rr), len(cc))
+            for r in rr:
+                for c in cc:
+                    if (r, c) != (rr[0], cc[0]): covered.add((r, c))
+        cells = {}
+        for r in rows:
+            for c in cols:
+                if (r, c) in covered: continue
+                cell = ws.cell(r, c)
+                css, f = [], cell.font
+                if f is not None:
+                    if f.b: css.append('font-weight:bold')
+                    if f.i: css.append('font-style:italic')
+                    if f.u: css.append('text-decoration:underline')
+                    if f.sz: css.append(f'font-size:{f.sz}pt')
+                    if f.name: css.append(f"font-family:'{f.name}',Calibri,Arial,sans-serif")
+                    fc = _xl_color(f.color)
+                    if fc: css.append(f'color:#{fc}')
+                if cell.fill is not None and cell.fill.fill_type == 'solid':
+                    bg = _xl_color(cell.fill.fgColor)
+                    if bg: css.append(f'background:#{bg}')
+                b = cell.border
+                if b is not None:
+                    for side in ('left', 'right', 'top', 'bottom'):
+                        s = getattr(b, side)
+                        if s is not None and s.style:
+                            w = 3 if s.style in ('thick', 'double') else 2 if s.style.startswith('medium') else 1
+                            css.append(f'border-{side}:{w}px {"dashed" if "dash" in s.style or "dot" in s.style else "double" if s.style == "double" else "solid"} #{_xl_color(s.color) or "000000"}')
+                # a merged block's outer border comes from its edge cells
+                if (r, c) in span:
+                    rs, cs = span[(r, c)]
+                    last_c = cols[min(len(cols) - 1, cols.index(c) + cs - 1)]
+                    rb = ws.cell(r, last_c).border
+                    if rb is not None and rb.right is not None and rb.right.style:
+                        css.append(f'border-right:{3 if rb.right.style in ("thick", "double") else 2 if rb.right.style.startswith("medium") else 1}px solid #{_xl_color(rb.right.color) or "000000"}')
+                    last_r = rows[min(len(rows) - 1, rows.index(r) + rs - 1)]
+                    bb = ws.cell(last_r, c).border
+                    if bb is not None and bb.bottom is not None and bb.bottom.style:
+                        css.append(f'border-bottom:{3 if bb.bottom.style in ("thick", "double") else 2 if bb.bottom.style.startswith("medium") else 1}px solid #{_xl_color(bb.bottom.color) or "000000"}')
+                al = cell.alignment
+                num = isinstance(cell.value, (int, float)) and not isinstance(cell.value, bool)
+                h = (al.horizontal if al is not None else None) or ('right' if num else None)
+                if h in ('center', 'centerContinuous'): css.append('text-align:center')
+                elif h == 'right': css.append('text-align:right')
+                elif h == 'justify': css.append('text-align:justify')
+                v = al.vertical if al is not None else None
+                css.append('vertical-align:' + {'top': 'top', 'center': 'middle'}.get(v, 'bottom'))
+                wrap = bool(al is not None and al.wrap_text)
+                text = _xl_fmt(cell.value, cell.number_format)
+                cells[(r, c)] = (text, css, wrap)
+        images = []
+        xs, ys = {}, {}
+        acc = 0
+        for c in range(1, c1 + 2):
+            xs[c] = acc
+            if c in colw: acc += colw[c]
+        acc = 0
+        for r in range(1, r1 + 2):
+            ys[r] = acc
+            if r in rowh: acc += rowh[r]
+        for img in getattr(ws, '_images', []):
+            try:
+                a = img.anchor; fr = a._from
+                x = xs.get(fr.col + 1, 0) - xs.get(c0, 0) + fr.colOff / 9525
+                y = ys.get(fr.row + 1, 0) - ys.get(r0, 0) + fr.rowOff / 9525
+                if hasattr(a, 'to') and a.to is not None:
+                    w = xs.get(a.to.col + 1, 0) - xs.get(c0, 0) + a.to.colOff / 9525 - x
+                    hgt = ys.get(a.to.row + 1, 0) - ys.get(r0, 0) + a.to.rowOff / 9525 - y
+                else:
+                    w, hgt = a.ext.width / 9525, a.ext.height / 9525
+                data = img._data()
+                uri = _img_uri(data, 'image/' + (img.format or 'png').lower().replace('jpg', 'jpeg'))
+                if uri and w > 0 and hgt > 0: images.append((x, y, w, hgt, uri))
+            except Exception: continue
+        ps = ws.page_setup
+        pm = ws.page_margins
+        sheets.append({'name': ws.title, 'rows': rows, 'cols': cols, 'colw': colw, 'rowh': rowh, 'span': span,
+                       'cells': cells, 'images': images,
+                       'landscape': {'landscape': True, 'portrait': False}.get(ps.orientation),
+                       'a4': str(ps.paperSize) == '9',
+                       'margins': (pm.top or 0.75, pm.right or 0.7, pm.bottom or 0.75, pm.left or 0.7)})
+    return sheets
+
+def _xls_sheets(src):
+    """Old .xls workbooks (Excel 97-2003): values, number formats, merged cells, widths, bold and borders."""
+    import xlrd
+    bk = xlrd.open_workbook(src, formatting_info=True)
+    sheets = []
+    for sh in bk.sheets():
+        if sh.visibility != 0 or sh.nrows == 0: continue
+        cols = [c for c in range(sh.ncols) if not (sh.colinfo_map.get(c) and sh.colinfo_map[c].hidden)]
+        rows = [r for r in range(sh.nrows) if not (sh.rowinfo_map.get(r) and sh.rowinfo_map[r].hidden)]
+        dw = (sh.defcolwidth or 8.43) if sh.defcolwidth else 8.43
+        colw = {c: round(((sh.colinfo_map[c].width / 256) if c in sh.colinfo_map else dw) * 7 + 5) for c in cols}
+        rowh = {r: ((sh.rowinfo_map[r].height / 20) if r in sh.rowinfo_map else 15) * 96 / 72 for r in rows}
+        span, covered = {}, set()
+        for rlo, rhi, clo, chi in sh.merged_cells:
+            span[(rlo, clo)] = (len([r for r in range(rlo, rhi) if r in rowh]), len([c for c in range(clo, chi) if c in colw]))
+            for r in range(rlo, rhi):
+                for c in range(clo, chi):
+                    if (r, c) != (rlo, clo): covered.add((r, c))
+        cells = {}
+        for r in rows:
+            for c in cols:
+                if (r, c) in covered: continue
+                cell = sh.cell(r, c)
+                css = []
+                fmt = None
+                try:
+                    xf = bk.xf_list[cell.xf_index]
+                    font = bk.font_list[xf.font_index]
+                    if font.bold: css.append('font-weight:bold')
+                    if font.italic: css.append('font-style:italic')
+                    if font.underline_type: css.append('text-decoration:underline')
+                    css.append(f'font-size:{font.height / 20}pt')
+                    css.append(f"font-family:'{font.name}',Arial,sans-serif")
+                    fmt = bk.format_map[xf.format_key].format_str
+                    bd = xf.border
+                    for side, ls, ci in (('left', bd.left_line_style, bd.left_colour_index), ('right', bd.right_line_style, bd.right_colour_index),
+                                         ('top', bd.top_line_style, bd.top_colour_index), ('bottom', bd.bottom_line_style, bd.bottom_colour_index)):
+                        if ls: css.append(f'border-{side}:{2 if ls in (2, 5, 8) else 1}px solid #000')
+                    bg = bk.colour_map.get(xf.background.pattern_colour_index) if xf.background.fill_pattern else None
+                    if bg: css.append('background:#%02X%02X%02X' % bg)
+                    h = xf.alignment.hor_align
+                    if h == 2: css.append('text-align:center')
+                    elif h == 3: css.append('text-align:right')
+                    wrap = bool(xf.alignment.text_wrapped)
+                except Exception: wrap = False
+                v = cell.value
+                if cell.ctype == xlrd.XL_CELL_DATE:
+                    try: v = xlrd.xldate.xldate_as_datetime(v, bk.datemode)
+                    except Exception: pass
+                elif cell.ctype == xlrd.XL_CELL_BOOLEAN: v = bool(v)
+                elif cell.ctype in (xlrd.XL_CELL_EMPTY, xlrd.XL_CELL_BLANK): v = None
+                elif cell.ctype == xlrd.XL_CELL_ERROR: v = '#ERR'
+                if cell.ctype == xlrd.XL_CELL_NUMBER and not any(x.startswith('text-align') for x in css): css.append('text-align:right')
+                css.append('vertical-align:bottom')
+                cells[(r, c)] = (_xl_fmt(v, fmt), css, wrap)
+        sheets.append({'name': sh.name, 'rows': rows, 'cols': cols, 'colw': colw, 'rowh': rowh, 'span': span, 'cells': cells,
+                       'images': [], 'landscape': None, 'a4': False, 'margins': (0.75, 0.7, 0.75, 0.7)})
+    return sheets
+
+def _csv_sheets(src):
+    import csv
+    with open(src, newline='', encoding='utf-8-sig', errors='replace') as f:
+        data = list(csv.reader(f, delimiter='\t' if src.lower().endswith('.tsv') else ','))
+    ncols = max((len(r) for r in data), default=0)
+    if not data or not ncols: return []
+    rows, cols = list(range(len(data))), list(range(ncols))
+    widths = [min(60, max([len(r[c]) if c < len(r) else 0 for r in data] + [6])) for c in cols]
+    cells = {}
+    for r in rows:
+        for c in cols:
+            t = data[r][c] if c < len(data[r]) else ''
+            num = bool(re.fullmatch(r'[-+$]?[\d,]*\.?\d+%?', t.strip()))
+            cells[(r, c)] = (t, ['text-align:right' if num else 'text-align:left', 'border:1px solid #d0d0d0'] + (['font-weight:bold'] if r == 0 else []), False)
+    return [{'name': os.path.basename(src), 'rows': rows, 'cols': cols, 'colw': {c: widths[c] * 7 + 10 for c in cols},
+             'rowh': {r: 20 for r in rows}, 'span': {}, 'cells': cells, 'images': [], 'landscape': None, 'a4': False,
+             'margins': (0.5, 0.5, 0.5, 0.5)}]
+
+def _sheets_to_html(sheets):
+    if not sheets: raise ValueError('This spreadsheet is empty')
+    css = [_PAGE_CSS, "td{padding:1px 3px;overflow:hidden;white-space:nowrap;font-family:Calibri,Arial,sans-serif;font-size:11pt;box-sizing:border-box}",
+           "td.wrap{white-space:normal;word-wrap:break-word} td.spill{overflow:visible} .sheet{position:relative;break-after:page}"]
+    pages = []
+    for i, s in enumerate(sheets):
+        width = sum(s['colw'][c] for c in s['cols'])
+        height = sum(s['rowh'][r] for r in s['rows'])
+        land = s['landscape'] if s['landscape'] is not None else width > 720
+        pw, ph = (8.27, 11.69) if s['a4'] else (8.5, 11)
+        if land: pw, ph = ph, pw
+        mt, mr, mb, ml = s['margins']
+        zoom = min(1.0, (pw - ml - mr) * 96 / max(width, 1))
+        name = f'p{i}'
+        css.append(f"@page {name}{{size:{pw}in {ph}in;margin:{mt}in {mr}in {mb}in {ml}in}} .{name}{{page:{name}}}")
+        out = [f'<div class="sheet {name}"><div style="position:relative;zoom:{zoom:.4f};width:{width}px">',
+               f'<table style="table-layout:fixed;width:{width}px"><colgroup>' + ''.join(f'<col style="width:{s["colw"][c]}px">' for c in s['cols']) + '</colgroup>']
+        for r in s['rows']:
+            out.append(f'<tr style="height:{s["rowh"][r]:.1f}px">')
+            for k, c in enumerate(s['cols']):
+                if (r, c) not in s['cells']: continue
+                text, ccss, wrap = s['cells'][(r, c)]
+                rs, cs = s['span'].get((r, c), (1, 1))
+                cls = 'wrap' if wrap else ''
+                # text runs on into the next cells when they're empty, as in Excel
+                if not wrap and text and cs == 1 and k + 1 < len(s['cols']):
+                    nxt = s['cells'].get((r, s['cols'][k + 1]))
+                    if nxt is not None and not nxt[0]: cls = 'spill'
+                attrs = (f' rowspan="{rs}"' if rs > 1 else '') + (f' colspan="{cs}"' if cs > 1 else '')
+                out.append(f'<td{attrs} class="{cls}" style="{";".join(ccss)}">{_esc(text)}</td>')
+            out.append('</tr>')
+        out.append('</table>')
+        for x, y, w, h, uri in s['images']:
+            out.append(f'<img src="{uri}" style="position:absolute;left:{x:.1f}px;top:{y:.1f}px;width:{w:.1f}px;height:{h:.1f}px">')
+        out.append('</div></div>')
+        pages.append(''.join(out))
+    return f'<!doctype html><html><head><meta charset="utf-8"><style>{"".join(css)}</style></head><body>{"".join(pages)}</body></html>'
+
+# ----- PowerPoint: each slide as a page, shapes where they sit on it -----
+def _pptx_to_html(src):
+    from pptx import Presentation
+    from pptx.enum.shapes import MSO_SHAPE_TYPE, PP_PLACEHOLDER
+    from pptx.oxml.ns import qn
+    prs = Presentation(src)
+    SW, SH = (prs.slide_width or 12192000) / 9525, (prs.slide_height or 6858000) / 9525
+    master = prs.slide_master
+    # the theme's colors, for shapes and text that use them
+    theme = {}
+    try:
+        from pptx.opc.constants import RELATIONSHIP_TYPE as RT
+        tx = master.part.part_related_by(RT.THEME).blob
+        from lxml import etree
+        cs = etree.fromstring(tx).find('.//' + qn('a:clrScheme'))
+        for el in cs:
+            name = el.tag.split('}')[1]
+            srgb = el.find(qn('a:srgbClr')); sysc = el.find(qn('a:sysClr'))
+            theme[name] = srgb.get('val') if srgb is not None else (sysc.get('lastClr') if sysc is not None else None)
+    except Exception: pass
+    THEME_KEYS = {'ACCENT_1': 'accent1', 'ACCENT_2': 'accent2', 'ACCENT_3': 'accent3', 'ACCENT_4': 'accent4', 'ACCENT_5': 'accent5',
+                  'ACCENT_6': 'accent6', 'DARK_1': 'dk1', 'TEXT_1': 'dk1', 'LIGHT_1': 'lt1', 'BACKGROUND_1': 'lt1', 'DARK_2': 'dk2',
+                  'TEXT_2': 'dk2', 'LIGHT_2': 'lt2', 'BACKGROUND_2': 'lt2', 'HYPERLINK': 'hlink'}
+    def color(cf):
+        try:
+            if cf.type is None: return None
+            try: rgb = str(cf.rgb)
+            except AttributeError:
+                rgb = theme.get(THEME_KEYS.get(getattr(cf.theme_color, 'name', ''), ''), None)
+            if not rgb: return None
+            br = cf.brightness or 0
+            return _shade(rgb, br) if br else rgb
+        except Exception: return None
+
+    def inherited(sh, getter):
+        """Look up a text setting on the layout's and master's matching placeholder, then the master's text styles."""
+        if not sh.is_placeholder: return None
+        try:
+            idx, typ = sh.placeholder_format.idx, sh.placeholder_format.type
+            cands = []
+            lay = sh.part.slide.slide_layout
+            for ph in lay.placeholders:
+                if ph.placeholder_format.idx == idx: cands.append(ph._element); break
+            for ph in lay.slide_master.placeholders:
+                if ph.placeholder_format.type == typ: cands.append(ph._element); break
+            for el in cands:
+                v = getter(el)
+                if v is not None: return v
+            ts = lay.slide_master._element.find(qn('p:txStyles'))
+            key = 'p:titleStyle' if typ in (PP_PLACEHOLDER.TITLE, PP_PLACEHOLDER.CENTER_TITLE) else 'p:bodyStyle' if typ in (PP_PLACEHOLDER.BODY, PP_PLACEHOLDER.OBJECT, PP_PLACEHOLDER.SUBTITLE) else 'p:otherStyle'
+            if ts is not None and ts.find(qn(key)) is not None: return getter(ts.find(qn(key)))
+        except Exception: pass
+        return None
+
+    def text_html(sh):
+        tf = sh.text_frame
+        body = tf._txBody
+        bp = body.find(qn('a:bodyPr'))
+        scale = 1.0
+        na = bp.find(qn('a:normAutofit')) if bp is not None else None
+        if na is not None and na.get('fontScale'): scale = int(na.get('fontScale')) / 100000
+        anchor = bp.get('anchor') if bp is not None else None
+        if anchor is None: anchor = inherited(sh, lambda el: next((b.get('anchor') for b in el.iter(qn('a:bodyPr')) if b.get('anchor')), None))
+        is_title = sh.is_placeholder and sh.placeholder_format.type in (PP_PLACEHOLDER.TITLE, PP_PLACEHOLDER.CENTER_TITLE)
+        is_body = sh.is_placeholder and sh.placeholder_format.type in (PP_PLACEHOLDER.BODY, PP_PLACEHOLDER.OBJECT)
+        ins = lambda k, d: int(bp.get(k)) / 9525 if bp is not None and bp.get(k) else d
+        pad = f'padding:{ins("tIns", 4.8)}px {ins("rIns", 9.6)}px {ins("bIns", 4.8)}px {ins("lIns", 9.6)}px;'
+        paras = []
+        for p in tf.paragraphs:
+            lvl = p.level
+            def lvl_sz(el, lvl=lvl):
+                for l in el.iter(qn(f'a:lvl{lvl + 1}pPr')):
+                    d = l.find(qn('a:defRPr'))
+                    if d is not None and d.get('sz'): return int(d.get('sz')) / 100
+                return None
+            dsz = inherited(sh, lvl_sz) or (44 if is_title else 18)
+            al = p.alignment
+            if al is None:
+                al_inh = inherited(sh, lambda el, lvl=lvl: next((l.get('algn') for l in el.iter(qn(f'a:lvl{lvl + 1}pPr')) if l.get('algn')), None))
+                align = {'ctr': 'center', 'r': 'right', 'just': 'justify'}.get(al_inh, 'left')
+            else:
+                align = {1: 'left', 2: 'center', 3: 'right', 4: 'justify'}.get(int(getattr(al, 'value', al)), 'left')
+            runs = []
+            for r in p.runs:
+                f = r.font
+                sz = (f.size.pt if f.size else dsz) * scale
+                css = [f'font-size:{sz:.1f}pt']
+                if f.bold: css.append('font-weight:bold')
+                if f.italic: css.append('font-style:italic')
+                if f.underline: css.append('text-decoration:underline')
+                if f.name: css.append(f"font-family:'{f.name}',Calibri,Arial,sans-serif")
+                c = color(f.color)
+                if c: css.append(f'color:#{c}')
+                runs.append(f'<span style="{";".join(css)}">{_esc(r.text)}</span>')
+            ppr = p._p.find(qn('a:pPr'))
+            bullet = ''
+            if runs and is_body and not (ppr is not None and ppr.find(qn('a:buNone')) is not None):
+                bullet = '<span style="display:inline-block;width:0.9em;margin-left:-0.9em">•</span>'
+            if ppr is not None:
+                bc = ppr.find(qn('a:buChar'))
+                if bc is not None and runs: bullet = f'<span style="display:inline-block;width:0.9em;margin-left:-0.9em">{_esc(bc.get("char") or "•")}</span>'
+            indent = (lvl * 0.4 + (0.35 if bullet else 0))
+            line = f'font-size:{dsz * scale:.1f}pt'
+            paras.append(f'<div style="text-align:{align};margin-left:{indent}in;{line};line-height:1.15">{bullet}{"".join(runs) or "&nbsp;"}</div>')
+        jc = {'ctr': 'center', 'b': 'flex-end'}.get(anchor or ('ctr' if is_title else 't'), 'flex-start')
+        wrap = 'white-space:nowrap;' if bp is not None and bp.get('wrap') == 'none' else ''
+        return f'<div style="position:absolute;inset:0;display:flex;flex-direction:column;justify-content:{jc};{pad}{wrap}box-sizing:border-box">{"".join(paras)}</div>'
+
+    def shape_html(sh, tr):
+        """tr maps the shape's own position to the slide (groups have their own coordinates inside)."""
+        try:
+            x, y = tr(sh.left or 0, sh.top or 0)
+            x2, y2 = tr((sh.left or 0) + (sh.width or 0), (sh.top or 0) + (sh.height or 0))
+        except Exception: return ''
+        w, h = x2 - x, y2 - y
+        rot = f'transform:rotate({sh.rotation}deg);' if getattr(sh, 'rotation', 0) else ''
+        box = f'position:absolute;left:{x:.1f}px;top:{y:.1f}px;width:{w:.1f}px;height:{h:.1f}px;{rot}'
+        st = sh.shape_type
+        if st == MSO_SHAPE_TYPE.GROUP:
+            g = sh._element.find(qn('p:grpSpPr')).find(qn('a:xfrm'))
+            off, ext = g.find(qn('a:off')), g.find(qn('a:ext'))
+            cho, che = g.find(qn('a:chOff')), g.find(qn('a:chExt'))
+            ox, oy, ew, eh = int(off.get('x')), int(off.get('y')), int(ext.get('cx')) or 1, int(ext.get('cy')) or 1
+            cx, cy, cw, chh = int(cho.get('x')), int(cho.get('y')), int(che.get('cx')) or 1, int(che.get('cy')) or 1
+            inner = lambda a, b: tr(ox + (a - cx) * ew / cw, oy + (b - cy) * eh / chh)
+            return ''.join(shape_html(s, inner) for s in sh.shapes)
+        if st == MSO_SHAPE_TYPE.PICTURE or (sh.is_placeholder and hasattr(sh, 'image')):
+            try:
+                uri = _img_uri(sh.image.blob, sh.image.content_type)
+                if uri: return f'<img src="{uri}" style="{box}object-fit:fill">'
+            except Exception: pass
+            return ''
+        if st in (MSO_SHAPE_TYPE.LINE,) or sh._element.tag == qn('p:cxnSp'):
+            try:
+                c = color(sh.line.color) or '000000'
+                lw = max(1, (sh.line.width or 9525) / 9525)
+            except Exception: c, lw = '000000', 1
+            flipH = sh._element.find('.//' + qn('a:xfrm')).get('flipH') == '1'
+            flipV = sh._element.find('.//' + qn('a:xfrm')).get('flipV') == '1'
+            ax, bx = (x2, x) if flipH else (x, x2)
+            ay, by = (y2, y) if flipV else (y, y2)
+            return (f'<svg style="position:absolute;left:0;top:0;overflow:visible" width="1" height="1">'
+                    f'<line x1="{ax:.1f}" y1="{ay:.1f}" x2="{bx:.1f}" y2="{by:.1f}" stroke="#{c}" stroke-width="{lw:.1f}"/></svg>')
+        if getattr(sh, 'has_table', False) and sh.has_table:
+            rows = []
+            for row in sh.table.rows:
+                cells = []
+                for cell in row.cells:
+                    if cell.is_spanned: continue
+                    bg = ''
+                    try:
+                        if cell.fill.type is not None:
+                            cc = color(cell.fill.fore_color)
+                            if cc: bg = f'background:#{cc};'
+                    except Exception: pass
+                    txt = '<br>'.join(_esc(p.text) for p in cell.text_frame.paragraphs)
+                    span = (f' colspan="{cell.span_width}"' if cell.span_width > 1 else '') + (f' rowspan="{cell.span_height}"' if cell.span_height > 1 else '')
+                    cells.append(f'<td{span} style="{bg}border:1px solid #fff;padding:4px 8px;font-size:14pt">{txt}</td>')
+                rows.append(f'<tr style="height:{row.height / 9525:.1f}px">{"".join(cells)}</tr>')
+            return f'<table style="{box}border-collapse:collapse;background:#e8ecf4">{"".join(rows)}</table>'
+        if getattr(sh, 'has_chart', False) and sh.has_chart:
+            title = ''
+            try: title = sh.chart.chart_title.text_frame.text if sh.chart.has_title else ''
+            except Exception: pass
+            return f'<div style="{box}border:1px dashed #bbb;display:flex;align-items:center;justify-content:center;color:#777;font:14pt Calibri,Arial">{_esc(title or "Chart")}</div>'
+        style = box
+        try:
+            if sh.fill.type == 1:   # solid
+                c = color(sh.fill.fore_color)
+                if c: style += f'background:#{c};'
+        except Exception: pass
+        try:
+            if sh.line.fill.type == 1:
+                c = color(sh.line.color)
+                if c: style += f'border:{max(1, (sh.line.width or 9525) / 9525):.1f}px solid #{c};box-sizing:border-box;'
+        except Exception: pass
+        try:
+            name = str(sh.auto_shape_type).upper()
+            if 'OVAL' in name: style += 'border-radius:50%;'
+            elif 'ROUNDED' in name: style += f'border-radius:{min(w, h) * 0.16:.1f}px;'
+        except Exception: pass
+        txt = text_html(sh) if getattr(sh, 'has_text_frame', False) and sh.has_text_frame and sh.text_frame.text.strip() else ''
+        if not txt and style == box: return ''
+        return f'<div style="{style}">{txt}</div>'
+
+    def background(*holders):
+        for hd in holders:
+            bg = hd._element.find(qn('p:cSld')).find(qn('p:bg'))
+            if bg is None: continue
+            blip = next(bg.iter(qn('a:blip')), None)
+            if blip is not None:
+                try:
+                    part = hd.part.related_part(blip.get(qn('r:embed')))
+                    uri = _img_uri(part.blob, part.content_type)
+                    if uri: return f'background:url({uri}) center/cover no-repeat;'
+                except Exception: pass
+            srgb = next(bg.iter(qn('a:srgbClr')), None)
+            if srgb is not None: return f'background:#{srgb.get("val")};'
+            sch = next(bg.iter(qn('a:schemeClr')), None)
+            if sch is not None:
+                key = {'bg1': 'lt1', 'bg2': 'lt2', 'tx1': 'dk1', 'tx2': 'dk2'}.get(sch.get('val'), sch.get('val'))
+                if theme.get(key): return f'background:#{theme[key]};'
+        return 'background:#fff;'
+
+    ident = lambda a, b: (a / 9525, b / 9525)
+    pages = []
+    for slide in prs.slides:
+        if slide._element.get('show') == '0': continue
+        lay = slide.slide_layout
+        out = []
+        # what the master and layout draw behind the slide (logos, bands), not their empty placeholders
+        if slide._element.get('showMasterSp') != '0':
+            if lay._element.get('showMasterSp') != '0':
+                out += [shape_html(s, ident) for s in lay.slide_master.shapes if not s.is_placeholder]
+            out += [shape_html(s, ident) for s in lay.shapes if not s.is_placeholder]
+        out += [shape_html(s, ident) for s in slide.shapes]
+        pages.append(f'<div style="position:relative;width:{SW:.1f}px;height:{SH:.1f}px;overflow:hidden;break-after:page;'
+                     f'{background(slide, lay, lay.slide_master)}font-family:Calibri,Arial,sans-serif">{"".join(out)}</div>')
+    if not pages: raise ValueError('This presentation has no slides to show')
+    return (f'<!doctype html><html><head><meta charset="utf-8"><style>@page{{size:{SW / 96:.3f}in {SH / 96:.3f}in;margin:0}}{_PAGE_CSS}</style></head>'
+            f'<body>{"".join(pages)}</body></html>')
+
+def _builtin_to_pdf(src, dst):
+    low = src.lower()
+    if low.endswith(('.docx', '.docm', '.dotx', '.dotm')): page = _docx_to_html(src)
+    elif low.endswith('.xls'): page = _sheets_to_html(_xls_sheets(src))
+    elif low.endswith(('.csv', '.tsv')): page = _sheets_to_html(_csv_sheets(src))
+    elif low.endswith(('.xlsx', '.xlsm', '.xltx', '.xltm')): page = _sheets_to_html(_xlsx_sheets(src))
+    elif low.endswith(('.pptx', '.pptm', '.ppsx', '.ppsm', '.potx', '.potm')): page = _pptx_to_html(src)
+    else: raise ValueError('No built-in converter for this kind of file')
+    _html_to_pdf(page, dst)
+
+# a test can make this PC look like a new one with no Office or LibreOffice (MYPDFKIT_NO_OFFICE=1)
+NO_OFFICE_TEST = os.environ.get('MYPDFKIT_NO_OFFICE') == '1'
+
 def find_soffice():
+    if NO_OFFICE_TEST: return None
     for p in (r"C:\Program Files\LibreOffice\program\soffice.exe", r"C:\Program Files (x86)\LibreOffice\program\soffice.exe"):
         if os.path.exists(p): return p
     return shutil.which('soffice')
@@ -654,6 +1520,7 @@ class NoOfficeError(RuntimeError):
 
 def _office_has(src):
     """Is the Office app for this kind of file installed?"""
+    if NO_OFFICE_TEST: return False
     import winreg
     low = src.lower()
     kind = 'word' if low.endswith(WORD_EXT) else 'excel' if low.endswith(EXCEL_EXT) else 'ppt' if low.endswith(POWERPOINT_EXT) else None
@@ -662,15 +1529,28 @@ def _office_has(src):
     except OSError: return False
 
 def office_to_pdf(src, dst):
-    """Use Microsoft Office when it is installed, otherwise LibreOffice."""
+    """Microsoft Office when it's installed, else LibreOffice, else the built-in converter (Word, Excel,
+    PowerPoint and CSV files open on any new PC). Returns 'builtin' when the built-in one made it."""
     if src.lower().endswith(IMAGE_EXT + BOOK_EXT + WEB_EXT + TEXT_EXT + DESIGN_EXT):
         return _com_to_pdf(src, dst)
+    builtin_ok = src.lower().endswith(BUILTIN_EXT)
     try:
+        if not _office_has(src): raise NoOfficeError('Office is not installed')
         _com_to_pdf(src, dst)
     except Exception as com_err:
-        if find_soffice(): return libreoffice_to_pdf(src, dst)
+        if isinstance(com_err, ValueError): raise
+        if find_soffice():
+            try: return libreoffice_to_pdf(src, dst)
+            except Exception:
+                if not builtin_ok: raise
+        if builtin_ok:
+            try:
+                _builtin_to_pdf(src, dst); return 'builtin'
+            except Exception as e:
+                print('built-in converter failed:', e, file=sys.stderr)
+                if isinstance(e, ValueError) and not _office_has(src): raise
         # Office is here but couldn't open this file: say what went wrong, not that Office is missing
-        if isinstance(com_err, ValueError) or _office_has(src): raise
+        if _office_has(src): raise com_err
         raise NoOfficeError("Opening this file needs Microsoft Office or the free LibreOffice, and neither is installed.")
 
 CONVERTER_VERSION = '5'   # bump when office_to_pdf output changes (2: cut-off Excel columns widened, 3: many more formats)
@@ -1048,6 +1928,11 @@ def _sheet_rows(path):
         with open(path, newline='', encoding='utf-8-sig', errors='replace') as f:
             return [r for r in csv.reader(f, delimiter='\t' if low.endswith('.tsv') else ',')]
     if low.endswith('.xls'):
+        try:
+            import xlrd
+            sh = xlrd.open_workbook(path).sheet_by_index(0)
+            return [[None if c.ctype in (xlrd.XL_CELL_EMPTY, xlrd.XL_CELL_BLANK) else c.value for c in sh.row(r)] for r in range(sh.nrows)]
+        except Exception: pass   # not readable directly: let Excel open it
         tmp = os.path.join(TEMP_DIR, 'pl_' + hashlib.md5(path.encode()).hexdigest() + '.xlsx')
         def job(o):
             wb = o.get('excel').Workbooks.Open(path, ReadOnly=True, AddToMru=False)
@@ -2688,10 +3573,18 @@ def process_file():
     hasher = hashlib.md5((path + str(os.path.getmtime(path)) + CONVERTER_VERSION).encode('utf-8')).hexdigest()
     temp_target = os.path.join(TEMP_DIR, f"prev_{hasher}.pdf")
 
+    marker = temp_target + '.builtin'
+    if os.path.exists(temp_target) and os.path.exists(marker) and (_office_has(path) or find_soffice()):
+        for f in (temp_target, marker):
+            try: os.remove(f)
+            except OSError: pass
+    note = None
     if not os.path.exists(temp_target):
         pythoncom.CoInitialize()
         try:
-            office_to_pdf(path, temp_target)
+            if office_to_pdf(path, temp_target) == 'builtin':
+                open(marker, 'w').close()
+                note = "Opened without Microsoft Office, so it may look a little different from the original"
         except NoOfficeError as e:
             return jsonify({"error": str(e), "need_office": True}), 500
         except ValueError as e:
@@ -2701,7 +3594,7 @@ def process_file():
         finally:
             pythoncom.CoUninitialize()
 
-    return jsonify({"pdf_path": temp_target})
+    return jsonify({"pdf_path": temp_target, **({"message": note} if note else {})})
 
 @app.route('/unlock', methods=['POST'])
 def unlock():

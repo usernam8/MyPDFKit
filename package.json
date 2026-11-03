@@ -6,7 +6,7 @@
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "build:server": "python -m PyInstaller --noconfirm --onedir --noconsole --name server --hidden-import win32timezone --hidden-import fontTools.subset --collect-submodules winrt --collect-data docx --collect-data pptx --collect-all pyhanko --collect-all pyhanko_certvalidator --collect-all ezdxf --collect-all pillow_heif --hidden-import asn1crypto --add-binary \"C:/Python315/abi3t-compat/python3t.dll;.\" server.py",
+    "build:server": "python -m PyInstaller --noconfirm --onedir --noconsole --name server --hidden-import win32timezone --hidden-import fontTools.subset --collect-submodules winrt --collect-data docx --collect-data pptx --collect-all pyhanko --collect-all pyhanko_certvalidator --collect-all ezdxf --collect-all pillow_heif --hidden-import asn1crypto --hidden-import xlrd --exclude-module win32ui --exclude-module pythonwin --add-binary \"C:/Python315/abi3t-compat/python3t.dll;.\" server.py",
     "build": "npm run build:server && electron-builder --win",
     "release": "npm run build:server && electron-builder --win --publish never && powershell -NoProfile -ExecutionPolicy Bypass -File publish-release.ps1"
   },

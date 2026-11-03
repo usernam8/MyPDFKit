@@ -79,12 +79,13 @@ function backendError(reason) {
     'If it keeps happening, reinstall MyPDFKit.\n\n' + reason + (tail ? '\n\nDetails:\n' + tail : ''));
 }
 
-function waitForServer(retries = 200) {
+// up to 3 minutes: the first start on a new PC can be slow while Windows checks the new files
+function waitForServer(retries = 1200) {
   return new Promise((resolve, reject) => {
     const attempt = n => {
       if (serverExit) return reject(new Error(serverExit));
       http.get(`http://127.0.0.1:${SERVER_PORT}/ping`, res => { res.resume(); resolve(); })
-        .on('error', () => (n <= 0 ? reject(new Error('It didn\'t answer within 30 seconds.')) : setTimeout(() => attempt(n - 1), 150)));
+        .on('error', () => (n <= 0 ? reject(new Error('It didn\'t answer within 3 minutes.')) : setTimeout(() => attempt(n - 1), 150)));
     };
     attempt(retries);
   });

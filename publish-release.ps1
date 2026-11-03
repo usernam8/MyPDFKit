@@ -20,5 +20,10 @@ $notes = @"
 Everything it needs comes with it: it opens PDFs, pictures, web pages, and Word, Excel and PowerPoint files,
 even on a computer without Microsoft Office. Updates install themselves.
 "@
-gh release create "v$version" @files --repo usernam8/MyPDFKit-releases --title "MyPDFKit $version" --notes $notes
+# (from a file: Windows PowerShell breaks quotes inside a long argument)
+$notesFile = Join-Path $env:TEMP "mypdfkit-notes-$version.md"
+[IO.File]::WriteAllText($notesFile, $notes, (New-Object Text.UTF8Encoding $false))
+gh release create "v$version" @files --repo usernam8/MyPDFKit-releases --title "MyPDFKit $version" --notes-file $notesFile
+if ($LASTEXITCODE -ne 0) { throw "Publishing failed (gh exited with $LASTEXITCODE)" }
+Remove-Item $notesFile
 Write-Host "Published MyPDFKit $version"

@@ -519,10 +519,15 @@ class _OfficeWorker:
     def _quit_all(self):
         for k in list(self.apps): self._quit(k)
 
-    def run(self, fn, timeout=600):
+    def run(self, fn, timeout=150):
         box = {'done': _threading.Event()}
         self.jobs.put((fn, box))
-        if not box['done'].wait(timeout): raise TimeoutError('Office took too long')
+        if not box['done'].wait(timeout):
+            # Office is stuck (often a hidden first-run or sign-in message): leave it and start over
+            # with a fresh worker, so the next file isn't stuck behind it
+            global OFFICE
+            if OFFICE is self: OFFICE = _OfficeWorker()
+            raise TimeoutError("Office didn't answer. Open Word or Excel once, close any message it shows, then try again")
         if 'error' in box: raise box['error']
         return box['result']
 

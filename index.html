@@ -1961,6 +1961,7 @@
 
     function handleFilesAdded(files) {
       if (files.length === 0) return;
+      closeWelcome();
       duplicateApproved = false;
       const paths = files.map(file => {
         let realPath = webUtils.getPathForFile(file);
@@ -1977,6 +1978,7 @@
     }
 
     function processAndLoad(filePath) {
+      closeWelcome();   // a file is coming: the first-run welcome must never sit over it
       // remember where we were in the document we're leaving
       if (currentActiveFile !== filePath) stashActiveDoc();
       currentActiveFile = filePath;
@@ -5348,9 +5350,10 @@
       window.addEventListener('dragleave', () => { if (depth && --depth === 0) document.body.classList.remove('dragging-in'); });
       window.addEventListener('drop', () => { depth = 0; document.body.classList.remove('dragging-in'); }, true); }
     // the first time the app opens: what it can do (after that the drop area just says "Drop files")
-    (() => {
+    function closeWelcome() { document.querySelectorAll('.welcome').forEach(w => w.closest('.backdrop')?.remove()); }
+    setTimeout(() => {
       let seen = false; try { seen = localStorage.getItem('welcome-seen') === '1' || recentFiles().length > 0; } catch (e) {}
-      if (seen) return;
+      if (seen || currentActiveFile || fileQueue.length) return;   // not when the app opened with files
       try { localStorage.setItem('welcome-seen', '1'); } catch (e) {}
       const bd = document.createElement('div'); bd.className = 'backdrop';
       bd.innerHTML = `<div class="dialog welcome"><div class="drop-orb"><svg class="ico"><use href="#i-docup"/></svg></div>
@@ -5362,7 +5365,7 @@
       bd.querySelector('button').addEventListener('click', close);
       bd.addEventListener('click', e => { if (e.target === bd) close(); });
       document.body.append(bd);
-    })();
+    }, 1200);
 
     // mark the picked swatch, and clear the mark when a custom color is chosen
     document.querySelectorAll('.color-row').forEach(row => {

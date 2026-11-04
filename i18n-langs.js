@@ -111,3 +111,21 @@ const I18N_NAMES = { en: 'English', es: 'Español', de: 'Deutsch', fr: 'Françai
     I18N[lang] = Object.fromEntries(keys.map((k, i) => [k, list[i]]));
   }
 })();
+// newer phrases: [English, es, de, fr, pt, zh, ja, ko]
+[
+  ['Ask AI about this PDF', 'Preguntarle a la IA sobre este PDF', 'KI zu diesem PDF fragen', 'Demander à l’IA sur ce PDF', 'Perguntar à IA sobre este PDF', '向 AI 询问此 PDF', 'この PDF について AI に質問', '이 PDF에 대해 AI에게 묻기'],
+  ['Summarize, or ask AI about this file', 'Resumir, o preguntarle a la IA sobre este archivo', 'Zusammenfassen oder KI zu dieser Datei fragen', 'Résumer, ou demander à l’IA sur ce fichier', 'Resumir, ou perguntar à IA sobre este arquivo', '摘要，或向 AI 询问此文件', '要約、またはこのファイルについて AI に質問', '요약하거나 이 파일에 대해 AI에게 묻기'],
+  ['Smarter summary with AI…', 'Resumen más inteligente con IA…', 'Bessere Zusammenfassung mit KI…', 'Résumé plus intelligent avec l’IA…', 'Resumo mais inteligente com IA…', '用 AI 生成更好的摘要…', 'AI でもっと賢く要約…', 'AI로 더 똑똑한 요약…'],
+  ['Dense summary', 'Resumen denso', 'Dichte Zusammenfassung', 'Résumé dense', 'Resumo denso', '精炼摘要', '凝縮した要約', '핵심 요약'],
+  ['Google Gemini (free)', 'Google Gemini (gratis)', 'Google Gemini (kostenlos)', 'Google Gemini (gratuit)', 'Google Gemini (grátis)', 'Google Gemini（免费）', 'Google Gemini (無料)', 'Google Gemini(무료)'],
+  ['Get a key', 'Obtener una clave', 'Schlüssel holen', 'Obtenir une clé', 'Obter uma chave', '获取密钥', 'キーを取得', '키 받기'],
+  ['AI (optional)', 'IA (opcional)', 'KI (optional)', 'IA (facultatif)', 'IA (opcional)', 'AI（可选）', 'AI (任意)', 'AI(선택)'],
+  ['For a smart, dense summary and answers to any question about your files. Google Gemini is free: sign in at aistudio.google.com/apikey with a Google account, click Create API key, and paste it here.',
+   'Para un resumen inteligente y denso, y respuestas a cualquier pregunta sobre tus archivos. Google Gemini es gratis: entra en aistudio.google.com/apikey con una cuenta de Google, haz clic en Create API key y pégala aquí.',
+   'Für eine kluge, dichte Zusammenfassung und Antworten auf jede Frage zu Ihren Dateien. Google Gemini ist kostenlos: Melden Sie sich unter aistudio.google.com/apikey mit einem Google-Konto an, klicken Sie auf Create API key und fügen Sie ihn hier ein.',
+   'Pour un résumé intelligent et dense, et des réponses à toute question sur vos fichiers. Google Gemini est gratuit : connectez-vous sur aistudio.google.com/apikey avec un compte Google, cliquez sur Create API key et collez-la ici.',
+   'Para um resumo inteligente e denso, e respostas a qualquer pergunta sobre seus arquivos. O Google Gemini é grátis: entre em aistudio.google.com/apikey com uma conta Google, clique em Create API key e cole aqui.',
+   '用于智能、精炼的摘要，以及回答关于文件的任何问题。Google Gemini 免费：用 Google 账号登录 aistudio.google.com/apikey，点击 Create API key，然后粘贴到这里。',
+   '賢く凝縮した要約と、ファイルについてのあらゆる質問への回答に。Google Gemini は無料です：Google アカウントで aistudio.google.com/apikey にログインし、Create API key をクリックして、ここに貼り付けます。',
+   '똑똑한 핵심 요약과 파일에 대한 모든 질문의 답을 위해. Google Gemini는 무료입니다: Google 계정으로 aistudio.google.com/apikey에 로그인하고 Create API key를 누른 뒤 여기에 붙여 넣으세요.'],
+].forEach(([en, ...tr]) => ['es', 'de', 'fr', 'pt', 'zh', 'ja', 'ko'].forEach((l, i) => { if (I18N[l]) I18N[l][en] = tr[i]; }));

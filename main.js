@@ -225,6 +225,7 @@ function setupAutoUpdate() {
   ipcMain.on('install-update', () => { closing = true; closeBackend().then(() => autoUpdater.quitAndInstall(true, true)); });
 }
 ipcMain.handle('app-version', () => app.getVersion());
+ipcMain.handle('set-fullscreen', (e, on) => { const w = BrowserWindow.fromWebContents(e.sender); if (w) w.setFullScreen(!!on); });
 ipcMain.handle('user-data', () => app.getPath('userData'));
 // a text file on the desktop with the version, the PC and the recent problems, to send to whoever helps
 ipcMain.handle('problem-report', async (_e, extra) => {

@@ -3640,8 +3640,9 @@ def _doc_text(path, limit_pages=400):
     doc = fitz.open(path)
     return doc, [doc[i].get_text() for i in range(min(doc.page_count, limit_pages))]
 
-def _offline_summary(path, max_sentences=7):
+def _offline_summary(path, max_sentences=None):
     doc, pages = _doc_text(path)
+    if max_sentences is None: max_sentences = max(7, min(15, 6 + doc.page_count // 12))
     text = '\n'.join(pages)
     words = re.findall(r"[A-Za-z][A-Za-z'\-]{2,}", text)
     if len(words) < 20:
@@ -3659,11 +3660,13 @@ def _offline_summary(path, max_sentences=7):
         if len(ws) < 6: continue
         score = sum(freq.get(w, 0) / top for w in ws if w not in _STOP) / (len(ws) ** 0.6)
         scored.append((score, i, s))
-    picked, seen = [], set()
+    picked, seen, per_part = [], set(), {}
+    parts = max(1, max_sentences // 2)   # no more than 2 points from each stretch of the document
     for sc in sorted(scored, reverse=True):
         key = sc[2].lower()
-        if key in seen: continue
-        seen.add(key); picked.append(sc)
+        part = sc[1] * parts // max(1, len(sentences))
+        if key in seen or per_part.get(part, 0) >= 2: continue
+        seen.add(key); picked.append(sc); per_part[part] = per_part.get(part, 0) + 1
         if len(picked) >= max_sentences: break
     best = sorted(picked, key=lambda x: x[1])
     # the document's headings: its largest text
@@ -3708,9 +3711,7 @@ def _ask_claude(path, api_key, question):
         max_tokens=16000,
         betas=['server-side-fallback-2026-07-01'],
         fallbacks='default',
-        system=("You help someone with a PDF they have open in MyPDFKit. Answer in plain, friendly language, in the "
-                "language they write in unless they ask for another. Be concise; use short lists when they help. "
-                "When you mention something from the document, say which page it's on."),
+        system=AI_SYSTEM,
         messages=[{'role': 'user', 'content': [source, {'type': 'text', 'text': question}]}],
     )
     if response.stop_reason == 'refusal':
@@ -3719,16 +3720,101 @@ def _ask_claude(path, api_key, question):
     if response.stop_reason == 'max_tokens': answer += '\n\n(The answer was cut short.)'
     return {'answer': answer, 'model': response.model}
 
+# ---------- Google Gemini: free with a key from aistudio.google.com ----------
+GEMINI_URL = os.environ.get('MYPDFKIT_GEMINI_URL', 'https://generativelanguage.googleapis.com')
+_gemini_models = {}
+
+class GeminiError(Exception): pass
+
+def _gemini_call(method, path, key, body=None, timeout=300):
+    import urllib.request, urllib.error
+    req = urllib.request.Request(GEMINI_URL + path, method=method, data=json.dumps(body).encode() if body is not None else None,
+                                 headers={'x-goog-api-key': key, 'Content-Type': 'application/json'})
+    try:
+        return json.loads(urllib.request.urlopen(req, timeout=timeout).read())
+    except urllib.error.HTTPError as e:
+        try: msg = json.loads(e.read()).get('error', {}).get('message', '')
+        except Exception: msg = ''
+        raise GeminiError((e.code, msg))
+    except (urllib.error.URLError, OSError):
+        raise GeminiError((0, ''))
+
+def _gemini_candidates(key):
+    """The newest Flash models this key can use, best first (names change often, so they're looked up)."""
+    if key in _gemini_models: return _gemini_models[key]
+    found = []
+    try:
+        for m in _gemini_call('GET', '/v1beta/models?pageSize=1000', key, timeout=30).get('models', []):
+            name = m.get('name', '').split('/')[-1]
+            hit = re.fullmatch(r'gemini-(\d+(?:\.\d+)?)-flash(-lite)?', name)
+            if hit and 'generateContent' in m.get('supportedGenerationMethods', []):
+                found.append((not hit.group(2), float(hit.group(1)), name))
+    except GeminiError as e:
+        if e.args[0][0] in (400, 401, 403): raise
+    names = [n for *_, n in sorted(found, reverse=True)] or ['gemini-2.5-flash', 'gemini-2.5-flash-lite']
+    _gemini_models[key] = names[:4]
+    return _gemini_models[key]
+
+def _ask_gemini(path, api_key, question, system):
+    doc = fitz.open(path)
+    if os.path.getsize(path) <= 15 * 1024 * 1024 and doc.page_count <= 1000:
+        source = {'inline_data': {'mime_type': 'application/pdf', 'data': base64.standard_b64encode(open(path, 'rb').read()).decode('ascii')}}
+    else:
+        text = '\n\n'.join(f'--- Page {i + 1} ---\n{doc[i].get_text()}' for i in range(doc.page_count))[:2500000]
+        source = {'text': 'The document (its text only; it is too big to send whole):\n\n' + text}
+    body = {'system_instruction': {'parts': [{'text': system}]},
+            'contents': [{'role': 'user', 'parts': [source, {'text': question}]}],
+            'generationConfig': {'maxOutputTokens': 16000}}
+    last = None
+    for model in _gemini_candidates(api_key):
+        try:
+            r = _gemini_call('POST', f'/v1beta/models/{model}:generateContent', api_key, body)
+        except GeminiError as e:
+            last = e
+            if e.args[0][0] in (404, 429, 500, 503): continue   # not on this key's free plan, or busy: the next model
+            raise
+        cand = (r.get('candidates') or [{}])[0]
+        answer = ''.join(p.get('text', '') for p in cand.get('content', {}).get('parts', []) if not p.get('thought')).strip()
+        if not answer:
+            return {'error': "Gemini couldn't help with this one."}
+        if cand.get('finishReason') == 'MAX_TOKENS': answer += '\n\n(The answer was cut short.)'
+        return {'answer': answer, 'model': model}
+    raise last or GeminiError((0, ''))
+
+def _gemini_error(e):
+    code, msg = e.args[0]
+    if code == 0: return "Couldn't reach Google Gemini. Check the internet connection", 502
+    if code in (400, 401, 403) and re.search(r'API key|API_KEY|permission|denied', msg, re.I):
+        return "That Gemini key wasn't accepted. Make a new one at aistudio.google.com/apikey", 400
+    if code == 429: return "Gemini's free limit is used up for now. Try again in a minute (or tomorrow)", 429
+    if code == 400: return f"Gemini couldn't read this file: {msg[:200]}", 400
+    return f'Gemini had a problem ({code}). Try again later', 502
+
+AI_SYSTEM = ("You help someone with a PDF they have open in MyPDFKit. Answer in plain, friendly language. "
+             "Be concise; use short lists when they help. When you mention something from the document, say which page it's on.")
+DENSE_SUMMARY = ("Write a dense summary of this document. No filler, no repetition, no generic statements: every line must carry a fact.\n"
+                 "1. One or two sentences: what this document is, who it's from and for, and its date if it has one.\n"
+                 "2. **Key points**: tight bullets with the important facts, numbers, names, decisions, rules and conclusions, each with its page.\n"
+                 "3. If it is long (a book, report or manual): a short line for each chapter or major section, in order.\n"
+                 "4. **To do**: deadlines, amounts owed, signatures or actions required, with pages. Leave this out if there are none.\n"
+                 "Use **bold** for the section names and '- ' for bullets.")
+
 @app.route('/summarize', methods=['POST'])
 def summarize():
     d = request.json
     try:
         if d.get('mode') != 'ai':
             return jsonify(_offline_summary(d['filepath']))
-        if not d.get('api_key'): return jsonify({'error': 'Add your Claude API key first'}), 400
-        q = d.get('question') or ('Summarize this document: what it is, the main points, and anything someone needs to do '
-                                  '(dates, amounts, deadlines). Keep it short.')
+        if not d.get('api_key'): return jsonify({'error': 'Add your AI key first'}), 400
+        q = d.get('question') or DENSE_SUMMARY
+        if d.get('dense'): q = DENSE_SUMMARY
+        if d.get('language') and d['language'] != 'English': q += f"\n\nWrite the answer in {d['language']}."
+        if d.get('provider') == 'gemini':
+            return jsonify(_ask_gemini(d['filepath'], d['api_key'], q, AI_SYSTEM))
         return jsonify(_ask_claude(d['filepath'], d['api_key'], q))
+    except GeminiError as e:
+        msg, code = _gemini_error(e)
+        return jsonify({'error': msg}), code
     except Exception as e:
         try:
             import anthropic

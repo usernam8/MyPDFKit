@@ -509,7 +509,10 @@
     .ai-dlg .lb-btn { height:28px; padding:0 10px; border-radius:7px; border:1px solid var(--line); background:transparent; color:var(--text); cursor:pointer; font:inherit; font-size:12px; }
     .ai-dlg textarea, .ai-dlg input { width:100%; box-sizing:border-box; background:var(--raised); color:var(--text); border:1px solid var(--line); border-radius:8px; padding:8px; font:inherit; }
     .ai-dlg .ai-key label { display:block; font-size:12px; color:var(--dim); margin:8px 0 4px; }
-    .ai-dlg .ai-answer { white-space:pre-wrap; margin-top:10px; } .ai-dlg .ai-answer.busy { color:var(--dim); }
+    .ai-dlg .ai-answer { margin-top:10px; line-height:1.5; } .ai-dlg .ai-answer p { margin:0 0 6px; } .ai-dlg .ai-answer ul, .ai-dlg .ai-answer ol { margin:2px 0 8px; padding-left:20px; }
+    .ai-dlg .ai-answer li { margin:2px 0; } .ai-dlg .ai-answer h5 { margin:10px 0 4px; font-size:13px; }
+    .ai-dlg .ai-prov { display:flex; align-items:center; gap:8px; margin-bottom:6px; } .ai-dlg .ai-prov select { background:var(--raised); color:var(--text); border:1px solid var(--line); border-radius:8px; padding:5px; font:inherit; }
+    .st-key { margin-bottom:6px; align-items:center; } .st-key-name { width:150px; flex:none; font-size:12.5px; } .ai-dlg .ai-answer.busy { color:var(--dim); }
     .side-btn.user-hidden { display:none !important; }
     .icon-tool.ai-btn { width:auto; padding:0 8px; gap:4px; display:inline-flex; align-items:center; font:600 12px Segoe UI, sans-serif; } .icon-tool.ai-btn span { color:var(--accent); }
     .st-tools { display:grid; grid-template-columns:repeat(3, 1fr); gap:10px; margin:6px 0 8px; }
@@ -627,7 +630,10 @@
     /* reading view */
     #reader { position:fixed; inset:0; z-index:3500; display:none; flex-direction:column; background:#18191c; }
     #reader.open { display:flex; }
-    .rd-head { display:flex; align-items:center; gap:10px; height:44px; padding:0 150px 0 16px; background:#1c1d20; border-bottom:1px solid var(--line); color:var(--dim); font-size:12.5px; -webkit-app-region:drag; }
+    .rd-head { position:absolute; top:0; left:0; right:0; z-index:5; display:flex; align-items:center; gap:10px; height:44px; padding:0 16px; background:#1c1d20; border-bottom:1px solid var(--line); color:var(--dim); font-size:12.5px;
+      transform:translateY(-100%); transition:transform .18s ease; box-shadow:0 4px 14px rgba(0,0,0,.35); }
+    #reader.head-on .rd-head { transform:none; }
+    .rd-hot { position:absolute; top:0; left:0; right:0; height:8px; z-index:4; }
     .rd-head button, .rd-head input { -webkit-app-region:no-drag; }
     .rd-name { color:var(--text); font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:40%; }
     .rd-head .spacer { flex:1; }
@@ -944,13 +950,13 @@
     <button id="btn-side" class="icon-tool" title="Show another file side by side"><svg class="ico"><use href="#i-columns"/></svg></button>
     <button id="btn-read" class="icon-tool" title="Reading view (F11)"><svg class="ico"><use href="#i-book"/></svg></button>
     <button id="btn-speak" class="icon-tool" title="Read aloud"><svg class="ico"><use href="#i-speaker"/></svg></button>
-    <button id="btn-ai" class="icon-tool ai-btn" title="Summarize, or ask Claude about this file"><svg class="ico"><use href="#i-book"/></svg><span>AI</span></button><button id="btn-print" class="icon-tool" title="Print (Ctrl+P)"><svg class="ico"><use href="#i-print"/></svg></button>
+    <button id="btn-ai" class="icon-tool ai-btn" title="Summarize, or ask AI about this file"><svg class="ico"><use href="#i-book"/></svg><span>AI</span></button><button id="btn-print" class="icon-tool" title="Print (Ctrl+P)"><svg class="ico"><use href="#i-print"/></svg></button>
     <button id="update-pill" title="A new version is downloaded. Restart to use it."><svg class="ico"><use href="#i-rotate"/></svg>Update ready · Restart</button>
     <button id="btn-top-undo" class="icon-tool" title="Undo last action"><svg class="ico"><use href="#i-undo"/></svg></button>
     <button id="btn-save-modified" class="icon-tool" title="Save as a new PDF next to the original (Ctrl+S)"><svg class="ico"><use href="#i-save"/></svg></button>
   </div>
 
-  <div id="tools-view"><div class="tv-inner"><input id="tool-search" placeholder="Find any tool (Ctrl+K)" spellcheck="false"><div id="recent-files"><div class="rf-head"><span>Recent</span><button id="rf-clear">Clear</button></div><div class="rf-list"></div></div><div class="tv-grid"><button class="tool-card" data-tool="create"><span class="tc-ico"><svg class="ico"><use href="#i-extract"/></svg></span><span>Create a PDF</span></button><button class="tool-card" data-tool="merge"><span class="tc-ico"><svg class="ico"><use href="#i-merge"/></svg></span><span>Combine files</span></button><button class="tool-card" data-tool="blank"><span class="tc-ico"><svg class="ico"><use href="#i-plus"/></svg></span><span>Blank page</span></button><button class="tool-card" data-tool="edit"><span class="tc-ico"><svg class="ico"><use href="#i-ibeam"/></svg></span><span>Edit a PDF</span></button><button class="tool-card" data-tool="headfoot"><span class="tc-ico"><svg class="ico"><use href="#i-headfoot"/></svg></span><span>Header and footer</span></button><button class="tool-card" data-tool="number"><span class="tc-ico"><svg class="ico"><use href="#i-hash"/></svg></span><span>Add page numbers</span></button><button class="tool-card" data-tool="convert"><span class="tc-ico"><svg class="ico"><use href="#i-convert"/></svg></span><span>Convert to PDF</span></button><button class="tool-card" data-tool="export"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>Export a PDF</span></button><button class="tool-card" data-tool="toword"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>PDF to Word</span></button><button class="tool-card" data-tool="toexcel"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>PDF to Excel</span></button><button class="tool-card" data-tool="toppt"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>PDF to PowerPoint</span></button><button class="tool-card" data-tool="compress"><span class="tc-ico"><svg class="ico"><use href="#i-compress"/></svg></span><span>Compress a PDF</span></button><button class="tool-card" data-tool="split"><span class="tc-ico"><svg class="ico"><use href="#i-split"/></svg></span><span>Split a PDF</span></button><button class="tool-card" data-tool="delpages"><span class="tc-ico"><svg class="ico"><use href="#i-trash"/></svg></span><span>Delete pages</span></button><button class="tool-card" data-tool="fillform"><span class="tc-ico"><svg class="ico"><use href="#i-ibeam"/></svg></span><span>Fill a form</span></button><button class="tool-card" data-tool="compare"><span class="tc-ico"><svg class="ico"><use href="#i-compare"/></svg></span><span>Compare files</span></button><button class="tool-card" data-tool="redact"><span class="tc-ico"><svg class="ico"><use href="#i-redact"/></svg></span><span>Redact</span></button><button class="tool-card" data-tool="comment"><span class="tc-ico"><svg class="ico"><use href="#i-comment"/></svg></span><span>Comment</span></button><button class="tool-card" data-tool="template"><span class="tc-ico"><svg class="ico"><use href="#i-table"/></svg></span><span>Fill from spreadsheet</span></button><button class="tool-card" data-tool="boxlabels"><span class="tc-ico"><svg class="ico"><use href="#i-table"/></svg></span><span>Box labels from packing list</span></button><button class="tool-card" data-tool="watermark"><span class="tc-ico"><svg class="ico"><use href="#i-watermark"/></svg></span><span>Watermark</span></button><button class="tool-card" data-tool="sidebyside"><span class="tc-ico"><svg class="ico"><use href="#i-columns"/></svg></span><span>Side by side</span></button><button class="tool-card" data-tool="insert"><span class="tc-ico"><svg class="ico"><use href="#i-insert"/></svg></span><span>Insert pages</span></button><button class="tool-card" data-tool="pagesize"><span class="tc-ico"><svg class="ico"><use href="#i-resize"/></svg></span><span>Page size and margins</span></button><button class="tool-card" data-tool="bookmarks"><span class="tc-ico"><svg class="ico"><use href="#i-bookmark"/></svg></span><span>Bookmarks</span></button><button class="tool-card" data-tool="certsign"><span class="tc-ico"><svg class="ico"><use href="#i-cert"/></svg></span><span>Sign with a digital ID</span></button><button class="tool-card" data-tool="certcheck"><span class="tc-ico"><svg class="ico"><use href="#i-cert"/></svg></span><span>Check signatures</span></button><button class="tool-card" data-tool="batch"><span class="tc-ico"><svg class="ico"><use href="#i-batch"/></svg></span><span>Many files at once</span></button><button class="tool-card" data-tool="read"><span class="tc-ico"><svg class="ico"><use href="#i-book"/></svg></span><span>Reading view</span></button><button class="tool-card" data-tool="measure"><span class="tc-ico"><svg class="ico"><use href="#i-ruler"/></svg></span><span>Measure</span></button><button class="tool-card" data-tool="pdfa"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>Save as PDF/A</span></button><button class="tool-card" data-tool="privacy"><span class="tc-ico"><svg class="ico"><use href="#i-shield"/></svg></span><span>Privacy check</span></button><button class="tool-card" data-tool="finalize"><span class="tc-ico"><svg class="ico"><use href="#i-lock"/></svg></span><span>Lock and finalize</span></button><button class="tool-card" data-tool="replace"><span class="tc-ico"><svg class="ico"><use href="#i-search"/></svg></span><span>Find and replace</span></button><button class="tool-card" data-tool="bates"><span class="tc-ico"><svg class="ico"><use href="#i-hash"/></svg></span><span>Bates numbering</span></button><button class="tool-card" data-tool="shapes"><span class="tc-ico"><svg class="ico"><use href="#i-shapes"/></svg></span><span>Shapes</span></button><button class="tool-card" data-tool="stamps"><span class="tc-ico"><svg class="ico"><use href="#i-stamp"/></svg></span><span>Stamps and initials</span></button><button class="tool-card" data-tool="prepare"><span class="tc-ico"><svg class="ico"><use href="#i-fields"/></svg></span><span>Prepare for signing</span></button><button class="tool-card" data-tool="translate"><span class="tc-ico"><svg class="ico"><use href="#i-translate"/></svg></span><span>Translate</span></button><button class="tool-card" data-tool="speak"><span class="tc-ico"><svg class="ico"><use href="#i-speaker"/></svg></span><span>Read aloud</span></button><button class="tool-card" data-tool="exportall"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>Export all files</span></button><button class="tool-card" data-tool="extract"><span class="tc-ico"><svg class="ico"><use href="#i-extract"/></svg></span><span>Extract pages</span></button><button class="tool-card" data-tool="ocr"><span class="tc-ico"><svg class="ico"><use href="#i-scan"/></svg></span><span>Recognize text (OCR)</span></button><button class="tool-card" data-tool="print"><span class="tc-ico"><svg class="ico"><use href="#i-print"/></svg></span><span>Print</span></button><button class="tool-card" data-tool="printarea"><span class="tc-ico"><svg class="ico"><use href="#i-print"/></svg></span><span>Print an area</span></button><button class="tool-card" data-tool="defaultpdf"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>Make it my PDF app</span></button><button class="tool-card" data-tool="summarize"><span class="tc-ico"><svg class="ico"><use href="#i-book"/></svg></span><span>Summarize</span></button><button class="tool-card" data-tool="askclaude"><span class="tc-ico"><svg class="ico"><use href="#i-comment"/></svg></span><span>Ask Claude about this PDF</span></button><button class="tool-card" data-tool="unlockmine"><span class="tc-ico"><svg class="ico"><use href="#i-lock"/></svg></span><span>Unlock a file I locked</span></button><button class="tool-card" data-tool="report"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>Send a problem report</span></button><button class="tool-card" data-tool="protect"><span class="tc-ico"><svg class="ico"><use href="#i-lock"/></svg></span><span>Protect a PDF</span></button><button class="tool-card" data-tool="sign"><span class="tc-ico"><svg class="ico"><use href="#i-signature"/></svg></span><span>Fill and sign</span></button></div></div></div>
+  <div id="tools-view"><div class="tv-inner"><input id="tool-search" placeholder="Find any tool (Ctrl+K)" spellcheck="false"><div id="recent-files"><div class="rf-head"><span>Recent</span><button id="rf-clear">Clear</button></div><div class="rf-list"></div></div><div class="tv-grid"><button class="tool-card" data-tool="create"><span class="tc-ico"><svg class="ico"><use href="#i-extract"/></svg></span><span>Create a PDF</span></button><button class="tool-card" data-tool="merge"><span class="tc-ico"><svg class="ico"><use href="#i-merge"/></svg></span><span>Combine files</span></button><button class="tool-card" data-tool="blank"><span class="tc-ico"><svg class="ico"><use href="#i-plus"/></svg></span><span>Blank page</span></button><button class="tool-card" data-tool="edit"><span class="tc-ico"><svg class="ico"><use href="#i-ibeam"/></svg></span><span>Edit a PDF</span></button><button class="tool-card" data-tool="headfoot"><span class="tc-ico"><svg class="ico"><use href="#i-headfoot"/></svg></span><span>Header and footer</span></button><button class="tool-card" data-tool="number"><span class="tc-ico"><svg class="ico"><use href="#i-hash"/></svg></span><span>Add page numbers</span></button><button class="tool-card" data-tool="convert"><span class="tc-ico"><svg class="ico"><use href="#i-convert"/></svg></span><span>Convert to PDF</span></button><button class="tool-card" data-tool="export"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>Export a PDF</span></button><button class="tool-card" data-tool="toword"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>PDF to Word</span></button><button class="tool-card" data-tool="toexcel"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>PDF to Excel</span></button><button class="tool-card" data-tool="toppt"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>PDF to PowerPoint</span></button><button class="tool-card" data-tool="compress"><span class="tc-ico"><svg class="ico"><use href="#i-compress"/></svg></span><span>Compress a PDF</span></button><button class="tool-card" data-tool="split"><span class="tc-ico"><svg class="ico"><use href="#i-split"/></svg></span><span>Split a PDF</span></button><button class="tool-card" data-tool="delpages"><span class="tc-ico"><svg class="ico"><use href="#i-trash"/></svg></span><span>Delete pages</span></button><button class="tool-card" data-tool="fillform"><span class="tc-ico"><svg class="ico"><use href="#i-ibeam"/></svg></span><span>Fill a form</span></button><button class="tool-card" data-tool="compare"><span class="tc-ico"><svg class="ico"><use href="#i-compare"/></svg></span><span>Compare files</span></button><button class="tool-card" data-tool="redact"><span class="tc-ico"><svg class="ico"><use href="#i-redact"/></svg></span><span>Redact</span></button><button class="tool-card" data-tool="comment"><span class="tc-ico"><svg class="ico"><use href="#i-comment"/></svg></span><span>Comment</span></button><button class="tool-card" data-tool="template"><span class="tc-ico"><svg class="ico"><use href="#i-table"/></svg></span><span>Fill from spreadsheet</span></button><button class="tool-card" data-tool="boxlabels"><span class="tc-ico"><svg class="ico"><use href="#i-table"/></svg></span><span>Box labels from packing list</span></button><button class="tool-card" data-tool="watermark"><span class="tc-ico"><svg class="ico"><use href="#i-watermark"/></svg></span><span>Watermark</span></button><button class="tool-card" data-tool="sidebyside"><span class="tc-ico"><svg class="ico"><use href="#i-columns"/></svg></span><span>Side by side</span></button><button class="tool-card" data-tool="insert"><span class="tc-ico"><svg class="ico"><use href="#i-insert"/></svg></span><span>Insert pages</span></button><button class="tool-card" data-tool="pagesize"><span class="tc-ico"><svg class="ico"><use href="#i-resize"/></svg></span><span>Page size and margins</span></button><button class="tool-card" data-tool="bookmarks"><span class="tc-ico"><svg class="ico"><use href="#i-bookmark"/></svg></span><span>Bookmarks</span></button><button class="tool-card" data-tool="certsign"><span class="tc-ico"><svg class="ico"><use href="#i-cert"/></svg></span><span>Sign with a digital ID</span></button><button class="tool-card" data-tool="certcheck"><span class="tc-ico"><svg class="ico"><use href="#i-cert"/></svg></span><span>Check signatures</span></button><button class="tool-card" data-tool="batch"><span class="tc-ico"><svg class="ico"><use href="#i-batch"/></svg></span><span>Many files at once</span></button><button class="tool-card" data-tool="read"><span class="tc-ico"><svg class="ico"><use href="#i-book"/></svg></span><span>Reading view</span></button><button class="tool-card" data-tool="measure"><span class="tc-ico"><svg class="ico"><use href="#i-ruler"/></svg></span><span>Measure</span></button><button class="tool-card" data-tool="pdfa"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>Save as PDF/A</span></button><button class="tool-card" data-tool="privacy"><span class="tc-ico"><svg class="ico"><use href="#i-shield"/></svg></span><span>Privacy check</span></button><button class="tool-card" data-tool="finalize"><span class="tc-ico"><svg class="ico"><use href="#i-lock"/></svg></span><span>Lock and finalize</span></button><button class="tool-card" data-tool="replace"><span class="tc-ico"><svg class="ico"><use href="#i-search"/></svg></span><span>Find and replace</span></button><button class="tool-card" data-tool="bates"><span class="tc-ico"><svg class="ico"><use href="#i-hash"/></svg></span><span>Bates numbering</span></button><button class="tool-card" data-tool="shapes"><span class="tc-ico"><svg class="ico"><use href="#i-shapes"/></svg></span><span>Shapes</span></button><button class="tool-card" data-tool="stamps"><span class="tc-ico"><svg class="ico"><use href="#i-stamp"/></svg></span><span>Stamps and initials</span></button><button class="tool-card" data-tool="prepare"><span class="tc-ico"><svg class="ico"><use href="#i-fields"/></svg></span><span>Prepare for signing</span></button><button class="tool-card" data-tool="translate"><span class="tc-ico"><svg class="ico"><use href="#i-translate"/></svg></span><span>Translate</span></button><button class="tool-card" data-tool="speak"><span class="tc-ico"><svg class="ico"><use href="#i-speaker"/></svg></span><span>Read aloud</span></button><button class="tool-card" data-tool="exportall"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>Export all files</span></button><button class="tool-card" data-tool="extract"><span class="tc-ico"><svg class="ico"><use href="#i-extract"/></svg></span><span>Extract pages</span></button><button class="tool-card" data-tool="ocr"><span class="tc-ico"><svg class="ico"><use href="#i-scan"/></svg></span><span>Recognize text (OCR)</span></button><button class="tool-card" data-tool="print"><span class="tc-ico"><svg class="ico"><use href="#i-print"/></svg></span><span>Print</span></button><button class="tool-card" data-tool="printarea"><span class="tc-ico"><svg class="ico"><use href="#i-print"/></svg></span><span>Print an area</span></button><button class="tool-card" data-tool="defaultpdf"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>Make it my PDF app</span></button><button class="tool-card" data-tool="summarize"><span class="tc-ico"><svg class="ico"><use href="#i-book"/></svg></span><span>Summarize</span></button><button class="tool-card" data-tool="askclaude"><span class="tc-ico"><svg class="ico"><use href="#i-comment"/></svg></span><span>Ask AI about this PDF</span></button><button class="tool-card" data-tool="unlockmine"><span class="tc-ico"><svg class="ico"><use href="#i-lock"/></svg></span><span>Unlock a file I locked</span></button><button class="tool-card" data-tool="report"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>Send a problem report</span></button><button class="tool-card" data-tool="protect"><span class="tc-ico"><svg class="ico"><use href="#i-lock"/></svg></span><span>Protect a PDF</span></button><button class="tool-card" data-tool="sign"><span class="tc-ico"><svg class="ico"><use href="#i-signature"/></svg></span><span>Fill and sign</span></button></div></div></div>
   <div id="main-content">
     <div id="left-sidebar" class="sidebar">
       <div id="side-scroll">
@@ -2775,10 +2781,40 @@
       };
     }
     // ---------- summaries and questions ----------
-    // Summarize is free and made on this PC (nothing is sent anywhere). Ask Claude uses the person's own Claude
-    // API key, kept in the app's settings: the file goes to Anthropic to be read and answered.
-    const claudeKeyFile = () => STATE_FILE.replace(/reading\.json$/, 'claude-key.txt');
-    const claudeKey = () => { try { return fs.readFileSync(claudeKeyFile(), 'utf8').trim(); } catch (e) { return ''; } };
+    // Summarize is free and made on this PC (nothing is sent anywhere). The AI (a smart, dense summary, or any
+    // question) uses the person's own key: Google Gemini, free with a Google account, or Claude (paid).
+    const AI = {
+      gemini: { name: 'Google Gemini', file: 'gemini-key.txt', hint: 'AIza…', get: 'https://aistudio.google.com/apikey',
+        how: 'Free: open aistudio.google.com/apikey, sign in with a Google account, click Create API key, and paste it here.',
+        privacy: 'Asking sends this file to Google to read. On the free plan Google may use it to improve its products, so don\'t ask about private files.' },
+      claude: { name: 'Claude', file: 'claude-key.txt', hint: 'sk-ant-…', get: 'https://console.anthropic.com/settings/keys',
+        how: 'Get one at console.anthropic.com (pay as you go, usually a few cents a question).',
+        privacy: 'Asking sends this file to Anthropic (the maker of Claude) to read. Don\'t ask about files you can\'t share.' },
+    };
+    const aiKeyFile = p => STATE_FILE.replace(/reading\.json$/, AI[p].file);
+    const aiKey = p => { try { return fs.readFileSync(aiKeyFile(p), 'utf8').trim(); } catch (e) { return ''; } };
+    const claudeKeyFile = () => aiKeyFile('claude');
+    const claudeKey = () => aiKey('claude');
+    function aiProvider() {
+      const chosen = store('ai-provider', '');
+      if (chosen && aiKey(chosen)) return chosen;
+      return aiKey('gemini') ? 'gemini' : aiKey('claude') ? 'claude' : (chosen || 'gemini');
+    }
+    const LANG_EN = { es: 'Spanish', de: 'German', fr: 'French', pt: 'Portuguese', zh: 'Simplified Chinese', ja: 'Japanese', ko: 'Korean' };
+    // the AI's answer, with its bold words, headings and bullets
+    function mdHtml(t) {
+      const inl = x => esc(x).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/(^|[\s(])\*(\S[^*]*?)\*(?=[\s).,;:!?]|$)/g, '$1<i>$2</i>');
+      let html = '', list = '';
+      for (const raw of t.split(/\r?\n/)) {
+        const line = raw.trimEnd(), b = line.match(/^\s*(?:[-*•]|\d+[.)])\s+(.*)$/), h = line.match(/^#{1,4}\s+(.*)$/);
+        const tag = b ? (/^\s*\d/.test(line) ? 'ol' : 'ul') : '';
+        if (list && tag !== list) { html += `</${list}>`; list = ''; }
+        if (b) { if (!list) { html += `<${tag}>`; list = tag; } html += `<li>${inl(b[1])}</li>`; }
+        else if (h) html += `<h5>${inl(h[1])}</h5>`;
+        else if (line.trim()) html += `<p>${inl(line)}</p>`;
+      }
+      return html + (list ? `</${list}>` : '');
+    }
     function showPanel(title, bodyHtml, buttons) {
       document.getElementById('ai-panel')?.remove();
       const bd = document.createElement('div'); bd.className = 'backdrop'; bd.id = 'ai-panel';
@@ -2813,38 +2849,67 @@
       if (d.topics.length) html += `<h4>Comes up most</h4><p>${d.topics.map(esc).join(', ')}</p>`;
       const plain = [d.headings.length ? 'Sections: ' + d.headings.join(' / ') : '', ...d.sentences.map(x => '- ' + x),
         ...Object.entries(facts).filter(([k]) => d.facts[k]).map(([k, n]) => `${n}: ${d.facts[k].join(', ')}`)].filter(Boolean).join('\n');
-      showPanel('Summary', html, [['Copy', () => { require('electron').clipboard.writeText(plain); showToast('Copied'); }], ['Ask Claude…', bd => { bd.remove(); askClaude(); }, true]]);
+      showPanel('Summary', html, [['Copy', () => { require('electron').clipboard.writeText(plain); showToast('Copied'); }],
+        ['Smarter summary with AI…', bd => { bd.remove(); askClaude({ dense: true }); }, true]]);
     }
-    async function askClaude(question) {
+    // the AI button: with a key, straight to the smart summary; without one, the free summary made here
+    function aiButton() { return aiKey('gemini') || aiKey('claude') ? askClaude({ dense: true }) : doSummarize(); }
+    async function askClaude(opts = {}) {
+      if (typeof opts === 'string') opts = { question: opts };
       if (!await needDoc()) return;
-      const key = claudeKey();
-      const presets = [['Summarize it', 'Summarize this document: what it is, the main points, and anything someone needs to do (dates, amounts, deadlines). Keep it short.'],
+      let prov = aiProvider();
+      const presets = [['Dense summary', null],
         ['Dates and amounts', 'List every date, deadline and amount of money in this document, with the page each is on.'],
-        ['Translate to Spanish', 'Translate this document into Spanish, keeping its meaning and tone. Keep names, numbers and codes as they are.'],
-        ['Explain simply', 'Explain this document in simple words, as if to someone who has never seen it.']];
-      const bd = showPanel('Ask Claude about this PDF', `
+        ['Explain simply', 'Explain this document in simple words, as if to someone who has never seen it.'],
+        ['Translate to Spanish', 'Translate this document into Spanish, keeping its meaning and tone. Keep names, numbers and codes as they are.']];
+      const bd = showPanel('Ask AI about this PDF', `
+        <div class="ai-prov"><label>AI</label><select class="ai-prov-sel"><option value="gemini">Google Gemini (free)</option><option value="claude">Claude</option></select></div>
         <div class="ai-presets">${presets.map(([l], i) => `<button class="lb-btn" data-p="${i}">${l}</button>`).join('')}</div>
         <textarea class="ai-q" rows="3" placeholder="Ask anything about this file, or ask for it in another language"></textarea>
-        <div class="ai-key" style="${key ? 'display:none' : ''}"><label>Your Claude API key</label><input class="ai-key-in" type="password" placeholder="sk-ant-…" spellcheck="false">
-          <p class="ai-meta">Get one at console.anthropic.com (pay as you go, usually a few cents a question). It's kept in MyPDFKit's settings on this computer.</p></div>
-        <p class="ai-meta">Asking sends this file to Anthropic (the maker of Claude) to read and answer. Don't ask about files you can't share.${key ? ' <a href="#" class="ai-forget">Remove my key</a>' : ''}</p>
-        <div class="ai-answer"></div>`, [['Ask', async bd => {
-          const q = bd.querySelector('.ai-q').value.trim(); if (!q) return bd.querySelector('.ai-q').focus();
-          let k = key || bd.querySelector('.ai-key-in').value.trim();
-          if (!k) return showToast('Add your Claude API key', true);
-          if (!key) { try { fs.writeFileSync(claudeKeyFile(), k); } catch (e) {} bd.querySelector('.ai-key').style.display = 'none'; }
-          await syncEditsToPython();
-          const out = bd.querySelector('.ai-answer'); out.textContent = 'Claude is reading the file…'; out.classList.add('busy');
-          const d = await api('summarize', { filepath: currentTempPdf, mode: 'ai', api_key: k, question: q }).catch(e => ({ error: String(e) }));
-          out.classList.remove('busy');
-          if (d.error) { out.textContent = d.error; if (/key wasn't accepted/.test(d.error)) { try { fs.unlinkSync(claudeKeyFile()); } catch (e) {} } return; }
-          out.textContent = d.answer; out.dataset.text = d.answer;
-        }, true], ['Copy answer', bd => { const t = bd.querySelector('.ai-answer').dataset.text; if (t) { require('electron').clipboard.writeText(t); showToast('Copied'); } }]]);
-      bd.querySelectorAll('.ai-presets button').forEach(b => b.onclick = () => { bd.querySelector('.ai-q').value = presets[+b.dataset.p][1]; });
-      const forget = bd.querySelector('.ai-forget');
-      if (forget) forget.onclick = e => { e.preventDefault(); try { fs.unlinkSync(claudeKeyFile()); } catch (x) {} bd.remove(); showToast('Removed your Claude API key'); };
-      if (question) bd.querySelector('.ai-q').value = question;
-      bd.querySelector('.ai-q').focus();
+        <div class="ai-key"><label class="ai-key-label"></label><div class="st-key"><input class="ai-key-in" type="password" spellcheck="false"><button class="lb-btn ai-get">Get a key</button></div>
+          <p class="ai-meta ai-how"></p></div>
+        <p class="ai-meta"><span class="ai-privacy"></span> <a href="#" class="ai-forget">Remove my key</a></p>
+        <div class="ai-answer"></div>`, [['Ask', bd => run(), true],
+        ['Copy answer', bd => { const t = bd.querySelector('.ai-answer').dataset.text; if (t) { require('electron').clipboard.writeText(t); showToast('Copied'); } }]]);
+      const sel = bd.querySelector('.ai-prov-sel'), q = bd.querySelector('.ai-q'), out = bd.querySelector('.ai-answer');
+      let dense = !!opts.dense;
+      const show = () => {
+        const has = !!aiKey(prov);
+        bd.querySelector('.ai-key').style.display = has ? 'none' : '';
+        bd.querySelector('.ai-key-label').textContent = `Your ${AI[prov].name} key`;
+        bd.querySelector('.ai-key-in').placeholder = AI[prov].hint;
+        bd.querySelector('.ai-how').textContent = AI[prov].how;
+        bd.querySelector('.ai-privacy').textContent = AI[prov].privacy;
+        bd.querySelector('.ai-forget').style.display = has ? '' : 'none';
+      };
+      sel.value = prov; show();
+      sel.onchange = () => { prov = sel.value; keep('ai-provider', prov); show(); };
+      bd.querySelector('.ai-get').onclick = () => require('electron').shell.openExternal(AI[prov].get);
+      bd.querySelector('.ai-forget').onclick = e => { e.preventDefault(); try { fs.unlinkSync(aiKeyFile(prov)); } catch (x) {} showToast(`Removed your ${AI[prov].name} key`); show(); };
+      async function run() {
+        const question = q.value.trim();
+        if (!question && !dense) return q.focus();
+        let k = aiKey(prov);
+        if (!k) {
+          k = bd.querySelector('.ai-key-in').value.trim();
+          if (!k) { bd.querySelector('.ai-key-in').focus(); return showToast(`Add your ${AI[prov].name} key`, true); }
+          try { fs.writeFileSync(aiKeyFile(prov), k); } catch (e) {}
+          keep('ai-provider', prov); show();
+        }
+        await syncEditsToPython();
+        out.innerHTML = ''; out.textContent = `${AI[prov].name} is reading the file…`; out.classList.add('busy');
+        const d = await api('summarize', { filepath: currentTempPdf, mode: 'ai', provider: prov, api_key: k, question, dense: dense && !question,
+          language: LANG_EN[store('ui-lang', 'en')] || 'English' }).catch(e => ({ error: String(e) }));
+        out.classList.remove('busy');
+        if (d.error) { out.textContent = d.error; if (/wasn't accepted/.test(d.error)) { try { fs.unlinkSync(aiKeyFile(prov)); } catch (e) {} show(); } return; }
+        out.innerHTML = mdHtml(d.answer); out.dataset.text = d.answer;
+      }
+      bd.querySelectorAll('.ai-presets button').forEach(b => b.onclick = () => {
+        const t = presets[+b.dataset.p][1]; dense = !t; q.value = t || ''; if (!t) run();
+      });
+      q.oninput = () => { dense = false; };
+      if (opts.question) { q.value = opts.question; dense = false; }
+      if (dense && aiKey(prov)) run(); else q.focus();
     }
     // a scan just opened: offer to make its text searchable (once per file)
     async function offerOcr(f) {
@@ -2870,14 +2935,13 @@
       const hidden = new Set(store('hidden-tools', []));
       const panes = [...document.querySelectorAll('.pane[data-pane]')].map(p => ({ name: { edit: 'Edit', convert: 'Convert', sign: 'E-Sign' }[p.dataset.pane] || p.dataset.pane,
         tools: [...p.querySelectorAll('.side-btn[id]')].map(b => ({ id: b.id, label: (b.dataset.enlabel || b.textContent).trim() })) })).filter(p => p.tools.length);
-      const key = claudeKey();
       const bd = showPanel('Settings', `
         <h4>Language</h4><select class="st-lang">${Object.entries(I18N_NAMES).map(([v, n]) => `<option value="${v}">${n}</option>`).join('')}</select>
         <h4>Tools shown in the side panel</h4><p class="ai-meta">Uncheck what you never use: it disappears from the side panel (it stays in All tools).</p>
         <div class="st-tools">${panes.map(p => `<div class="st-group"><b>${esc(p.name)}</b>${p.tools.map(t => `<label><input type="checkbox" data-id="${t.id}" ${hidden.has(t.id) ? '' : 'checked'}> ${esc(t.label)}</label>`).join('')}</div>`).join('')}</div>
         <button class="lb-btn st-all">Show all</button>
-        <h4>Claude (optional)</h4><p class="ai-meta">${key ? 'Your Claude API key is saved on this computer. Ask Claude about this PDF uses it.' : 'Add your Claude API key to ask Claude about your files (console.anthropic.com).'}</p>
-        <div class="st-key"><input type="password" class="st-key-in" placeholder="${key ? '••••••••••' : 'sk-ant-…'}" spellcheck="false"><button class="lb-btn st-key-save">Save key</button>${key ? '<button class="lb-btn st-key-del">Remove my key</button>' : ''}</div>
+        <h4>AI (optional)</h4><p class="ai-meta">For a smart, dense summary and answers to any question about your files. Google Gemini is free: sign in at aistudio.google.com/apikey with a Google account, click Create API key, and paste it here.</p>
+        ${['gemini', 'claude'].map(p => { const k = aiKey(p); return `<div class="st-key" data-p="${p}"><span class="st-key-name">${AI[p].name}${p === 'gemini' ? ' (free)' : ''}</span><input type="password" class="st-key-in" placeholder="${k ? '••••••••••' : AI[p].hint}" spellcheck="false"><button class="lb-btn st-key-save">Save key</button>${k ? '<button class="lb-btn st-key-del">Remove my key</button>' : `<button class="lb-btn st-key-get">Get a key</button>`}</div>`; }).join('')}
         <h4>PDF app</h4><button class="lb-btn st-default">Make it my PDF app</button>
         <h4>Help</h4><button class="lb-btn st-report">Send a problem report</button><p class="ai-meta">Version ${esc(window.appVersion || '')}</p>`, []);
       const lang = bd.querySelector('.st-lang'); lang.value = store('ui-lang', 'en');
@@ -2886,13 +2950,17 @@
         const h = new Set(store('hidden-tools', [])); c.checked ? h.delete(c.dataset.id) : h.add(c.dataset.id); keep('hidden-tools', [...h]); applyHiddenTools();
       });
       bd.querySelector('.st-all').onclick = () => { keep('hidden-tools', []); bd.querySelectorAll('.st-tools input').forEach(c => c.checked = true); applyHiddenTools(); };
-      bd.querySelector('.st-key-save').onclick = () => { const v = bd.querySelector('.st-key-in').value.trim(); if (!v) return; try { fs.writeFileSync(claudeKeyFile(), v); } catch (e) {} showToast('Saved your Claude API key'); openSettings(); };
-      const del = bd.querySelector('.st-key-del'); if (del) del.onclick = () => { try { fs.unlinkSync(claudeKeyFile()); } catch (e) {} showToast('Removed your Claude API key'); openSettings(); };
+      bd.querySelectorAll('.st-key[data-p]').forEach(row => {
+        const p = row.dataset.p, $r = c => row.querySelector(c);
+        $r('.st-key-save').onclick = () => { const v = $r('.st-key-in').value.trim(); if (!v) return $r('.st-key-in').focus(); try { fs.writeFileSync(aiKeyFile(p), v); } catch (e) {} keep('ai-provider', p); showToast(`Saved your ${AI[p].name} key`); openSettings(); };
+        if ($r('.st-key-del')) $r('.st-key-del').onclick = () => { try { fs.unlinkSync(aiKeyFile(p)); } catch (e) {} showToast(`Removed your ${AI[p].name} key`); openSettings(); };
+        if ($r('.st-key-get')) $r('.st-key-get').onclick = () => require('electron').shell.openExternal(AI[p].get);
+      });
       bd.querySelector('.st-default').onclick = () => makeDefaultPdfApp();
       bd.querySelector('.st-report').onclick = () => { bd.remove(); sendProblemReport(); };
     }
     applyHiddenTools();
-    document.getElementById('btn-ai').addEventListener('click', () => doSummarize());
+    document.getElementById('btn-ai').addEventListener('click', () => aiButton());
     // Ctrl+K: find any tool by typing
     document.addEventListener('keydown', e => { if (e.ctrlKey && !e.shiftKey && e.key.toLowerCase() === 'k') { e.preventDefault(); goTab('tools'); const t = document.getElementById('tool-search'); t.focus(); t.select(); } });
     try { const l = JSON.parse(localStorage.getItem('ui-lang')); if (l && l !== 'en') setUiLanguage(l); } catch (e) {}
@@ -6604,7 +6672,7 @@
       let el = document.getElementById('reader');
       if (!el) {
         el = document.createElement('div'); el.id = 'reader';
-        el.innerHTML = `<div class="rd-head"><svg class="ico"><use href="#i-book"/></svg><span class="rd-name"></span><span class="rd-page"></span><span class="spacer"></span>
+        el.innerHTML = `<div class="rd-hot"></div><div class="rd-head"><span class="rd-page"></span><span class="spacer"></span>
           <button class="icon-tool rd-out" title="Smaller (-)"><svg class="ico"><use href="#i-zout"/></svg></button>
           <button class="icon-tool rd-in" title="Bigger (+)"><svg class="ico"><use href="#i-zin"/></svg></button>
           <button class="icon-tool rd-dark" title="Dark pages"><svg class="ico"><use href="#i-moon"/></svg></button>
@@ -6618,10 +6686,17 @@
         el.querySelector('.rd-list').onclick = () => readerMarks();
         el.querySelector('.rd-in').onclick = () => zoomReader(1.15);
         el.querySelector('.rd-out').onclick = () => zoomReader(1 / 1.15);
+        const head = el.querySelector('.rd-head');
+        el.showHead = () => { clearTimeout(el._hide); el.classList.add('head-on'); };
+        el.hideHead = (ms = 0) => { clearTimeout(el._hide); el._hide = setTimeout(() => { if (!head.matches(':hover') && !document.querySelector('.rd-marks')) el.classList.remove('head-on'); }, ms); };
+        el.querySelector('.rd-hot').onmouseenter = el.showHead;
+        el.addEventListener('mousemove', e => { if (e.clientY <= 6) el.showHead(); });
+        head.onmouseleave = () => el.hideHead(250);
       }
       const body = el.querySelector('.rd-body'), doc = currentPdfDoc;
-      el.querySelector('.rd-name').textContent = (fileQueue.find(f => f.originalPath === currentActiveFile) || {}).name || '';
       el.classList.add('open');
+      ipcRenderer.invoke('set-fullscreen', true).catch(() => {});
+      el.showHead(); el.hideHead(1800);   // shown for a moment so people know where it is
       const pageText = n => el.querySelector('.rd-page').textContent = `Page ${n} of ${doc.numPages}`;
       let zoom = 1;
       try { zoom = +localStorage.getItem('reader-zoom') || 1; } catch (e) {}
@@ -6654,7 +6729,8 @@
     async function closeReader() {
       if (!reader) return;
       const n = reader.page || pageNum;
-      reader.col.destroy(); reader.el.classList.remove('open'); reader = null;
+      reader.col.destroy(); reader.el.classList.remove('open', 'head-on'); reader = null;
+      ipcRenderer.invoke('set-fullscreen', false).catch(() => {});
       if (n !== pageNum) { pageNum = n; renderPage(n); }
     }
     document.getElementById('btn-read').addEventListener('click', openReader);

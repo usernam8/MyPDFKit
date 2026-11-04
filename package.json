@@ -1,6 +1,6 @@
 {
   "name": "my-pdf-kit",
-  "version": "1.5.8",
+  "version": "1.6.0",
   "description": "Modern PDF Editor",
   "author": "usernam8",
   "main": "main.js",
@@ -29,7 +29,9 @@
       "index.html",
       "package.json",
       "node_modules/pdfjs-dist/build/pdf.min.js",
-      "node_modules/pdfjs-dist/build/pdf.worker.min.js"
+      "node_modules/pdfjs-dist/build/pdf.worker.min.js",
+      "node_modules/pdfjs-dist/standard_fonts/**",
+      "node_modules/pdfjs-dist/cmaps/**"
     ],
     "win": {
       "target": "nsis",

@@ -9,3 +9,6 @@ __pycache__/
 
 # real work files used by the tests (box labels); kept on this PC only
 tests/samples/private/
+
+# real customer PDFs (names, addresses): never commit or upload
+tests/pdfs/

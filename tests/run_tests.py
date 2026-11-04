@@ -26,6 +26,7 @@ def run(name, args, ok_pattern, env=None):
 run('Text editing keeps the look', [os.path.join(T, 'edit_fidelity.py'), os.path.join(SAMPLES, 'pdf')],
     r'^(\d+) runs, \1 at 90%\+', {'ALL': '1'})
 run('Pages sorted right for export', [os.path.join(T, 'kind_test.py'), SAMPLES], r'^(\d+) of \1 pages right')
+run("PDF test library: open, show, fill, crop, dry-run print, against Chrome's engine", [os.path.join(T, 'print_library.py')], r'^(\d+) of \1 checks passed')
 
 exe = os.path.join(ROOT, 'release', 'win-unpacked', 'resources', 'server', 'server.exe')
 if os.path.exists(exe):

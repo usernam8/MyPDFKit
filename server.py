@@ -1560,6 +1560,17 @@ FIELD_KINDS = {fitz.PDF_WIDGET_TYPE_TEXT: 'text', fitz.PDF_WIDGET_TYPE_CHECKBOX:
                fitz.PDF_WIDGET_TYPE_COMBOBOX: 'combo', fitz.PDF_WIDGET_TYPE_LISTBOX: 'list', fitz.PDF_WIDGET_TYPE_SIGNATURE: 'signature',
                fitz.PDF_WIDGET_TYPE_BUTTON: 'button'}
 
+def _inherited_q(doc, xref):
+    """A field's text alignment (0 left, 1 center, 2 right): on the widget, else its parents, else the form's."""
+    seen = 0
+    while xref and seen < 12:
+        t_, v = doc.xref_get_key(xref, 'Q')
+        if t_ == 'int': return int(v)
+        t_, v = doc.xref_get_key(xref, 'Parent')
+        xref = int(v.split()[0]) if t_ == 'xref' else 0; seen += 1
+    t_, v = doc.xref_get_key(doc.pdf_catalog(), 'AcroForm/Q')
+    return int(v) if t_ == 'int' else 0
+
 def _page_fields(page):
     """The fill-in fields on a page, where they are (as shown, after the page's rotation) and what they hold."""
     out = []
@@ -1571,7 +1582,8 @@ def _page_fields(page):
                     "value": w.field_value, "options": w.choice_values or [],
                     "on": w.on_state() if kind in ('checkbox', 'radio') else None,
                     "readonly": bool(w.field_flags & 1), "multiline": bool(w.field_flags & 4096) if kind == 'text' else False,
-                    "size": w.text_fontsize or 0, "maxlen": w.text_maxlen or 0, "label": w.field_label or ''})
+                    "size": w.text_fontsize or 0, "maxlen": w.text_maxlen or 0, "label": w.field_label or '',
+                    "align": _inherited_q(page.parent, w.xref), "hidden": bool(_flag(page.parent, w.xref) & 2)})
     return out
 
 @app.route('/page_info', methods=['POST'])
@@ -1599,6 +1611,8 @@ def fill_form():
         doc = fitz.open(fp)
         by_page = {}
         for v in d.get('values', []): by_page.setdefault(int(v['page']), []).append(v)
+        # a field can show in several places (copies on other pages): the value goes into every one of them
+        names, radios = {}, {}
         for pno, vals in by_page.items():
             page = doc[pno]
             widgets = {w.xref: w for w in page.widgets() or []}
@@ -1606,12 +1620,18 @@ def fill_form():
                 w = widgets.get(int(v['xref']))
                 if not w: continue
                 kind = FIELD_KINDS.get(w.field_type)
-                if kind in ('checkbox', 'radio'):
-                    w.field_value = w.on_state() if v['value'] else 'Off'
-                else:
-                    w.field_value = str(v['value'])
-                w.update()
-                widgets = {x.xref: x for x in page.widgets() or []}   # updating can renew the list
+                if kind == 'radio': radios[w.xref] = (w.field_name, bool(v['value']))
+                else: names[w.field_name] = (kind, v['value'])
+        for page in doc:
+            for w in list(page.widgets() or []):
+                try:
+                    if w.xref in radios:
+                        w.field_value = w.on_state() if radios[w.xref][1] else 'Off'; w.update(); continue
+                    if w.field_name not in names or w.field_type == fitz.PDF_WIDGET_TYPE_RADIOBUTTON: continue
+                    kind, value = names[w.field_name]
+                    w.field_value = (w.on_state() if value else 'Off') if kind == 'checkbox' else str(value)
+                    w.update()
+                except Exception as e: print('field skipped:', w.field_name, e, file=sys.stderr)
         if d.get('flatten'):   # turn the fields into plain page content
             try: doc.bake(annots=False, widgets=True)
             except Exception as e: print('flatten skipped:', e, file=sys.stderr)
@@ -3020,6 +3040,40 @@ def privacy_fix():
     except Exception as e: return jsonify({"error": str(e)}), 500
 
 # ---------- lock and finalize ----------
+def _outline_text(src):
+    """The document with its text turned into drawn outlines: it looks the same and stays sharp at any zoom,
+    but there's no text left to select, copy or change. Pictures and lines are kept exactly as they were."""
+    out = fitz.open()
+    base = fitz.open(); base.insert_pdf(src)     # pictures and lines, text taken out
+    txt = fitz.open(); txt.insert_pdf(src)       # the text alone
+    for i in range(src.page_count):
+        b = base[i]; b.add_redact_annot(b.rect)
+        b.apply_redactions(images=fitz.PDF_REDACT_IMAGE_NONE, graphics=fitz.PDF_REDACT_LINE_ART_NONE, text=fitz.PDF_REDACT_TEXT_REMOVE)
+        t = txt[i]; t.add_redact_annot(t.rect)
+        t.apply_redactions(images=fitz.PDF_REDACT_IMAGE_REMOVE, graphics=fitz.PDF_REDACT_LINE_ART_REMOVE_IF_TOUCHED, text=fitz.PDF_REDACT_TEXT_NONE)
+    for i in range(src.page_count):
+        page = out.new_page(width=src[i].rect.width, height=src[i].rect.height)
+        page.show_pdf_page(page.rect, base, i)
+        if txt[i].get_text('words'):
+            tp = fitz.open('pdf', fitz.open('svg', txt[i].get_svg_image(text_as_path=True).encode('utf-8')).convert_to_pdf())
+            page.show_pdf_page(page.rect, tp, 0)
+    return out
+
+@app.route('/unlock_mine', methods=['POST'])
+def unlock_mine():
+    """A copy without the lock, for a file locked with this app's own password."""
+    d = request.json; fp = d['filepath']; orig = d.get('original_path') or fp
+    try:
+        doc = fitz.open(fp)
+        if not (doc.metadata or {}).get('encryption'): return jsonify({"error": "This file isn't locked"}), 400
+        if not doc.authenticate(d.get('password') or '') & 4:   # 4: the owner's password, the one that allows changes
+            return jsonify({"error": "This file wasn't locked with MyPDFKit on this computer"}), 400
+        base = os.path.splitext(os.path.basename(orig))[0].replace(' - final', '')
+        out = get_unique_filename(os.path.join(os.path.dirname(orig), base + ' (unlocked).pdf'))
+        doc.save(out, encryption=fitz.PDF_ENCRYPT_NONE, garbage=3, deflate=True)
+        return jsonify({"success": True, "path": out})
+    except Exception as e: return jsonify({"error": str(e)}), 500
+
 @app.route('/finalize', methods=['POST'])
 def finalize():
     """The finished copy: every edit made part of the page (comments, shapes, signatures, form fields), hidden
@@ -3034,8 +3088,13 @@ def finalize():
             n = sum(1 for p in doc for a in (p.annots() or []) if a.type[0] not in (fitz.PDF_ANNOT_LINK,)) + sum(1 for p in doc for _ in (p.widgets() or []))
             doc.bake(annots=True, widgets=True)
             if n: report.append(f"Made {n} {'edit' if n == 1 else 'edits'}, comments and fields part of the page")
-        if d.get('rasterize'):   # the strongest: pictures of the pages, nothing left to edit or copy
-            dpi = int(d.get('dpi') or 200); pics = fitz.open()
+        content = d.get('content') or ('picture' if d.get('rasterize') else 'keep')
+        if content == 'outline':   # sharp, but no text left to select or copy
+            had = sum(len(p.get_text('words')) for p in doc)
+            out_doc = _outline_text(doc); doc.close(); doc = out_doc
+            report.append(f"Turned the text ({had} words) into outlines: it looks the same and stays sharp, but can't be selected or copied")
+        if content == 'picture':   # the strongest: pictures of the pages, nothing left to edit or copy
+            dpi = int(d.get('dpi') or 300); pics = fitz.open()
             for page in doc:
                 pix = page.get_pixmap(dpi=dpi, annots=True)
                 np_ = pics.new_page(width=page.rect.width, height=page.rect.height); np_.insert_image(np_.rect, pixmap=pix)
@@ -3044,13 +3103,14 @@ def finalize():
         base = os.path.splitext(os.path.basename(orig))[0]
         out = get_unique_filename(os.path.join(os.path.dirname(orig), base + ' - final.pdf'))
         mode = d.get('protect') or 'none'
-        if mode == 'password':
+        if mode in ('password', 'auto'):
             if not d.get('password'): return jsonify({"error": "Choose a password for unlocking changes"}), 400
-            perm = fitz.PDF_PERM_ACCESSIBILITY
+            perm = fitz.PDF_PERM_ACCESSIBILITY   # no editing, form filling, comments or page changes
             if d.get('allow_print', True): perm |= fitz.PDF_PERM_PRINT | fitz.PDF_PERM_PRINT_HQ
-            if d.get('allow_copy', True): perm |= fitz.PDF_PERM_COPY
+            if d.get('allow_copy', mode == 'password'): perm |= fitz.PDF_PERM_COPY
             doc.save(out, garbage=4, deflate=True, clean=True, encryption=fitz.PDF_ENCRYPT_AES_256, owner_pw=d['password'], user_pw='', permissions=perm)
-            report.append('Changes need your password' + ('' if d.get('allow_copy', True) else '; copying text is blocked') + ('' if d.get('allow_print', True) else '; printing is blocked'))
+            report.append(('Locked: anyone can open it' + (' and print it' if d.get('allow_print', True) else '') + '; editing, forms and page changes are blocked')
+                          if mode == 'auto' else 'Changes need your password' + ('' if d.get('allow_copy', True) else '; copying text is blocked') + ('' if d.get('allow_print', True) else '; printing is blocked'))
         else:
             tmp = out if mode == 'none' else _temp_out(fp, 'final', json.dumps(d))
             doc.save(tmp, garbage=4, deflate=True, clean=True)
@@ -4573,6 +4633,276 @@ def _page_label(pages):
         if b != a + 1: runs.append(f"{start + 1}" if start == a else f"{start + 1}-{a + 1}"); start = b
     return ', '.join(runs)
 
+# ---------- printing: sheets the size of the printer's paper ----------
+# The printer decides the paper (as in Chrome): Windows says what paper it holds, its resolution and the part
+# it can print on. Each sheet is made here at exactly that size, with the page (or just its label) placed on
+# it as vectors, so the preview shows what will come out and barcodes stay sharp.
+def _printer_info(name):
+    import win32print, win32gui
+    h = win32print.OpenPrinter(name)
+    try:
+        dm = win32print.GetPrinter(h, 2)['pDevMode']
+        hdc = win32gui.CreateDC('WINSPOOL', name, dm)
+        try:
+            g = lambda i: win32print.GetDeviceCaps(hdc, i)
+            dx, dy = g(88), g(90)                                   # LOGPIXELSX/Y
+            pw, ph = g(110) / dx * 72, g(111) / dy * 72              # PHYSICALWIDTH/HEIGHT
+            ox, oy = g(112) / dx * 72, g(113) / dy * 72              # PHYSICALOFFSETX/Y
+            hr, vr = g(8) / dx * 72, g(10) / dy * 72                 # HORZRES/VERTRES
+        finally: win32gui.DeleteDC(hdc)
+        return {'paper': [round(pw, 2), round(ph, 2)], 'printable': [round(ox, 2), round(oy, 2), round(ox + hr, 2), round(oy + vr, 2)],
+                'dpi': int(min(dx, dy)), 'form': dm.FormName or '', 'landscape': dm.Orientation == 2}
+    finally: win32print.ClosePrinter(h)
+
+@app.route('/printer_info', methods=['POST'])
+def printer_info():
+    try: return jsonify(_printer_info(request.json['name']))
+    except Exception as e: return jsonify({'error': str(e)})
+
+def _flag(doc, xref, key='F'):
+    t, v = doc.xref_get_key(xref, key)
+    try: return int(v) if t == 'int' else 0
+    except ValueError: return 0
+
+def _fix_widget_looks(doc, everything=False):
+    """Fields filled in another app often have no picture of their value (or ask viewers to make one):
+    make it, so the value shows and prints everywhere."""
+    need = everything
+    try:
+        t, v = doc.xref_get_key(doc.pdf_catalog(), 'AcroForm/NeedAppearances')
+        need = need or v == 'true'
+    except Exception: pass
+    for page in doc:
+        for w in list(page.widgets() or []):
+            try:
+                if w.field_type in (fitz.PDF_WIDGET_TYPE_BUTTON, fitz.PDF_WIDGET_TYPE_SIGNATURE): continue
+                no_ap = doc.xref_get_key(w.xref, 'AP')[0] == 'null'
+                if (need or no_ap) and w.field_value not in (None, '', 'Off'): w.update()
+            except Exception: continue
+
+def _printable_copy(path):
+    """The document as it prints: field values drawn in, hidden and not-for-print comments and fields left out."""
+    doc = fitz.open(path)
+    if doc.needs_pass: raise ValueError('This PDF is locked with a password')
+    _fix_widget_looks(doc)
+    for page in doc:
+        for a in list(page.annots() or []):
+            f = a.flags
+            if f & 2 or not f & 4: page.delete_annot(a)           # hidden, or not marked to print
+        for w in list(page.widgets() or []):
+            f = _flag(doc, w.xref)
+            if f & 2 or not f & 4: page.delete_widget(w)
+    try: doc.bake(annots=True, widgets=True)
+    except Exception as e: print('bake skipped:', e, file=sys.stderr)
+    return doc
+
+def _is_blank(page):
+    pix = page.get_pixmap(dpi=18, colorspace=fitz.csGRAY, annots=True)
+    return min(pix.samples) >= 246 if pix.samples else True
+
+def _shape_is(w, h, sizes, tol):
+    a, b = sorted((w, h))
+    return any(abs(a / b - x / y) <= tol * (x / y) for x, y in sizes)
+
+LABEL_SHAPES = [(4, 6), (4, 4)]
+
+def _label_regions(page):
+    """Where the label(s) are on a page, in page coordinates, and how they were found:
+    a picture shaped like a label, a drawn box of label size, the block around a barcode, or the content."""
+    unrot = lambda r: fitz.Rect(r) * page.rotation_matrix   # to the page as shown
+    pr = page.rect
+    # a) a picture with a label's shape (4x6 or 4x4), at least 2 inches on its short side
+    pics = [fitz.Rect(i['bbox']) for i in page.get_image_info() if i.get('bbox')]
+    hits = [r for r in pics if min(r.width, r.height) >= 144 and _shape_is(r.width, r.height, LABEL_SHAPES, 0.04)]
+    if hits: return [unrot(r) for r in hits], 'picture'
+    drawings = page.get_drawings()
+    # b) a drawn border or dashed cut line of label size
+    boxes = []
+    for dr in drawings:
+        r = dr['rect']
+        if dr.get('color') is None or r.width < 100 or r.height < 100: continue
+        a, b = sorted((r.width, r.height))
+        if any(abs(a - x * 72) <= 0.12 * x * 72 and abs(b - y * 72) <= 0.12 * y * 72 for x, y in ((4, 6), (4, 4))):
+            if not any(abs(r.x0 - q.x0) < 4 and abs(r.y0 - q.y0) < 4 for q in boxes): boxes.append(r)
+    if boxes: return [unrot(r) for r in boxes], 'border'
+    # c) the content block around a barcode: many thin bars side by side
+    bars = [dr['rect'] for dr in drawings if dr.get('fill') is not None and dr['rect'].width <= 14 and dr['rect'].height >= 12
+            and dr['rect'].height >= 3 * dr['rect'].width]
+    codes = []
+    for r in sorted(bars, key=lambda r: (round(r.y0), r.x0)):
+        for c in codes:
+            if abs(c['y0'] - r.y0) < 3 and abs(c['y1'] - r.y1) < 3 and r.x0 - c['rect'].x1 < 24:
+                c['rect'] |= r; c['n'] += 1; break
+        else: codes.append({'rect': fitz.Rect(r), 'y0': r.y0, 'y1': r.y1, 'n': 1})
+    codes = [c['rect'] for c in codes if c['n'] >= 8 and c['rect'].width >= 40]
+    parts = [fitz.Rect(b[:4]) for b in page.get_text('blocks') if b[4].strip()] + pics + \
+            [dr['rect'] for dr in drawings if dr['rect'].get_area() < 0.8 * pr.get_area() and dr['rect'].width > 0.5]
+    def clusters(rects, gap=26):
+        groups = [fitz.Rect(r) for r in rects if not r.is_empty]
+        merged = True
+        while merged:
+            merged = False
+            for i in range(len(groups)):
+                for j in range(i + 1, len(groups)):
+                    a, b = groups[i], groups[j]
+                    if a.x0 - gap <= b.x1 and b.x0 - gap <= a.x1 and a.y0 - gap <= b.y1 and b.y0 - gap <= a.y1:
+                        groups[i] = a | b; groups.pop(j); merged = True; break
+                if merged: break
+        return groups
+    if codes:
+        found = [g for g in clusters(parts + codes) if any(g.intersects(c) for c in codes)]
+        if found: return [unrot(g + (-4, -4, 4, 4)) & pr for g in found], 'barcode'
+    # d) otherwise the page's content without its white margins
+    pix = page.get_pixmap(dpi=50, colorspace=fitz.csGRAY, annots=True)
+    w, h, s = pix.width, pix.height, pix.samples
+    rows = [y for y in range(h) if min(s[y * w:(y + 1) * w]) < 235]
+    if not rows: return [], 'blank'
+    cols = [x for x in range(w) if min(s[x::w]) < 235]
+    k = 72 / 50
+    r = fitz.Rect(cols[0] * k - 6, rows[0] * k - 6, (cols[-1] + 1) * k + 6, (rows[-1] + 1) * k + 6) & page.rect
+    return [r], 'trim'
+
+@app.route('/label_regions', methods=['POST'])
+def label_regions():
+    d = request.json
+    try:
+        doc = _printable_copy(d['filepath'])
+        pages = d.get('pages') or list(range(1, doc.page_count + 1))
+        regions, how, blank = {}, {}, []
+        for n in pages:
+            page = doc[n - 1]
+            if _is_blank(page): blank.append(n); continue
+            rs, kind = _label_regions(page)
+            regions[n] = [[round(v, 2) for v in r] for r in rs]; how[n] = kind
+        return jsonify({'regions': regions, 'how': how, 'blank': blank})
+    except Exception as e: return jsonify({'error': str(e)}), 500
+
+def _content_edges(page):
+    """Edges of what's on the page (text, pictures, lines), for snapping a dragged area to them."""
+    xs, ys = set(), set()
+    rects = [fitz.Rect(b[:4]) for b in page.get_text('blocks')] + [fitz.Rect(i['bbox']) for i in page.get_image_info()] + \
+            [dr['rect'] for dr in page.get_drawings()]
+    for r in rects:
+        r = r * page.rotation_matrix
+        if r.is_empty: continue
+        xs.update((round(r.x0, 1), round(r.x1, 1))); ys.update((round(r.y0, 1), round(r.y1, 1)))
+    return sorted(xs), sorted(ys)
+
+@app.route('/content_edges', methods=['POST'])
+def content_edges():
+    d = request.json
+    try:
+        doc = fitz.open(d['filepath']); xs, ys = _content_edges(doc[int(d['page']) - 1])
+        return jsonify({'x': xs, 'y': ys})
+    except Exception as e: return jsonify({'error': str(e), 'x': [], 'y': []})
+
+def _place(out, src, n, clip, paper, area, orient, scale):
+    """One sheet: page n of src (or the clip of it, in page coordinates as shown) placed on paper inside the
+    printable area, turned when that's asked or when it fits bigger, centered."""
+    pw, ph = paper
+    sp = src[n - 1]
+    box = fitz.Rect(clip) if clip else sp.rect
+    cw, ch = box.width, box.height
+    aw, ah = area.width, area.height
+    fit = lambda rot: min(aw / (ch if rot else cw), ah / (cw if rot else ch))
+    if orient == 'auto': rot = 90 if fit(True) > fit(False) * 1.15 else 0   # turned only when it's clearly bigger
+    else:   # portrait: the page upright on the paper; landscape: lying on its side
+        rot = 0 if (orient == 'landscape') == (pw > ph) else 90
+    f = fit(rot) if scale == 'fit' else min(1.0, fit(rot)) if scale == 'shrink' else 1.0
+    tw, th = ((ch, cw) if rot else (cw, ch))
+    tw, th = tw * f, th * f
+    cx, cy = (area.x0 + area.x1) / 2, (area.y0 + area.y1) / 2
+    target = fitz.Rect(cx - tw / 2, cy - th / 2, cx + tw / 2, cy + th / 2)
+    page = out.new_page(width=pw, height=ph)
+    # show_pdf_page's clip is in the unrotated page's coordinates
+    clip_src = (box * sp.derotation_matrix) if clip else None
+    page.show_pdf_page(target, src, n - 1, clip=clip_src, rotate=-rot if rot else 0)
+    return page
+
+def _sheets(d):
+    src = _printable_copy(d['filepath'])
+    pages = d.get('pages') or list(range(1, src.page_count + 1))
+    paper = d.get('paper') or [612, 792]
+    area = fitz.Rect(d.get('printable') or (0, 0, paper[0], paper[1])) & fitz.Rect(0, 0, paper[0], paper[1])
+    if d.get('margin'): area = area + (d['margin'], d['margin'], -d['margin'], -d['margin'])
+    mode, regions = d.get('mode', 'page'), {int(k): v for k, v in (d.get('regions') or {}).items()}
+    skipped, plan = [], []
+    for n in pages:
+        if n < 1 or n > src.page_count: continue
+        if d.get('skip_blank') and _is_blank(src[n - 1]): skipped.append(n); continue
+        if mode in ('label', 'area'):
+            rs = regions.get(n)
+            if rs is None:
+                rs, _ = _label_regions(src[n - 1]) if mode == 'label' else ([], '')
+            if not rs and mode == 'label': skipped.append(n); continue
+            for r in rs or [None]: plan.append((n, r))
+        else: plan.append((n, None))
+    out = fitz.open()
+    for n, clip in plan:
+        _place(out, src, n, clip, paper, area, d.get('orient', 'auto'), d.get('scale', 'fit'))
+    return out, plan, skipped
+
+@app.route('/print_prepare', methods=['POST'])
+def print_prepare():
+    """The sheets to print, as a PDF (the preview shows exactly these)."""
+    d = request.json
+    try:
+        out, plan, skipped = _sheets(d)
+        if not out.page_count: return jsonify({'error': 'Nothing to print on the pages chosen', 'skipped': skipped}), 400
+        path = os.path.join(TEMP_DIR, 'sheets_' + hashlib.md5((d['filepath'] + json.dumps(d, sort_keys=True) + str(os.path.getmtime(d['filepath']))).encode()).hexdigest() + '.pdf')
+        out.save(path, garbage=3, deflate=True)
+        return jsonify({'path': path, 'sheets': [{'page': n, 'rect': list(r) if r else None} for n, r in plan], 'skipped': skipped})
+    except Exception as e: return jsonify({'error': str(e)}), 500
+
+@app.route('/print_render', methods=['POST'])
+def print_render():
+    """Pictures of the sheets at the printer's own resolution (sharp barcodes on thermal printers), PNG."""
+    d = request.json
+    try:
+        doc = fitz.open(d['path'])
+        dpi = int(d.get('dpi') or 300)
+        dpi = dpi if 150 <= dpi <= 300 else 300
+        out = tempfile.mkdtemp(dir=TEMP_DIR, prefix='print_')
+        first, count = int(d.get('first', 0)), int(d.get('count', doc.page_count))
+        pages = []
+        for i in range(first, min(doc.page_count, first + count)):
+            p = doc[i]
+            f = os.path.join(out, f'{i + 1}.png')
+            p.get_pixmap(dpi=dpi, colorspace=fitz.csGRAY if d.get('bw') else fitz.csRGB).save(f)
+            pages.append({'path': f, 'w': p.rect.width, 'h': p.rect.height})
+        return jsonify({'success': True, 'pages': pages, 'total': doc.page_count})
+    except Exception as e: return jsonify({'error': str(e)}), 500
+
+@app.route('/save_labels', methods=['POST'])
+def save_labels():
+    """Every label as its own 4x6 (or chosen size) page, as vectors, saved next to the original."""
+    d = dict(request.json)
+    try:
+        size = d.get('size') or [288, 432]
+        d.update({'paper': size, 'printable': None, 'margin': 0, 'orient': 'auto', 'scale': 'fit', 'skip_blank': True,
+                  'mode': d.get('mode') or 'label'})
+        out, plan, skipped = _sheets(d)
+        if not out.page_count: return jsonify({'error': 'No labels found on those pages'}), 400
+        orig = d.get('original_path') or d['filepath']
+        base = os.path.splitext(os.path.basename(orig))[0]
+        tag = f'{size[0] / 72:g}x{size[1] / 72:g}'
+        path = d.get('out') or get_unique_filename(os.path.join(os.path.dirname(orig), f'{base} ({tag} labels).pdf'))
+        out.save(path, garbage=3, deflate=True)
+        return jsonify({'success': True, 'path': path, 'count': out.page_count, 'skipped': skipped})
+    except Exception as e: return jsonify({'error': str(e)}), 500
+
+@app.route('/area_picture', methods=['POST'])
+def area_picture():
+    """A picture of an area of a page (for copying), at 300 dpi."""
+    d = request.json
+    try:
+        doc = _printable_copy(d['filepath']); page = doc[int(d['page']) - 1]
+        clip = fitz.Rect(d['rect']) * page.derotation_matrix
+        pix = page.get_pixmap(dpi=int(d.get('dpi', 300)), clip=clip)
+        f = os.path.join(TEMP_DIR, 'area_' + hashlib.md5(json.dumps(d).encode()).hexdigest() + '.png'); pix.save(f)
+        return jsonify({'path': f})
+    except Exception as e: return jsonify({'error': str(e)}), 500
+
 @app.route('/render_pages', methods=['POST'])
 def render_pages():
     """Page pictures for printing: JPEGs at print quality, with each page's size in points."""
@@ -4681,6 +5011,19 @@ def merge_queue():
         return jsonify({"success": True, "path": out_path, "message": f"Saved {os.path.basename(out_path)}"})
     except Exception as e: return jsonify({"error": str(e)}), 500
 
+def _safe_copy(src, dst):
+    """Write a PDF where the user keeps it without ever leaving a broken file: a temporary copy first,
+    checked to open with all its pages, then given its real name."""
+    with fitz.open(src) as d: pages = d.page_count
+    part = dst + '.part'
+    shutil.copyfile(src, part)
+    try:
+        with fitz.open(part) as d:
+            if d.page_count != pages or d.is_repaired: raise RuntimeError("The saved copy didn't check out, so it wasn't kept")
+        os.replace(part, dst)
+    finally:
+        if os.path.exists(part): os.remove(part)
+
 @app.route('/save_modified', methods=['POST'])
 def save_modified():
     data = request.json
@@ -4690,7 +5033,7 @@ def save_modified():
         original_folder = os.path.dirname(original_path)
         base_name = os.path.splitext(os.path.basename(original_path))[0]
         out_path = get_unique_filename(os.path.join(original_folder, f"{base_name}_Modified.pdf"))
-        shutil.copy(current_temp_pdf, out_path)
+        _safe_copy(current_temp_pdf, out_path)
         return jsonify({"success": True, "message": f"Saved {os.path.basename(out_path)}"})
     except Exception as e: return jsonify({"error": str(e)}), 500
 

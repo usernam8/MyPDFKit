@@ -21,3 +21,4 @@ winrt-Windows.Foundation.Numerics
 ezdxf
 pillow-heif
 xlrd
+pypdfium2

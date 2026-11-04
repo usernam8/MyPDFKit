@@ -125,9 +125,31 @@ function flushOpenFiles() {
   if (files.length) win.webContents.send('open-files', files);
 }
 
+// The window opens where and how big it was last time (on a screen that's still there), else at about 85% of
+// the screen the mouse is on, so "restore" never fills a small screen.
+const winStateFile = () => path.join(app.getPath('userData'), 'window.json');
+function windowBounds() {
+  const { screen } = require('electron');
+  let st = null;
+  try { st = JSON.parse(fs.readFileSync(winStateFile(), 'utf8')); } catch (e) {}
+  const area = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea;
+  if (st && st.bounds) {
+    const b = st.bounds, d = screen.getDisplayMatching(b).workArea;
+    const fits = b.width <= d.width + 8 && b.height <= d.height + 8 && b.x >= d.x - 8 && b.y >= d.y - 8 && b.x + b.width <= d.x + d.width + 8 && b.y + b.height <= d.y + d.height + 8;
+    if (fits) return { bounds: b, maximized: !!st.maximized };
+    return { bounds: centered(d, Math.min(b.width, d.width * 0.85), Math.min(b.height, d.height * 0.85)), maximized: !!st.maximized };
+  }
+  return { bounds: centered(area, area.width * 0.85, area.height * 0.85), maximized: false };
+}
+const centered = (d, w, h) => ({ x: Math.round(d.x + (d.width - w) / 2), y: Math.round(d.y + (d.height - h) / 2), width: Math.round(w), height: Math.round(h) });
+function rememberWindow() {
+  if (!win || win.isDestroyed()) return;
+  try { fs.writeFileSync(winStateFile(), JSON.stringify({ bounds: win.getNormalBounds(), maximized: win.isMaximized() })); } catch (e) {}
+}
 function createWindow() {
+  const place = windowBounds();
   win = new BrowserWindow({
-    width: 1400, height: 900, minWidth: 980, minHeight: 620, title: 'MyPDFKit',
+    ...place.bounds, minWidth: 900, minHeight: 600, title: 'MyPDFKit',
     backgroundColor: '#25262a',
     show: false,
     autoHideMenuBar: true,
@@ -142,7 +164,11 @@ function createWindow() {
     },
   });
   if (app.isPackaged) Menu.setApplicationMenu(null);
-  win.once('ready-to-show', () => win.show());
+  win.once('ready-to-show', () => { if (place.maximized) win.maximize(); win.show(); });
+  let saveTimer = null;
+  const remember = () => { clearTimeout(saveTimer); saveTimer = setTimeout(rememberWindow, 400); };
+  for (const ev of ['resize', 'move', 'maximize', 'unmaximize']) win.on(ev, remember);
+  win.on('close', rememberWindow);
   // closing the main window ends the app, even if a hidden helper window (printing) is still open
   win.on('closed', () => { win = null; quitCleanly(); });
   // Safety net: never leave the window hidden if the first paint is delayed or fails
@@ -234,44 +260,55 @@ ipcMain.handle('pick-files', async () => {
 // The renderer's print window picks the pages and settings (and shows the preview); the page pictures
 // (made by the backend) go into a hidden window, one per sheet, laid out the same way as the preview.
 ipcMain.handle('printers', () => win.webContents.getPrintersAsync());
+// Printing: each picture is one whole sheet, already the printer's paper size with the page placed on it
+// (made by the backend), so the job's paper size is exactly the sheet's. opt.dryRun = a file path: save what
+// would be sent to the printer as a PDF instead of printing (for testing without a printer).
 ipcMain.handle('print-pages', async (_e, pages, opt = {}) => {
   if (!pages || !pages.length) return { error: 'Nothing to print' };
-  const landscape = opt.landscape !== undefined ? opt.landscape : pages.filter(p => p.w > p.h).length > pages.length / 2;
-  let [sw, sh] = opt.paperSize || [612, 792];
-  if (landscape) [sw, sh] = [sh, sw];
-  const size = p => {   // the picture's size on the sheet, in points (as in the preview)
-    const fit = Math.min(sw / p.w, sh / p.h);
-    const f = opt.scale === 'actual' ? 1 : opt.scale === 'shrink' ? Math.min(1, fit) : fit;
-    return `width:${p.w * f}pt;height:${p.h * f}pt`;
-  };
+  const sw = pages[0].w, sh = pages[0].h;
+  const landscape = sw > sh;
+  const [nw, nh] = [Math.min(sw, sh), Math.max(sw, sh)];   // the paper, narrow side first
   const html = `<!doctype html><meta charset="utf-8"><title>MyPDFKit</title><style>
     @page { size: ${sw}pt ${sh}pt; margin: 0; }
     html, body { margin: 0; background: #fff; }
-    .pg { width: ${sw}pt; height: ${sh}pt; display: flex; align-items: center; justify-content: center; page-break-after: always; break-after: page; overflow: hidden; }
+    .pg { width: ${sw}pt; height: ${sh}pt; page-break-after: always; break-after: page; overflow: hidden; }
     .pg:last-child { page-break-after: auto; break-after: auto; }
-    img { flex: none; ${opt.color === false ? 'filter: grayscale(1);' : ''} }
-  </style>` + pages.map(p => `<div class="pg"><img style="${size(p)}" src="${require('url').pathToFileURL(p.path).href}"></div>`).join('');
+    img { display: block; width: ${sw}pt; height: ${sh}pt; }
+  </style>` + pages.map(p => `<div class="pg"><img src="${require('url').pathToFileURL(p.path).href}"></div>`).join('');
   const file = path.join(path.dirname(pages[0].path), 'print.html');
   fs.writeFileSync(file, html);
   const pw = new BrowserWindow({ show: false, parent: win, webPreferences: { sandbox: true } });
   try {
     await pw.loadFile(file);
     await pw.webContents.executeJavaScript('Promise.all([...document.images].map(i => i.decode().catch(() => {})))');
-    // pageSize must be given: Electron 34 otherwise sends an empty page size and no dialog ever opens
-    // named sizes go by name; others (4x6 labels) as their size in microns, narrow side first
-    const named = ['A3', 'A4', 'A5', 'Legal', 'Letter', 'Tabloid'].includes(opt.paper);
-    const [pw0, ph0] = (opt.paperSize || [612, 792]).slice().sort((a, b) => a - b);
-    const pageSize = named || !opt.paperSize ? (opt.paper || 'Letter') : { width: Math.round(pw0 / 72 * 25400), height: Math.round(ph0 / 72 * 25400) };
+    // named sizes go by name; others (4x6 labels...) as their size in microns. pageSize must be given:
+    // Electron 34 otherwise sends an empty page size and no dialog ever opens
+    const NAMED = { Letter: [612, 792], Legal: [612, 1008], Tabloid: [792, 1224], A3: [841.89, 1190.55], A4: [595.28, 841.89], A5: [419.53, 595.28] };
+    const name = Object.keys(NAMED).find(k => Math.abs(NAMED[k][0] - nw) < 2 && Math.abs(NAMED[k][1] - nh) < 2);
+    const pageSize = name || { width: Math.round(nw / 72 * 25400), height: Math.round(nh / 72 * 25400) };
     const settings = { silent: !opt.system, printBackground: true, landscape, pageSize, margins: { marginType: 'none' },
       copies: opt.copies || 1, color: opt.color !== false, duplexMode: opt.duplex || 'simplex' };
     if (opt.deviceName) settings.deviceName = opt.deviceName;
+    if (opt.dryRun) {
+      const pdf = await pw.webContents.printToPDF({ landscape, printBackground: true, preferCSSPageSize: true,
+        pageSize: name || { width: nw / 72, height: nh / 72 }, margins: { top: 0, bottom: 0, left: 0, right: 0 } });
+      fs.writeFileSync(opt.dryRun, pdf);
+      fs.writeFileSync(opt.dryRun.replace(/\.pdf$/i, '') + '.json', JSON.stringify({ settings, sheets: pages.length, sheetPt: [sw, sh] }, null, 1));
+      return { ok: true, dryRun: opt.dryRun, settings };
+    }
     return await new Promise(resolve => pw.webContents.print(settings,
-      (ok, reason) => resolve(ok || reason === 'cancelled' || reason === 'Print job canceled' ? { ok } : { error: "Couldn't print: " + reason })));
+      (ok, reason) => resolve(ok || reason === 'cancelled' || reason === 'Print job canceled' ? { ok, settings } : { error: "Couldn't print: " + reason })));
   } finally {
     pw.destroy();
     fs.rm(path.dirname(file), { recursive: true, force: true }, () => {});
   }
 });
+// a save-as box for test prints and saved labels
+ipcMain.handle('save-dialog', async (_e, suggested, kind) => {
+  const r = await dialog.showSaveDialog(win, { title: 'Save', defaultPath: suggested, filters: kind === 'png' ? [{ name: 'Picture', extensions: ['png'] }] : [{ name: 'PDF', extensions: ['pdf'] }] });
+  return r.canceled ? null : r.filePath;
+});
+ipcMain.handle('copy-image', (_e, file) => { require('electron').clipboard.writeImage(require('electron').nativeImage.createFromPath(file)); return true; });
 
 function killServer() {
   if (serverProc && !serverProc.killed) {

@@ -483,6 +483,23 @@
     #labels-bar .lb-btn:hover { border-color:var(--accent); }
     #labels-bar .lb-btn.primary { background:var(--accent); border-color:var(--accent); color:var(--accent-ink); font-weight:600; }
     #labels-bar .lb-x { width:28px; height:28px; border:0; background:none; color:var(--faint); cursor:pointer; border-radius:6px; } #labels-bar .lb-x:hover { color:var(--text); background:rgba(255,255,255,.06); }
+    .pp-sheet { position:relative; }
+    .pp-safe { position:absolute; border:1px dashed rgba(47,111,208,.55); pointer-events:none; box-sizing:border-box; }
+    .pp-note { text-align:center; font-size:12px; color:var(--dim); min-height:16px; margin:2px 0 0; }
+    .pp-check { display:flex; align-items:center; gap:8px; font-size:13px; margin:6px 0 4px; cursor:pointer; }
+    .pp-label-tools { display:flex; gap:8px; margin:4px 0; }
+    .pp-adjust { position:relative; display:flex; flex-direction:column; align-items:center; gap:10px; }
+    .pp-adjust canvas { display:block; background:#fff; }
+    .pp-box { position:absolute; border:2px solid #2f6fd0; background:rgba(47,111,208,.08); box-sizing:border-box; }
+    .pp-box i { position:absolute; width:12px; height:12px; background:#fff; border:2px solid #2f6fd0; border-radius:3px; }
+    .pp-box i[data-c=nw] { left:-7px; top:-7px; cursor:nwse-resize; } .pp-box i[data-c=ne] { right:-7px; top:-7px; cursor:nesw-resize; }
+    .pp-box i[data-c=sw] { left:-7px; bottom:-7px; cursor:nesw-resize; } .pp-box i[data-c=se] { right:-7px; bottom:-7px; cursor:nwse-resize; }
+    .pp-box-size { position:absolute; left:0; top:-22px; font:600 11px Segoe UI, sans-serif; color:#fff; background:#2f6fd0; padding:2px 6px; border-radius:4px; white-space:nowrap; }
+    .pp-adjust-bar { display:flex; align-items:center; gap:8px; font-size:12px; }
+    .pp-adjust-bar label { display:flex; align-items:center; gap:5px; }
+    #print-progress { position:fixed; left:50%; bottom:22px; transform:translateX(-50%); z-index:3100; display:flex; align-items:center; gap:10px; padding:8px 8px 8px 16px; border-radius:14px; background:var(--raised); border:1px solid var(--line); box-shadow:0 10px 30px rgba(0,0,0,.45); font-size:13px; color:var(--text); }
+    #print-progress .pp-p-bar { width:160px; height:6px; border-radius:3px; background:var(--line); overflow:hidden; } #print-progress .pp-p-bar div { height:100%; width:0; background:var(--accent); }
+    #print-progress .lb-btn { height:30px; padding:0 12px; border-radius:8px; border:1px solid var(--line); background:transparent; color:var(--text); cursor:pointer; }
     .welcome { max-width:430px; text-align:center; padding:30px 30px 24px; }
     .welcome .drop-orb { width:64px; height:64px; margin:0 auto 14px; border-radius:50%; display:grid; place-items:center; background:var(--accent-soft); color:var(--accent); }
     .welcome .drop-orb .ico { width:28px; height:28px; }
@@ -639,7 +656,12 @@
     .mark-btn:hover { border-color:var(--accent); }
     .mark-btn.on { background:var(--accent-soft); border-color:var(--accent); color:var(--accent); }
     .keep-adding { display:flex; align-items:center; gap:6px; margin:0 0 6px 4px; font-size:12px; color:var(--dim, #9aa0a6); cursor:pointer; }
-    body.tool-place #area-glass, body.tool-prepare #area-glass { display:block; }
+    body.tool-place #area-glass, body.tool-prepare #area-glass, body.tool-printarea #area-glass { display:block; }
+    #area-rubber[data-size]:not([data-size=""])::after { content:attr(data-size); position:absolute; left:0; top:-22px; font:600 11px Segoe UI, sans-serif; color:#fff; background:#2f6fd0; padding:2px 6px; border-radius:4px; white-space:nowrap; }
+    #area-menu { position:absolute; z-index:30; display:flex; align-items:center; gap:6px; padding:6px; border-radius:10px; background:var(--raised); border:1px solid var(--line); box-shadow:0 8px 24px rgba(0,0,0,.4); font-size:12px; color:var(--text); }
+    #area-menu label { display:flex; align-items:center; gap:4px; margin:0 4px; }
+    #area-menu .lb-btn { height:28px; padding:0 10px; border-radius:7px; border:1px solid var(--line); background:transparent; color:var(--text); cursor:pointer; font:inherit; }
+    #area-menu .lb-btn.primary { background:var(--accent); border-color:var(--accent); color:var(--accent-ink); font-weight:600; }
     body.tool-place #area-glass { cursor:copy; }
     /* lasso selection */
     #lasso-layer { position:absolute; inset:0; width:100%; height:100%; z-index:11; pointer-events:none; overflow:visible; }
@@ -885,7 +907,6 @@
   </div>
 
   <div id="top-bar">
-    <button id="strip-home" class="strip-btn" title="Home: all tools"><svg class="ico"><use href="#i-home"/></svg></button>
     <button id="strip-tools" class="strip-btn" title="All tools"><svg class="ico"><use href="#i-grid"/></svg>All tools</button>
     <div id="doc-tabs" role="tablist"></div>
   </div>
@@ -908,7 +929,7 @@
     <button id="btn-save-modified" class="icon-tool" title="Save as a new PDF next to the original (Ctrl+S)"><svg class="ico"><use href="#i-save"/></svg></button>
   </div>
 
-  <div id="tools-view"><div class="tv-inner"><input id="tool-search" placeholder="Find any tool" spellcheck="false"><div id="recent-files"><div class="rf-head"><span>Recent</span><button id="rf-clear">Clear</button></div><div class="rf-list"></div></div><div class="tv-grid"><button class="tool-card" data-tool="create"><span class="tc-ico"><svg class="ico"><use href="#i-extract"/></svg></span><span>Create a PDF</span></button><button class="tool-card" data-tool="merge"><span class="tc-ico"><svg class="ico"><use href="#i-merge"/></svg></span><span>Combine files</span></button><button class="tool-card" data-tool="blank"><span class="tc-ico"><svg class="ico"><use href="#i-plus"/></svg></span><span>Blank page</span></button><button class="tool-card" data-tool="edit"><span class="tc-ico"><svg class="ico"><use href="#i-ibeam"/></svg></span><span>Edit a PDF</span></button><button class="tool-card" data-tool="headfoot"><span class="tc-ico"><svg class="ico"><use href="#i-headfoot"/></svg></span><span>Header and footer</span></button><button class="tool-card" data-tool="number"><span class="tc-ico"><svg class="ico"><use href="#i-hash"/></svg></span><span>Add page numbers</span></button><button class="tool-card" data-tool="convert"><span class="tc-ico"><svg class="ico"><use href="#i-convert"/></svg></span><span>Convert to PDF</span></button><button class="tool-card" data-tool="export"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>Export a PDF</span></button><button class="tool-card" data-tool="toword"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>PDF to Word</span></button><button class="tool-card" data-tool="toexcel"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>PDF to Excel</span></button><button class="tool-card" data-tool="toppt"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>PDF to PowerPoint</span></button><button class="tool-card" data-tool="compress"><span class="tc-ico"><svg class="ico"><use href="#i-compress"/></svg></span><span>Compress a PDF</span></button><button class="tool-card" data-tool="split"><span class="tc-ico"><svg class="ico"><use href="#i-split"/></svg></span><span>Split a PDF</span></button><button class="tool-card" data-tool="delpages"><span class="tc-ico"><svg class="ico"><use href="#i-trash"/></svg></span><span>Delete pages</span></button><button class="tool-card" data-tool="fillform"><span class="tc-ico"><svg class="ico"><use href="#i-ibeam"/></svg></span><span>Fill a form</span></button><button class="tool-card" data-tool="compare"><span class="tc-ico"><svg class="ico"><use href="#i-compare"/></svg></span><span>Compare files</span></button><button class="tool-card" data-tool="redact"><span class="tc-ico"><svg class="ico"><use href="#i-redact"/></svg></span><span>Redact</span></button><button class="tool-card" data-tool="comment"><span class="tc-ico"><svg class="ico"><use href="#i-comment"/></svg></span><span>Comment</span></button><button class="tool-card" data-tool="template"><span class="tc-ico"><svg class="ico"><use href="#i-table"/></svg></span><span>Fill from spreadsheet</span></button><button class="tool-card" data-tool="boxlabels"><span class="tc-ico"><svg class="ico"><use href="#i-table"/></svg></span><span>Box labels from packing list</span></button><button class="tool-card" data-tool="watermark"><span class="tc-ico"><svg class="ico"><use href="#i-watermark"/></svg></span><span>Watermark</span></button><button class="tool-card" data-tool="sidebyside"><span class="tc-ico"><svg class="ico"><use href="#i-columns"/></svg></span><span>Side by side</span></button><button class="tool-card" data-tool="insert"><span class="tc-ico"><svg class="ico"><use href="#i-insert"/></svg></span><span>Insert pages</span></button><button class="tool-card" data-tool="pagesize"><span class="tc-ico"><svg class="ico"><use href="#i-resize"/></svg></span><span>Page size and margins</span></button><button class="tool-card" data-tool="bookmarks"><span class="tc-ico"><svg class="ico"><use href="#i-bookmark"/></svg></span><span>Bookmarks</span></button><button class="tool-card" data-tool="certsign"><span class="tc-ico"><svg class="ico"><use href="#i-cert"/></svg></span><span>Sign with a digital ID</span></button><button class="tool-card" data-tool="certcheck"><span class="tc-ico"><svg class="ico"><use href="#i-cert"/></svg></span><span>Check signatures</span></button><button class="tool-card" data-tool="batch"><span class="tc-ico"><svg class="ico"><use href="#i-batch"/></svg></span><span>Many files at once</span></button><button class="tool-card" data-tool="read"><span class="tc-ico"><svg class="ico"><use href="#i-book"/></svg></span><span>Reading view</span></button><button class="tool-card" data-tool="measure"><span class="tc-ico"><svg class="ico"><use href="#i-ruler"/></svg></span><span>Measure</span></button><button class="tool-card" data-tool="pdfa"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>Save as PDF/A</span></button><button class="tool-card" data-tool="privacy"><span class="tc-ico"><svg class="ico"><use href="#i-shield"/></svg></span><span>Privacy check</span></button><button class="tool-card" data-tool="finalize"><span class="tc-ico"><svg class="ico"><use href="#i-lock"/></svg></span><span>Lock and finalize</span></button><button class="tool-card" data-tool="replace"><span class="tc-ico"><svg class="ico"><use href="#i-search"/></svg></span><span>Find and replace</span></button><button class="tool-card" data-tool="bates"><span class="tc-ico"><svg class="ico"><use href="#i-hash"/></svg></span><span>Bates numbering</span></button><button class="tool-card" data-tool="shapes"><span class="tc-ico"><svg class="ico"><use href="#i-shapes"/></svg></span><span>Shapes</span></button><button class="tool-card" data-tool="stamps"><span class="tc-ico"><svg class="ico"><use href="#i-stamp"/></svg></span><span>Stamps and initials</span></button><button class="tool-card" data-tool="prepare"><span class="tc-ico"><svg class="ico"><use href="#i-fields"/></svg></span><span>Prepare for signing</span></button><button class="tool-card" data-tool="translate"><span class="tc-ico"><svg class="ico"><use href="#i-translate"/></svg></span><span>Translate</span></button><button class="tool-card" data-tool="speak"><span class="tc-ico"><svg class="ico"><use href="#i-speaker"/></svg></span><span>Read aloud</span></button><button class="tool-card" data-tool="exportall"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>Export all files</span></button><button class="tool-card" data-tool="extract"><span class="tc-ico"><svg class="ico"><use href="#i-extract"/></svg></span><span>Extract pages</span></button><button class="tool-card" data-tool="ocr"><span class="tc-ico"><svg class="ico"><use href="#i-scan"/></svg></span><span>Recognize text (OCR)</span></button><button class="tool-card" data-tool="print"><span class="tc-ico"><svg class="ico"><use href="#i-print"/></svg></span><span>Print</span></button><button class="tool-card" data-tool="defaultpdf"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>Make it my PDF app</span></button><button class="tool-card" data-tool="report"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>Send a problem report</span></button><button class="tool-card" data-tool="protect"><span class="tc-ico"><svg class="ico"><use href="#i-lock"/></svg></span><span>Protect a PDF</span></button><button class="tool-card" data-tool="sign"><span class="tc-ico"><svg class="ico"><use href="#i-signature"/></svg></span><span>Fill and sign</span></button></div></div></div>
+  <div id="tools-view"><div class="tv-inner"><input id="tool-search" placeholder="Find any tool" spellcheck="false"><div id="recent-files"><div class="rf-head"><span>Recent</span><button id="rf-clear">Clear</button></div><div class="rf-list"></div></div><div class="tv-grid"><button class="tool-card" data-tool="create"><span class="tc-ico"><svg class="ico"><use href="#i-extract"/></svg></span><span>Create a PDF</span></button><button class="tool-card" data-tool="merge"><span class="tc-ico"><svg class="ico"><use href="#i-merge"/></svg></span><span>Combine files</span></button><button class="tool-card" data-tool="blank"><span class="tc-ico"><svg class="ico"><use href="#i-plus"/></svg></span><span>Blank page</span></button><button class="tool-card" data-tool="edit"><span class="tc-ico"><svg class="ico"><use href="#i-ibeam"/></svg></span><span>Edit a PDF</span></button><button class="tool-card" data-tool="headfoot"><span class="tc-ico"><svg class="ico"><use href="#i-headfoot"/></svg></span><span>Header and footer</span></button><button class="tool-card" data-tool="number"><span class="tc-ico"><svg class="ico"><use href="#i-hash"/></svg></span><span>Add page numbers</span></button><button class="tool-card" data-tool="convert"><span class="tc-ico"><svg class="ico"><use href="#i-convert"/></svg></span><span>Convert to PDF</span></button><button class="tool-card" data-tool="export"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>Export a PDF</span></button><button class="tool-card" data-tool="toword"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>PDF to Word</span></button><button class="tool-card" data-tool="toexcel"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>PDF to Excel</span></button><button class="tool-card" data-tool="toppt"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>PDF to PowerPoint</span></button><button class="tool-card" data-tool="compress"><span class="tc-ico"><svg class="ico"><use href="#i-compress"/></svg></span><span>Compress a PDF</span></button><button class="tool-card" data-tool="split"><span class="tc-ico"><svg class="ico"><use href="#i-split"/></svg></span><span>Split a PDF</span></button><button class="tool-card" data-tool="delpages"><span class="tc-ico"><svg class="ico"><use href="#i-trash"/></svg></span><span>Delete pages</span></button><button class="tool-card" data-tool="fillform"><span class="tc-ico"><svg class="ico"><use href="#i-ibeam"/></svg></span><span>Fill a form</span></button><button class="tool-card" data-tool="compare"><span class="tc-ico"><svg class="ico"><use href="#i-compare"/></svg></span><span>Compare files</span></button><button class="tool-card" data-tool="redact"><span class="tc-ico"><svg class="ico"><use href="#i-redact"/></svg></span><span>Redact</span></button><button class="tool-card" data-tool="comment"><span class="tc-ico"><svg class="ico"><use href="#i-comment"/></svg></span><span>Comment</span></button><button class="tool-card" data-tool="template"><span class="tc-ico"><svg class="ico"><use href="#i-table"/></svg></span><span>Fill from spreadsheet</span></button><button class="tool-card" data-tool="boxlabels"><span class="tc-ico"><svg class="ico"><use href="#i-table"/></svg></span><span>Box labels from packing list</span></button><button class="tool-card" data-tool="watermark"><span class="tc-ico"><svg class="ico"><use href="#i-watermark"/></svg></span><span>Watermark</span></button><button class="tool-card" data-tool="sidebyside"><span class="tc-ico"><svg class="ico"><use href="#i-columns"/></svg></span><span>Side by side</span></button><button class="tool-card" data-tool="insert"><span class="tc-ico"><svg class="ico"><use href="#i-insert"/></svg></span><span>Insert pages</span></button><button class="tool-card" data-tool="pagesize"><span class="tc-ico"><svg class="ico"><use href="#i-resize"/></svg></span><span>Page size and margins</span></button><button class="tool-card" data-tool="bookmarks"><span class="tc-ico"><svg class="ico"><use href="#i-bookmark"/></svg></span><span>Bookmarks</span></button><button class="tool-card" data-tool="certsign"><span class="tc-ico"><svg class="ico"><use href="#i-cert"/></svg></span><span>Sign with a digital ID</span></button><button class="tool-card" data-tool="certcheck"><span class="tc-ico"><svg class="ico"><use href="#i-cert"/></svg></span><span>Check signatures</span></button><button class="tool-card" data-tool="batch"><span class="tc-ico"><svg class="ico"><use href="#i-batch"/></svg></span><span>Many files at once</span></button><button class="tool-card" data-tool="read"><span class="tc-ico"><svg class="ico"><use href="#i-book"/></svg></span><span>Reading view</span></button><button class="tool-card" data-tool="measure"><span class="tc-ico"><svg class="ico"><use href="#i-ruler"/></svg></span><span>Measure</span></button><button class="tool-card" data-tool="pdfa"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>Save as PDF/A</span></button><button class="tool-card" data-tool="privacy"><span class="tc-ico"><svg class="ico"><use href="#i-shield"/></svg></span><span>Privacy check</span></button><button class="tool-card" data-tool="finalize"><span class="tc-ico"><svg class="ico"><use href="#i-lock"/></svg></span><span>Lock and finalize</span></button><button class="tool-card" data-tool="replace"><span class="tc-ico"><svg class="ico"><use href="#i-search"/></svg></span><span>Find and replace</span></button><button class="tool-card" data-tool="bates"><span class="tc-ico"><svg class="ico"><use href="#i-hash"/></svg></span><span>Bates numbering</span></button><button class="tool-card" data-tool="shapes"><span class="tc-ico"><svg class="ico"><use href="#i-shapes"/></svg></span><span>Shapes</span></button><button class="tool-card" data-tool="stamps"><span class="tc-ico"><svg class="ico"><use href="#i-stamp"/></svg></span><span>Stamps and initials</span></button><button class="tool-card" data-tool="prepare"><span class="tc-ico"><svg class="ico"><use href="#i-fields"/></svg></span><span>Prepare for signing</span></button><button class="tool-card" data-tool="translate"><span class="tc-ico"><svg class="ico"><use href="#i-translate"/></svg></span><span>Translate</span></button><button class="tool-card" data-tool="speak"><span class="tc-ico"><svg class="ico"><use href="#i-speaker"/></svg></span><span>Read aloud</span></button><button class="tool-card" data-tool="exportall"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>Export all files</span></button><button class="tool-card" data-tool="extract"><span class="tc-ico"><svg class="ico"><use href="#i-extract"/></svg></span><span>Extract pages</span></button><button class="tool-card" data-tool="ocr"><span class="tc-ico"><svg class="ico"><use href="#i-scan"/></svg></span><span>Recognize text (OCR)</span></button><button class="tool-card" data-tool="print"><span class="tc-ico"><svg class="ico"><use href="#i-print"/></svg></span><span>Print</span></button><button class="tool-card" data-tool="printarea"><span class="tc-ico"><svg class="ico"><use href="#i-print"/></svg></span><span>Print an area</span></button><button class="tool-card" data-tool="defaultpdf"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>Make it my PDF app</span></button><button class="tool-card" data-tool="unlockmine"><span class="tc-ico"><svg class="ico"><use href="#i-lock"/></svg></span><span>Unlock a file I locked</span></button><button class="tool-card" data-tool="report"><span class="tc-ico"><svg class="ico"><use href="#i-docup"/></svg></span><span>Send a problem report</span></button><button class="tool-card" data-tool="protect"><span class="tc-ico"><svg class="ico"><use href="#i-lock"/></svg></span><span>Protect a PDF</span></button><button class="tool-card" data-tool="sign"><span class="tc-ico"><svg class="ico"><use href="#i-signature"/></svg></span><span>Fill and sign</span></button></div></div></div>
   <div id="main-content">
     <div id="left-sidebar" class="sidebar">
       <div id="side-scroll">
@@ -1303,7 +1324,7 @@
       await syncEditsToPython();   // nothing in progress gets lost
       ipcRenderer.send('install-update');
     });
-    ipcRenderer.invoke('app-version').then(v => { document.getElementById('strip-home').title = `Home: all tools (MyPDFKit ${v})`; }).catch(() => {});
+    ipcRenderer.invoke('app-version').then(v => { document.getElementById('strip-tools').title = `All tools (MyPDFKit ${v})`; }).catch(() => {});
 
     // the font picker lists every font installed on this PC (each shown in its own typeface)
     let fontsLoaded = false;
@@ -2030,6 +2051,18 @@
 
     // ---------- fill-in fields ----------
     let pendingForm = {};        // xref -> { page, xref, value }, typed but not yet written
+    let pendingByName = {};      // field name -> value: the same field shown in several places shows it everywhere
+    // the text size Chrome uses for a field set to "auto": as big as the box allows, smaller if the text is long
+    function fitFieldText(el, k) {
+      if (!el._auto) return;
+      const h = parseFloat(el.style.height), w = parseFloat(el.style.width);
+      let size = el.tagName === 'TEXTAREA' ? 12 * k : Math.max(7, Math.min(h * 0.72, 40 * k));
+      const ctx = fitFieldText.ctx || (fitFieldText.ctx = document.createElement('canvas').getContext('2d'));
+      ctx.font = `${size}px Helvetica, Arial, sans-serif`;
+      const tw = ctx.measureText(el.value || '').width;
+      if (el.tagName !== 'TEXTAREA' && tw > w - 12) size = Math.max(6, size * (w - 12) / tw);   // inside the box's padding and border
+      el.style.fontSize = size + 'px';
+    }
     let pageParagraphs = [];     // paragraphs on the page shown (for editing one as a whole)
     let pageNotes = [];          // comments and markup on the page shown
     async function showPageExtras(num) {
@@ -2060,7 +2093,8 @@
       }
       for (const f of info.fields || []) {
         let el;
-        const pending = pendingForm[f.xref];
+        if (f.hidden) continue;
+        const pending = pendingForm[f.xref] || (f.name in pendingByName ? { value: pendingByName[f.name] } : null);
         const value = pending ? pending.value : f.value;
         if (f.kind === 'checkbox' || f.kind === 'radio') {
           el = document.createElement('input'); el.type = f.kind; el.name = 'f_' + f.name;
@@ -2083,10 +2117,18 @@
         el.disabled = f.readonly;
         const [x0, y0, x1, y1] = f.rect;
         Object.assign(el.style, { left: x0 * k + 'px', top: y0 * k + 'px', width: (x1 - x0) * k + 'px', height: (y1 - y0) * k + 'px',
-                                  fontSize: Math.max(7, (f.size || Math.min(12, (y1 - y0) * 0.65)) * k) + 'px' });
+                                  fontSize: Math.max(7, (f.size || 12) * k) + 'px', textAlign: ['left', 'center', 'right'][f.align || 0] || 'left',
+                                  fontFamily: 'Helvetica, Arial, sans-serif' });
+        el._auto = !f.size && f.kind === 'text'; el._name = f.name;
+        fitFieldText(el, k);
         const save = () => {
           const v = (el.type === 'checkbox' || el.type === 'radio') ? el.checked : el.value;
           pendingForm[f.xref] = { page: num - 1, xref: f.xref, value: v };
+          if (el.type !== 'radio') {
+            pendingByName[f.name] = v;
+            layer.querySelectorAll('.pdf-field').forEach(o => { if (o !== el && o._name === f.name && o.type !== 'radio') { if (o.type === 'checkbox') o.checked = v; else o.value = v; fitFieldText(o, k); } });
+          }
+          fitFieldText(el, k);
           if (el.type === 'radio') layer.querySelectorAll(`input[name="${el.name}"]`).forEach(o => { if (o !== el && o._xref) pendingForm[o._xref] = { page: num - 1, xref: o._xref, value: false }; });
           hasUnsavedEdits = true;
         };
@@ -2115,7 +2157,13 @@
     (() => {
       const glass = document.getElementById('area-glass'), rub = document.getElementById('area-rubber');
       let start = null;
-      const at = e => { const r = glass.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+      const at0 = e => { const r = glass.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+      const at = e => {
+        const p = at0(e);
+        if (currentTool !== 'printarea' || e.altKey || !areaSnap) return p;
+        const k = currentRenderScale, near = (v, list) => { let best = v, d = 8; for (const t of list) { const dd = Math.abs(t * k - v); if (dd < d) { d = dd; best = t * k; } } return best; };
+        return [near(p[0], areaSnap.x), near(p[1], areaSnap.y)];
+      };
       glass.addEventListener('mousedown', e => {
         if (e.button !== 0 || e.target !== glass) return;
         if (currentTool === 'place') {
@@ -2130,11 +2178,13 @@
         }
         start = at(e); Object.assign(rub.style, { left: start[0] + 'px', top: start[1] + 'px', width: '0px', height: '0px', display: 'block' });
         rub.style.borderColor = currentTool === 'redact' ? '#e03c3c' : '#2f6fd0';
+        rub.dataset.size = '';
       });
       window.addEventListener('mousemove', e => {
         if (!start) return;
         const [x, y] = at(e);
         Object.assign(rub.style, { left: Math.min(x, start[0]) + 'px', top: Math.min(y, start[1]) + 'px', width: Math.abs(x - start[0]) + 'px', height: Math.abs(y - start[1]) + 'px' });
+        if (currentTool === 'printarea') { const k = currentRenderScale; rub.dataset.size = `${inches(Math.abs(x - start[0]) / k)} × ${inches(Math.abs(y - start[1]) / k)} in`; }
       });
       window.addEventListener('mouseup', e => {
         if (!start) return;
@@ -2298,7 +2348,7 @@
       pushHistory();
       const d = await api('fill_form', { filepath: currentTempPdf, values });
       if (!d.success) { showToast("Couldn't save the form: " + (d.error || ''), true); return false; }
-      pendingForm = {};
+      pendingForm = {}; pendingByName = {};
       currentTempPdf = d.new_file;
       const f = fileQueue.find(x => x.originalPath === currentActiveFile); if (f) f.pdfPath = currentTempPdf;
       return true;
@@ -2559,26 +2609,54 @@
     async function freeDiskSpace() {
       const files = tabs.flatMap(t => t.files).concat(fileQueue);
       const keep_paths = files.flatMap(f => [f.pdfPath, ...(f.history || [])]).concat(currentTempPdf ? [currentTempPdf] : []).filter(Boolean);
-      const keep_originals = [...new Set(recentFiles().slice(0, RECENT_MAX).concat(files.map(f => f.originalPath)))];
+      const keep_originals = [...new Set(recentTabs().slice(0, RECENT_MAX).flatMap(r => r.files).concat(recentFiles().slice(0, RECENT_MAX), files.map(f => f.originalPath)))];
       try { return await api('cleanup', { keep_paths, keep_originals }); } catch (e) { return null; }
+    }
+    // Recent: the last tabs you worked in, each reopening with all its files
+    const recentTabs = () => { try { return JSON.parse(localStorage.getItem('recent-tabs')) || []; } catch (e) { return []; } };
+    function noteRecentTabs() {
+      let list = recentTabs();
+      for (const t of tabs) {
+        const files = (t === activeTab ? fileQueue : t.files).filter(f => f.originalPath && !f.originalPath.includes('UniversalEditor_Backend') && fs.existsSync(f.originalPath));
+        if (!files.length) continue;
+        const paths = files.map(f => f.originalPath), key = paths.map(p => rkey(p)).sort().join('|');
+        if (!t.recentId) t.recentId = Math.random().toString(36).slice(2);
+        list = list.filter(r => r.id !== t.recentId && r.key !== key);
+        list.unshift({ id: t.recentId, key, name: files[0].name.replace(/\.[^.]+$/, ''), files: paths, at: Date.now() });
+      }
+      list.sort((a, b) => b.at - a.at);
+      try { localStorage.setItem('recent-tabs', JSON.stringify(list.slice(0, RECENT_MAX))); } catch (e) {}
     }
     function renderRecent() {
         const box = document.getElementById('recent-files'), list = box.querySelector('.rf-list');
-        const items = recentFiles().filter(p => fs.existsSync(p)).slice(0, RECENT_MAX);
+        const items = recentTabs().map(r => ({ ...r, files: r.files.filter(p => fs.existsSync(p)) })).filter(r => r.files.length).slice(0, RECENT_MAX);
         box.classList.toggle('show', items.length > 0);
         list.innerHTML = '';
-        for (const p of items) {
-            const b = document.createElement('button'); b.className = 'rf-item'; b.title = p;
-            const parts = p.split(/[\\/]/), name = parts.pop();
-            b.innerHTML = fileTypeIcon({ originalPath: p }) + '<span class="rf-text"><span class="rf-name"></span><span class="rf-where"></span></span>';
-            b.querySelector('.rf-name').textContent = name;
-            b.querySelector('.rf-where').textContent = parts.slice(-2).join(' › ');
-            b.addEventListener('click', () => { setToolsView(false); goTab('edit'); ipcRenderer.emit('open-files', {}, [p]); });
+        for (const r of items) {
+            const b = document.createElement('button'); b.className = 'rf-item'; b.title = r.files.join('\n');
+            const names = r.files.map(p => p.split(/[\\/]/).pop());
+            b.innerHTML = fileTypeIcon({ originalPath: r.files[0] }) + '<span class="rf-text"><span class="rf-name"></span><span class="rf-where"></span></span>';
+            b.querySelector('.rf-name').textContent = r.files.length > 1 ? `${r.name} and ${r.files.length - 1} more` : names[0];
+            b.querySelector('.rf-where').textContent = r.files.length > 1 ? `${r.files.length} files: ${names.slice(0, 3).join(', ')}${names.length > 3 ? '…' : ''}` : r.files[0].split(/[\\/]/).slice(-3, -1).join(' › ');
+            b.addEventListener('click', () => reopenRecentTab(r));
             list.append(b);
         }
     }
+    function reopenRecentTab(r) {
+      setToolsView(false); goTab('edit');
+      const open = tabs.find(t => t.recentId === r.id && (t === activeTab ? fileQueue : t.files).length);
+      if (open) return switchToTab(open);
+      const tab = makeTab(); tab.recentId = r.id;
+      switchToTab(tab).then(() => {
+        for (const p of r.files) if (!fileQueue.some(f => f.originalPath === p)) fileQueue.push({ name: p.split(/[\\/]/).pop(), originalPath: p, pdfPath: null, status: 'pending' });
+        renderQueueUI(); backgroundProcessQueue(); processAndLoad(r.files[0]);
+      });
+    }
+    setInterval(noteRecentTabs, 5000);
+    window.addEventListener('beforeunload', noteRecentTabs);
     document.getElementById('rf-clear').addEventListener('click', async () => {
-      try { localStorage.removeItem('recent-files'); } catch (e) {}
+      try { localStorage.removeItem('recent-files'); localStorage.removeItem('recent-tabs'); } catch (e) {}
+      tabs.forEach(t => { t.recentId = null; });
       renderRecent();
       const d = await freeDiskSpace();   // their previews go too (files open in tabs stay)
       showToast(d && d.freed_mb >= 1 ? `Cleared, and freed ${d.freed_mb} MB of disk space` : 'Cleared');
@@ -2600,135 +2678,316 @@
       }
       return out.length ? out : null;
     }
-    async function doPrint() {
+    // ---------- printing ----------
+    // The printer's own paper is used, as in Chrome: Windows says what paper it holds and where it can print.
+    // The backend makes the sheets at exactly that size with the page, or just its label, placed on them, and
+    // the preview shows those very sheets, so what you see is what comes out.
+    const isLabelPaper = ([w, h]) => Math.max(w, h) <= 8.6 * 72 && Math.min(w, h) <= 4.6 * 72;
+    const printerInfoCache = {};
+    async function printerInfo(name) {
+      if (!name || name === '__test__') return null;
+      if (!(name in printerInfoCache)) { const d = await api('printer_info', { name }); printerInfoCache[name] = d && !d.error ? d : null; }
+      return printerInfoCache[name];
+    }
+    const store = (k, dflt) => { try { return JSON.parse(localStorage.getItem(k)) || dflt; } catch (e) { return dflt; } };
+    const keep = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
+    // areas set by hand for a file (Print an area, or a corrected label area): { all: rect } or { pages: { n: rect } }
+    const areasFor = file => store('print-areas', {})[rkey(file)] || null;
+    function setArea(file, page, rect, all) {
+      const m = store('print-areas', {}), k = rkey(file);
+      if (!rect) delete m[k];
+      else if (all) m[k] = { all: rect };
+      else { m[k] = m[k] && m[k].pages ? m[k] : { pages: {} }; m[k].pages[page] = rect; }
+      keep('print-areas', m);
+    }
+    const areaRegions = (file, list) => {
+      const a = areasFor(file); if (!a) return null;
+      const out = {};
+      for (const n of list) { const r = a.all || (a.pages || {})[n]; if (r) out[n] = [r]; }
+      return Object.keys(out).length ? out : null;
+    };
+    const inches = pt => (Math.round(pt / 72 * 100) / 100).toFixed(2).replace(/\.?0+$/, '');
+
+    // Print an area: drag a box around what you want (it snaps to the page's content), then print it, save it
+    // as a PDF, or copy it as a picture. The area is remembered for the file.
+    let areaSnap = null;
+    async function startPrintArea() {
+      if (!await needDoc()) return;
+      await syncEditsToPython();
+      switchTool('btn-pointer', 'printarea');
+      areaSnap = await api('content_edges', { filepath: currentTempPdf, page: pageNum }).catch(() => null);
+      showToast('Drag a box around what you want to print. Hold Alt to stop it snapping');
+      areaDone = rect => {
+        if (rect[2] - rect[0] < 9 || rect[3] - rect[1] < 9) return;
+        rect = rect.map(v => Math.round(v * 100) / 100);
+        document.getElementById('area-menu')?.remove();
+        const m = document.createElement('div'); m.id = 'area-menu';
+        m.innerHTML = `<button class="lb-btn primary" data-a="print">Print</button><button class="lb-btn" data-a="pdf">Save as PDF</button>
+          <button class="lb-btn" data-a="copy">Copy as picture</button><label><input type="checkbox" class="am-all"> Use on all pages</label><button class="lb-btn" data-a="x" title="Close">&#x2715;</button>`;
+        const k = currentRenderScale;
+        Object.assign(m.style, { left: rect[0] * k + 'px', top: rect[3] * k + 8 + 'px' });
+        document.getElementById('canvas-wrapper').append(m);
+        const file = currentActiveFile, page = pageNum;
+        m.addEventListener('click', async e => {
+          const a = e.target.closest('button')?.dataset.a; if (!a) return;
+          const all = m.querySelector('.am-all').checked;
+          if (a === 'x') { m.remove(); return; }
+          setArea(file, page, rect, all);
+          if (a === 'print') { m.remove(); switchTool('btn-pointer', 'pointer'); return doPrint({ mode: 'label', pages: all ? undefined : String(page) }); }
+          if (a === 'pdf') {
+            const out = await ipcRenderer.invoke('save-dialog', file.replace(/\.[^.\\/]+$/, '') + ' (area).pdf'); if (!out) return;
+            const pages = all ? Array.from({ length: currentPdfDoc.numPages }, (_, i) => i + 1) : [page];
+            const d = await api('save_labels', { filepath: currentTempPdf, original_path: file, pages, mode: 'label', size: [rect[2] - rect[0], rect[3] - rect[1]],
+              regions: Object.fromEntries(pages.map(n => [n, [rect]])), out });
+            return showToast(d.error || `Saved ${out.split(/[\\/]/).pop()}`, !!d.error);
+          }
+          if (a === 'copy') {
+            const d = await api('area_picture', { filepath: currentTempPdf, page, rect });
+            if (d.error) return showToast(d.error, true);
+            await ipcRenderer.invoke('copy-image', d.path); showToast('Copied. Paste it anywhere');
+          }
+        });
+      };
+    }
+    async function doPrint(opts = {}) {
       if (!await needDoc()) return;
       if (document.querySelector('.print-bd')) return;
-      // The preview is drawn here by pdf.js, one sheet at a time, so the window opens at once; print-quality
-      // pictures are made by the backend only for the chosen pages, when Print is pressed.
-      const hadEdits = hasUnsavedEdits;
       await syncEditsToPython();
-      const doc = hadEdits ? await pdfjsLib.getDocument({ data: new Uint8Array(fs.readFileSync(currentTempPdf)) }).promise : currentPdfDoc;
-      const [all, printers] = await Promise.all([
-        Promise.all(Array.from({ length: doc.numPages }, (_, i) => doc.getPage(i + 1).then(p => { const v = p.getViewport({ scale: 1 }); return { w: v.width, h: v.height }; }))),
-        ipcRenderer.invoke('printers').catch(() => [])]);
-      const saved = (() => { try { return JSON.parse(localStorage.getItem('print-settings')) || {}; } catch (e) { return {}; } })();
-      const here = pageNum;
+      const file = currentActiveFile, src = currentTempPdf;
+      const total = currentPdfDoc.numPages, here = pageNum;
+      const printers = await ipcRenderer.invoke('printers').catch(() => []);
+      const saved = store('print-settings', {}), byPrinter = store('print-by-printer', {});
 
       const bd = document.createElement('div'); bd.className = 'backdrop print-bd';
       bd.innerHTML = `<div class="dialog print-dlg">
         <div class="pp-left">
-          <div class="pp-stage"><div class="pp-sheet"><canvas></canvas></div></div>
+          <div class="pp-stage"><div class="pp-sheet"><canvas></canvas><div class="pp-safe" title="The part of the paper this printer can print on"></div></div>
+            <div class="pp-adjust" style="display:none"><canvas></canvas><div class="pp-box"><i data-c="nw"></i><i data-c="ne"></i><i data-c="sw"></i><i data-c="se"></i><span class="pp-box-size"></span></div>
+              <div class="pp-adjust-bar"><span>Drag the corners</span><label><input type="checkbox" class="pp-all"> All pages</label><button class="btn quiet pp-adj-auto">Automatic</button><button class="btn quiet pp-adj-cancel">Cancel</button><button class="btn primary pp-adj-done">Use this area</button></div></div></div>
+          <div class="pp-note"></div>
           <div class="pp-nav"><button class="mini-btn pp-prev" title="Previous sheet">&#8249;</button><span class="pp-count"></span><button class="mini-btn pp-next" title="Next sheet">&#8250;</button></div>
         </div>
         <div class="pp-right">
           <h3>Print</h3>
           <div class="field"><label>Printer</label><select data-k="printer"></select></div>
-          <div class="field"><label>Copies</label><input data-k="copies" type="number" min="1" max="999" value="1"></div>
-          <div class="field"><label>Pages</label><select data-k="range"><option value="all">All ${all.length} pages</option><option value="current">Current page (${here})</option><option value="custom">Custom...</option></select>
+          <div class="field"><label>Paper</label><select data-k="paper"></select></div>
+          <div class="field"><label>Print</label><select data-k="mode"><option value="page">Whole page</option><option value="label">Label only</option></select></div>
+          <div class="field"><label>Pages</label><select data-k="range"><option value="all">All ${total} pages</option><option value="current">Current page (${here})</option><option value="custom">Custom...</option></select>
             <input data-k="custom" placeholder="e.g. 1-3, 5" style="display:none"></div>
-          <div class="field"><label>Paper</label><select data-k="paper">${Object.keys(PAPER).map(p => `<option>${p}</option>`).join('')}</select></div>
+          <div class="field"><label>Copies</label><input data-k="copies" type="number" min="1" max="999" value="1"></div>
           <div class="field"><label>Orientation</label><select data-k="orient"><option value="auto">Automatic</option><option value="portrait">Portrait</option><option value="landscape">Landscape</option></select></div>
           <div class="field"><label>Size on paper</label><select data-k="scale"><option value="fit">Fit to paper</option><option value="shrink">Shrink large pages only</option><option value="actual">Actual size</option></select></div>
           <div class="field"><label>Color</label><select data-k="color"><option value="color">Color</option><option value="bw">Black and white</option></select></div>
           <div class="field"><label>Two-sided</label><select data-k="duplex"><option value="simplex">Off</option><option value="longEdge">Flip on long edge</option><option value="shortEdge">Flip on short edge</option></select></div>
+          <label class="pp-check"><input type="checkbox" data-k="skip"> Skip blank pages</label>
+          <div class="pp-label-tools"><button class="btn quiet pp-adjust-btn" title="Drag the corners to choose exactly what prints">Adjust area...</button><button class="btn quiet pp-save-labels" title="Each label as its own page, sharp, in a new PDF next to this file">Save as PDF</button></div>
           <div class="dialog-actions"><button class="btn quiet pp-system" title="Open Windows' print dialog for printer-specific options">More options...</button><span class="spacer"></span><button class="btn quiet pp-cancel">Cancel</button><button class="btn primary pp-print">Print</button></div>
         </div></div>`;
       document.body.append(bd);
       const $ = k => bd.querySelector(`[data-k="${k}"]`);
       const sel = $('printer');
       for (const p of printers) sel.add(new Option(p.displayName || p.name, p.name));
-      if (!printers.length) sel.add(new Option('Default printer', ''));
+      sel.add(new Option('Test print: save as PDF (no printer)', '__test__'));
       const def = printers.find(p => p.isDefault || (p.options && p.options['printer-is-default'] === 'true'));
-      sel.value = printers.some(p => p.name === saved.printer) ? saved.printer : def ? def.name : sel.options[0].value;
-      for (const k of ['paper', 'orient', 'scale', 'color', 'duplex']) if (saved[k]) $(k).value = saved[k];
-      if (!saved.paper && !/^(en-US|en-CA|es-MX)/.test(navigator.language)) $('paper').value = 'A4';   // Letter in North America
-      // pages that are a paper size themselves (4x6 shipping labels, A4...) print on that paper, whatever was used last
-      const fits = Object.keys(PAPER).find(k => { const [a, b] = PAPER[k]; return all.every(p => (Math.abs(p.w - a) < 3 && Math.abs(p.h - b) < 3) || (Math.abs(p.w - b) < 3 && Math.abs(p.h - a) < 3)); });
-      if (fits) $('paper').value = fits;
+      sel.value = printers.some(p => p.name === saved.printer) || saved.printer === '__test__' ? saved.printer : def ? def.name : sel.options[0].value;
+      for (const k of ['orient', 'scale', 'color', 'duplex']) if (saved[k]) $(k).value = saved[k];
+      if (opts.pages) { $('range').value = 'custom'; $('custom').style.display = ''; $('custom').value = opts.pages; }
 
-      let sheet = 0;
+      let info = null, prepared = null, sheetsDoc = null, sheet = 0, prepToken = 0;
+      const paperOf = () => {
+        const v = $('paper').value;
+        if (v === 'printer' && info) return { paper: info.paper, printable: info.printable };
+        const p = (PAPER[v] || [612, 792]).slice();
+        if (info && info.paper[0] > info.paper[1]) p.reverse();            // the printer feeds it sideways
+        const m = info && v !== 'printer' ? Math.min(18, Math.max(info.printable[0], info.printable[1])) : 0;   // its usual margin
+        return { paper: p, printable: [m, m, p[0] - m, p[1] - m] };
+      };
       const chosen = () => {
         const r = $('range').value;
         if (r === 'current') return [here];
-        if (r === 'custom') return parsePages($('custom').value, all.length);
-        return all.map((_, i) => i + 1);
+        if (r === 'custom') return parsePages($('custom').value, total);
+        return Array.from({ length: total }, (_, i) => i + 1);
       };
-      const landscapeFor = list => {
-        const o = $('orient').value;
-        if (o !== 'auto') return o === 'landscape';
-        return list.filter(n => all[n - 1].w > all[n - 1].h).length > list.length / 2;
+      // the printer's paper, and what was used with this printer last time
+      const onPrinter = async () => {
+        info = await printerInfo(sel.value);
+        const ps = $('paper'); ps.innerHTML = '';
+        if (info) ps.add(new Option(`Printer's paper (${inches(info.paper[0])} × ${inches(info.paper[1])} in)`, 'printer'));
+        for (const k of Object.keys(PAPER)) ps.add(new Option(k, k));
+        const mem = byPrinter[sel.value] || {};
+        ps.value = mem.paper && [...ps.options].some(o => o.value === mem.paper) ? mem.paper
+          : info ? 'printer' : (/^(en-US|en-CA|es-MX)/.test(navigator.language) ? 'Letter' : 'A4');
+        const label = isLabelPaper(paperOf().paper);
+        $('mode').value = opts.mode || mem.mode || (label ? 'label' : 'page');
+        $('skip').checked = mem.skip !== undefined ? mem.skip : label;
       };
-      let task = null, drawn = '';
-      const draw = async () => {
-        const list = chosen();
+      const settingsNow = () => {
+        const list = chosen(); const { paper, printable } = paperOf();
+        return { filepath: src, pages: list, paper, printable, mode: $('mode').value, orient: $('orient').value, scale: $('scale').value,
+                 skip_blank: $('skip').checked, regions: $('mode').value === 'label' ? areaRegions(file, list || []) : null };
+      };
+      // make the sheets (shortly after a change) and show them
+      let prepTimer = null;
+      const prepare = () => { clearTimeout(prepTimer); prepTimer = setTimeout(doPrepare, 150); };
+      async function doPrepare() {
+        const s = settingsNow(), token = ++prepToken;
+        bd.querySelector('.pp-print').disabled = true;
+        bd.querySelector('.pp-label-tools').style.display = s.mode === 'label' ? '' : 'none';
         const printBtn = bd.querySelector('.pp-print');
-        $('custom').classList.toggle('bad', $('range').value === 'custom' && !list && $('custom').value.trim() !== '');
-        printBtn.disabled = !list;
-        const sh = bd.querySelector('.pp-sheet'), img = sh.querySelector('canvas');
-        if (!list) { img.style.display = 'none'; bd.querySelector('.pp-count').textContent = 'Type the pages to print'; return; }
-        sheet = Math.min(sheet, list.length - 1);
-        let [pw, ph] = PAPER[$('paper').value];
-        if (landscapeFor(list)) [pw, ph] = [ph, pw];
-        const stage = bd.querySelector('.pp-stage');
+        $('custom').classList.toggle('bad', $('range').value === 'custom' && !s.pages && $('custom').value.trim() !== '');
+        if (!s.pages) { printBtn.disabled = true; bd.querySelector('.pp-count').textContent = 'Type the pages to print'; return; }
+        bd.querySelector('.pp-count').textContent = 'Getting the preview ready…';
+        const d = await api('print_prepare', s);
+        if (token !== prepToken || !document.body.contains(bd)) return;
+        if (d.error) { prepared = null; printBtn.disabled = true; bd.querySelector('.pp-count').textContent = d.error; bd.querySelector('.pp-sheet canvas').style.display = 'none'; return; }
+        prepared = d; printBtn.disabled = false;
+        sheetsDoc = await pdfjsLib.getDocument({ data: new Uint8Array(fs.readFileSync(d.path)) }).promise;
+        sheet = Math.min(sheet, sheetsDoc.numPages - 1);
+        const notes = [];
+        if (s.mode === 'label') { const pagesWith = new Set(d.sheets.map(x => x.page)).size; notes.push(`${d.sheets.length} ${d.sheets.length === 1 ? 'label' : 'labels'} from ${pagesWith} ${pagesWith === 1 ? 'page' : 'pages'}`); }
+        if (d.skipped.length) notes.push(`${d.skipped.length} blank ${d.skipped.length === 1 ? 'page' : 'pages'} left out (${d.skipped.slice(0, 6).join(', ')}${d.skipped.length > 6 ? '…' : ''})`);
+        bd.querySelector('.pp-note').textContent = notes.join(' · ');
+        draw();
+      }
+      let task = null;
+      async function draw() {
+        if (!prepared || !sheetsDoc) return;
+        const { paper, printable } = paperOf();
+        const [pw, ph] = paper;
+        const stage = bd.querySelector('.pp-stage'), sh = bd.querySelector('.pp-sheet'), cv = sh.querySelector('canvas');
         const k = Math.min((stage.clientWidth - 40) / pw, (stage.clientHeight - 40) / ph);
         Object.assign(sh.style, { width: pw * k + 'px', height: ph * k + 'px' });
-        const p = all[list[sheet] - 1], scale = $('scale').value;
-        const fit = Math.min(pw / p.w, ph / p.h);
-        const f = scale === 'fit' ? fit : scale === 'shrink' ? Math.min(1, fit) : 1;
-        Object.assign(img.style, { display: '', width: p.w * f * k + 'px', height: p.h * f * k + 'px', filter: $('color').value === 'bw' ? 'grayscale(1)' : '' });
-        bd.querySelector('.pp-count').textContent = `Sheet ${sheet + 1} of ${list.length}` + (list.length < all.length || list[sheet] !== sheet + 1 ? ` (page ${list[sheet]})` : '');
+        Object.assign(bd.querySelector('.pp-safe').style, { left: printable[0] * k + 'px', top: printable[1] * k + 'px',
+          width: (printable[2] - printable[0]) * k + 'px', height: (printable[3] - printable[1]) * k + 'px' });
+        const n = sheetsDoc.numPages, at = prepared.sheets[sheet] || {};
+        bd.querySelector('.pp-count').textContent = `Sheet ${sheet + 1} of ${n}` + (at.page ? ` (page ${at.page})` : '');
         bd.querySelector('.pp-prev').disabled = sheet === 0;
-        bd.querySelector('.pp-next').disabled = sheet >= list.length - 1;
-        // draw the page only when it or its size on screen changed (color and the rest are just CSS)
-        const zoom = p.w * f * k * devicePixelRatio / p.w, key = list[sheet] + '@' + zoom.toFixed(3);
-        if (key === drawn) return;
-        drawn = key;
+        bd.querySelector('.pp-next').disabled = sheet >= n - 1;
         if (task) task.cancel();
-        const page = await doc.getPage(list[sheet]);
-        const vp = page.getViewport({ scale: zoom });
+        const page = await sheetsDoc.getPage(sheet + 1);
+        const vp = page.getViewport({ scale: k * devicePixelRatio });
         const off = document.createElement('canvas'); off.width = Math.ceil(vp.width); off.height = Math.ceil(vp.height);
-        task = page.render({ canvasContext: off.getContext('2d'), viewport: vp, annotationMode: pdfjsLib.AnnotationMode.ENABLE_STORAGE });
-        try { await task.promise; } catch (e) { return; }   // cancelled by a newer draw
+        task = page.render({ canvasContext: off.getContext('2d'), viewport: vp });
+        try { await task.promise; } catch (e) { return; }
         task = null;
-        img.width = off.width; img.height = off.height; img.getContext('2d').drawImage(off, 0, 0);
+        cv.width = off.width; cv.height = off.height; cv.style.display = ''; cv.getContext('2d').drawImage(off, 0, 0);
+        cv.style.width = pw * k + 'px'; cv.style.height = ph * k + 'px';
+        cv.style.filter = $('color').value === 'bw' ? 'grayscale(1)' : '';
+      }
+      const remember = () => {
+        byPrinter[sel.value] = { paper: $('paper').value, mode: $('mode').value, skip: $('skip').checked }; keep('print-by-printer', byPrinter);
+        keep('print-settings', { printer: sel.value, orient: $('orient').value, scale: $('scale').value, color: $('color').value, duplex: $('duplex').value });
       };
-      bd.querySelectorAll('select, input').forEach(el => el.addEventListener('input', () => {
+      sel.addEventListener('change', async () => { await onPrinter(); prepare(); });
+      bd.querySelectorAll('select:not([data-k=printer]), input').forEach(el => el.addEventListener('input', () => {
         if (el === $('range')) { $('custom').style.display = el.value === 'custom' ? '' : 'none'; if (el.value === 'custom') $('custom').focus(); sheet = 0; }
-        if (el === $('custom')) sheet = 0;
-        draw();
+        if (el === $('paper') && !opts.mode) { const label = isLabelPaper(paperOf().paper); $('mode').value = label ? 'label' : 'page'; $('skip').checked = label; }
+        if (el === $('color')) return draw();
+        prepare();
       }));
       bd.querySelector('.pp-prev').onclick = () => { sheet--; draw(); };
       bd.querySelector('.pp-next').onclick = () => { sheet++; draw(); };
       const onResize = () => draw(); window.addEventListener('resize', onResize);
       const close = () => { bd.remove(); window.removeEventListener('resize', onResize); };
+
+      // drag the corners of what prints from this page (it's remembered for this file)
+      bd.querySelector('.pp-adjust-btn').onclick = async () => {
+        if (!prepared) return;
+        const at = prepared.sheets[sheet] || { page: here };
+        const pg = await currentPdfDoc.getPage(at.page);
+        const vp1 = pg.getViewport({ scale: 1 });
+        const stage = bd.querySelector('.pp-stage'), adj = bd.querySelector('.pp-adjust'), cv = adj.querySelector('canvas'), box = adj.querySelector('.pp-box');
+        const k = Math.min((stage.clientWidth - 40) / vp1.width, (stage.clientHeight - 90) / vp1.height);
+        const vp = pg.getViewport({ scale: k * devicePixelRatio });
+        cv.width = vp.width; cv.height = vp.height; cv.style.width = vp1.width * k + 'px'; cv.style.height = vp1.height * k + 'px';
+        await pg.render({ canvasContext: cv.getContext('2d'), viewport: vp }).promise;
+        let r = (at.rect || [0, 0, vp1.width, vp1.height]).slice();
+        const show = () => {
+          Object.assign(box.style, { left: r[0] * k + 'px', top: r[1] * k + 'px', width: (r[2] - r[0]) * k + 'px', height: (r[3] - r[1]) * k + 'px' });
+          box.querySelector('.pp-box-size').textContent = `${inches(r[2] - r[0])} × ${inches(r[3] - r[1])} in`;
+        };
+        show();
+        bd.querySelector('.pp-sheet').style.display = 'none'; adj.style.display = '';
+        box.querySelectorAll('i').forEach(h => h.onmousedown = e => {
+          e.preventDefault(); const c = h.dataset.c, x0 = e.clientX, y0 = e.clientY, r0 = r.slice();
+          const move = ev => {
+            const dx = (ev.clientX - x0) / k, dy = (ev.clientY - y0) / k;
+            if (c.includes('w')) r[0] = Math.min(r0[0] + dx, r[2] - 18); if (c.includes('e')) r[2] = Math.max(r0[2] + dx, r[0] + 18);
+            if (c.includes('n')) r[1] = Math.min(r0[1] + dy, r[3] - 18); if (c.includes('s')) r[3] = Math.max(r0[3] + dy, r[1] + 18);
+            r = [Math.max(0, r[0]), Math.max(0, r[1]), Math.min(vp1.width, r[2]), Math.min(vp1.height, r[3])]; show();
+          };
+          const up = () => { window.removeEventListener('mousemove', move); window.removeEventListener('mouseup', up); };
+          window.addEventListener('mousemove', move); window.addEventListener('mouseup', up);
+        });
+        adj.querySelector('.pp-all').checked = !!(areasFor(file) || {}).all;
+        const choice = await new Promise(res => {
+          adj.querySelector('.pp-adj-done').onclick = () => res('use');
+          adj.querySelector('.pp-adj-auto').onclick = () => res('auto');
+          adj.querySelector('.pp-adj-cancel').onclick = () => res(null);
+        });
+        adj.style.display = 'none'; bd.querySelector('.pp-sheet').style.display = '';
+        if (choice === 'use') setArea(file, at.page, r.map(x => Math.round(x * 100) / 100), adj.querySelector('.pp-all').checked);
+        if (choice === 'auto') setArea(file, 0, null);
+        if (choice) prepare();
+      };
+      bd.querySelector('.pp-save-labels').onclick = async () => {
+        const s = settingsNow(); if (!s.pages) return;
+        const size = isLabelPaper(s.paper) ? [Math.min(...s.paper), Math.max(...s.paper)] : [288, 432];
+        const d = await api('save_labels', { ...s, size, original_path: file });
+        if (d.error) return showToast(d.error, true);
+        showToast(`Saved ${d.path.split(/[\\/]/).pop()}: ${d.count} ${d.count === 1 ? 'label' : 'labels'}, next to the original`);
+      };
+
+      // print: pictures of the sheets at the printer's resolution, sent in parts so big files don't stall
       const go = async system => {
-        const list = chosen(); if (!list) return;
-        const s = { printer: sel.value, paper: $('paper').value, orient: $('orient').value, scale: $('scale').value, color: $('color').value, duplex: $('duplex').value };
-        try { localStorage.setItem('print-settings', JSON.stringify(s)); } catch (e) {}
-        const btn = bd.querySelector(system ? '.pp-system' : '.pp-print'), label = btn.textContent;
-        bd.querySelectorAll('button, select, input').forEach(el => el.disabled = true);
-        btn.textContent = 'Preparing...';
-        const d = await api('render_pages', { filepath: currentTempPdf, pages: list });
-        if (!d.success) {
-          bd.querySelectorAll('button, select, input').forEach(el => el.disabled = false); btn.textContent = label;
-          return showToast(d.error || "Couldn't print", true);
+        if (!prepared) return;
+        remember();
+        const testing = sel.value === '__test__';
+        let dryRun = null;
+        if (testing) {
+          dryRun = await ipcRenderer.invoke('save-dialog', file.replace(/\.[^.\\/]+$/, '') + ' (test print).pdf');
+          if (!dryRun) return;
         }
+        const totalSheets = sheetsDoc.numPages, dpi = info ? info.dpi : 300;
+        const CH = testing || system ? totalSheets : 20;
         close();
-        const r = await ipcRenderer.invoke('print-pages', d.pages, {
-          system, deviceName: s.printer, copies: Math.max(1, Math.min(999, parseInt($('copies').value) || 1)), paper: s.paper,
-          paperSize: PAPER[s.paper], landscape: landscapeFor(list), scale: s.scale, color: s.color === 'color', duplex: s.duplex });
-        if (r && r.error) showToast(r.error, true);
-        else if (r && r.ok) showToast(`Sent ${list.length} ${list.length === 1 ? 'page' : 'pages'} to the printer`);
+        const bar = printProgress(totalSheets);
+        let sent = 0, result = null;
+        for (let first = 0; first < totalSheets && !bar.cancelled; first += CH) {
+          const d = await api('print_render', { path: prepared.path, dpi, bw: $('color').value === 'bw', first, count: CH });
+          if (d.error) { result = { error: d.error }; break; }
+          if (bar.cancelled) break;
+          result = await ipcRenderer.invoke('print-pages', d.pages, { system, deviceName: testing ? '' : sel.value, dryRun,
+            copies: Math.max(1, Math.min(999, parseInt($('copies').value) || 1)), color: $('color').value === 'color', duplex: $('duplex').value });
+          if (!result || result.error || !result.ok) break;
+          sent += d.pages.length; bar.update(sent);
+        }
+        bar.done();
+        if (result && result.error) showToast(result.error, true);
+        else if (bar.cancelled) showToast(`Stopped after ${sent} of ${totalSheets} sheets`);
+        else if (result && result.dryRun) showToast(`Saved the test print: ${result.dryRun.split(/[\\/]/).pop()}`);
+        else if (result && result.ok) showToast(`Sent ${totalSheets} ${totalSheets === 1 ? 'sheet' : 'sheets'} to the printer`);
       };
       bd.querySelector('.pp-print').onclick = () => go(false);
       bd.querySelector('.pp-system').onclick = () => go(true);
       bd.querySelector('.pp-cancel').onclick = close;
-      bd.addEventListener('keydown', e => { if (e.key === 'Escape') close(); if (e.key === 'Enter' && !bd.querySelector('.pp-print').disabled) bd.querySelector('.pp-print').click(); });
+      bd.addEventListener('keydown', e => { if (e.key === 'Escape' && !document.querySelector('.backdrop:not(.print-bd)')) close(); if (e.key === 'Enter' && e.target.tagName !== 'INPUT' && !bd.querySelector('.pp-print').disabled) bd.querySelector('.pp-print').click(); });
       bd.addEventListener('mousedown', e => { if (e.target === bd) close(); });
-      requestAnimationFrame(draw);
+      await onPrinter();
+      requestAnimationFrame(doPrepare);
       bd.querySelector('.pp-print').focus();
     }
-    document.getElementById('btn-print').addEventListener('click', doPrint);
+    // progress while sheets go to the printer, with a Stop button
+    function printProgress(total) {
+      const el = document.createElement('div'); el.id = 'print-progress';
+      el.innerHTML = `<span class="pp-p-text">Printing…</span><div class="pp-p-bar"><div></div></div><button class="lb-btn">Stop</button>`;
+      document.body.append(el);
+      const st = { el, cancelled: false, verb: 'Printing', update(n) { el.querySelector('.pp-p-text').textContent = `${st.verb} ${n} of ${total}`; el.querySelector('.pp-p-bar div').style.width = (100 * n / total) + '%'; },
+                   done() { el.remove(); } };
+      el.querySelector('button').onclick = () => { st.cancelled = true; el.querySelector('.pp-p-text').textContent = 'Stopping…'; };
+      return st;
+    }
+    document.getElementById('btn-print').addEventListener('click', () => doPrint());
     document.addEventListener('keydown', e => { if (e.ctrlKey && !e.shiftKey && e.key.toLowerCase() === 'p') { e.preventDefault(); doPrint(); } });
 
     // ---------- OCR: make scanned pages searchable ----------
@@ -3763,45 +4022,89 @@
     document.getElementById('btn-pdfa').addEventListener('click', doPdfa);
 
     // ---------- lock and finalize ----------
+    // the password this app locks files with: made once, kept in the app's settings, so files you lock can be
+    // unlocked later (All tools > Unlock a file I locked) without ever typing one
+    function lockKey() {
+      const f = STATE_FILE.replace(/reading\.json$/, 'lock-key.txt');
+      try { const k = fs.readFileSync(f, 'utf8').trim(); if (k.length >= 24) return k; } catch (e) {}
+      const k = require('crypto').randomBytes(24).toString('base64url');
+      try { fs.writeFileSync(f, k); } catch (e) {}
+      return k;
+    }
     async function doFinalize() {
       if (!await needDoc()) return;
       let ids = loadIds().filter(x => fs.existsSync(x.path));
+      const last = store('finalize-settings', {});
+      const many = fileQueue.filter(f => f.status === 'ready' || f.status === 'pending').length;
       const v = await askDialog('Lock and finalize', [
-        { key: 'flatten', label: 'Make every edit part of the page (comments, shapes, signatures, form fields)', type: 'checkbox', value: true },
-        { key: 'clean', label: 'Remove hidden things: covered-up text, earlier versions, author details, attachments, scripts', type: 'checkbox', value: true },
-        { key: 'raster', label: 'Turn every page into a picture (the strongest: nothing can be edited or copied, but text can\'t be searched)', type: 'checkbox', value: false },
-        { key: 'protect', label: 'Lock it', type: 'select', init: true, value: 'password',
-          options: [['password', 'Block changes with a password (anyone can still open and read it)'], ['certify', 'Certify with my digital ID (any change shows as tampering)'], ['none', "Don't lock, just finalize"]],
+        { key: 'content', label: 'The text', type: 'select', value: last.content || 'outline',
+          options: [['outline', "Can't be selected or copied (stays sharp) - recommended"], ['picture', 'Turn every page into a picture (300 dpi, not as sharp)'], ['keep', 'Keep it selectable and searchable']] },
+        { key: 'flatten', label: 'Make every edit part of the page (comments, shapes, signatures, form fields)', type: 'checkbox', value: last.flatten !== false },
+        { key: 'clean', label: 'Remove hidden things: covered-up text, earlier versions, author details, attachments, scripts', type: 'checkbox', value: last.clean !== false },
+        { key: 'protect', label: 'Lock it', type: 'select', init: true, value: last.protect || 'auto',
+          options: [['auto', 'Anyone can open and print it; editing is blocked'], ['password', 'Block changes with my own password'], ['certify', 'Certify with my digital ID (any change shows as tampering)'], ['none', "Don't lock, just finalize"]],
           onchange: (el, inp) => { const pw = el.value === 'password', ce = el.value === 'certify';
-            for (const k of ['pw', 'pw2', 'print', 'copy']) inp[k].parentElement.style.display = pw ? '' : 'none';
+            for (const k of ['pw', 'pw2', 'copy']) inp[k].parentElement.style.display = pw ? '' : 'none';
+            inp.print.parentElement.style.display = pw || el.value === 'auto' ? '' : 'none';
             for (const k of ['id', 'idpw']) inp[k].parentElement.style.display = ce ? '' : 'none'; } },
         { key: 'pw', label: 'Password to make changes later', type: 'password' },
         { key: 'pw2', label: 'Password again', type: 'password' },
-        { key: 'print', label: 'Allow printing', type: 'checkbox', value: true },
-        { key: 'copy', label: 'Allow copying text', type: 'checkbox', value: true },
+        { key: 'print', label: 'Allow printing', type: 'checkbox', value: last.print !== false },
+        { key: 'copy', label: 'Allow copying text', type: 'checkbox', value: !!last.copy },
         { key: 'id', label: 'Digital ID', type: 'select', options: ids.map((x, i) => [String(i), x.name]).concat([['new', 'Make my digital ID...']]) },
         { key: 'idpw', label: "The ID's password", type: 'password' },
-      ], 'Finalize');
+      ].concat(many > 1 ? [{ key: 'scope', label: 'Files', type: 'select', value: 'one', options: [['one', 'This file'], ['all', `All ${many} files in this tab`]] }] : []), 'Finalize');
       if (!v) return;
-      const body = { filepath: currentTempPdf, original_path: currentActiveFile, flatten: v.flatten, clean: v.clean, rasterize: v.raster, protect: v.protect };
-      if (v.protect === 'password') {
+      keep('finalize-settings', { content: v.content, flatten: v.flatten, clean: v.clean, protect: v.protect, print: v.print, copy: v.copy });
+      const base = { flatten: v.flatten, clean: v.clean, content: v.content, protect: v.protect };
+      if (v.protect === 'auto') Object.assign(base, { password: lockKey(), allow_print: v.print, allow_copy: false });
+      else if (v.protect === 'password') {
         if (!v.pw) return showToast('Choose a password', true);
         if (v.pw !== v.pw2) return showToast("The passwords don't match", true);
-        Object.assign(body, { password: v.pw, allow_print: v.print, allow_copy: v.copy });
+        Object.assign(base, { password: v.pw, allow_print: v.print, allow_copy: v.copy });
       } else if (v.protect === 'certify') {
         let id;
         if (v.id === 'new' || !ids.length) { id = await makeDigitalId(); if (!id) return; }
         else id = { path: ids[+v.id].path, password: v.idpw };
-        Object.assign(body, { pfx: id.path, pfx_password: id.password });
+        Object.assign(base, { pfx: id.path, pfx_password: id.password });
+      }
+      // every file in the tab: same settings, each saved next to its original, going on past any that fail
+      if (v.scope === 'all') {
+        await syncEditsToPython();
+        const files = fileQueue.slice(), done = [], failed = [];
+        const bar = printProgress(files.length);
+        bar.verb = 'Locking'; bar.update(0);
+        for (const f of files) {
+          if (bar.cancelled) break;
+          for (let t = 0; t < 600 && (f.status === 'pending' || f.status === 'processing'); t++) await new Promise(r => setTimeout(r, 200));
+          const src = f.originalPath === currentActiveFile ? currentTempPdf : f.pdfPath;
+          if (!src || f.status === 'error') { failed.push(`${f.name}: couldn't be opened`); bar.update(done.length + failed.length); continue; }
+          const d = await api('finalize', { ...base, filepath: src, original_path: f.originalPath }).catch(e => ({ error: String(e) }));
+          if (d.success) done.push(d.path); else failed.push(`${f.name}: ${d.error || 'failed'}`);
+          bar.update(done.length + failed.length);
+        }
+        bar.done();
+        return askDialog(`Locked ${done.length} of ${files.length} ${files.length === 1 ? 'file' : 'files'}`,
+          [{ key: 'a', label: 'Each one is saved next to its original, named "... - final.pdf".', type: 'hidden' }]
+            .concat(failed.map(x => ({ key: Math.random().toString(36), label: '⚠ ' + x, type: 'hidden' }))), 'OK');
       }
       showToast('Finalizing...');
-      const d = await api('finalize', body);
+      const d = await api('finalize', { ...base, filepath: currentTempPdf, original_path: currentActiveFile });
       if (!d.success) return showToast(d.error || "Couldn't finalize it", true);
       fileQueue.push({ name: d.path.split(/[\\/]/).pop(), originalPath: d.path, pdfPath: null, status: 'pending' });
       renderQueueUI(); backgroundProcessQueue(); processAndLoad(d.path);
       document.getElementById('toast-message').classList.remove('show');
       await askDialog(`Saved ${d.path.split(/[\\/]/).pop()}`, d.report.map(line => ({ key: Math.random().toString(36), label: '✓ ' + line, type: 'hidden' }))
+        .concat(v.protect === 'auto' ? [{ key: 'k', label: 'MyPDFKit keeps the unlock password for you. To change it later: All tools > Unlock a file I locked.', type: 'hidden' }] : [])
         .concat(v.protect === 'password' ? [{ key: 'n', label: 'Note: Adobe Reader, Edge and Chrome respect the lock; a determined person with special tools can get around a password lock, so for anything sensitive also certify it or turn pages into pictures.', type: 'hidden' }] : []), 'OK');
+    }
+    async function unlockMine() {
+      if (!await needDoc()) return;
+      const d = await api('unlock_mine', { filepath: currentActiveFile.toLowerCase().endsWith('.pdf') ? currentActiveFile : currentTempPdf, original_path: currentActiveFile, password: lockKey() });
+      if (!d.success) return showToast(d.error || "Couldn't unlock it", true);
+      fileQueue.push({ name: d.path.split(/[\\/]/).pop(), originalPath: d.path, pdfPath: null, status: 'pending' });
+      renderQueueUI(); backgroundProcessQueue(); processAndLoad(d.path);
+      showToast(`Saved an unlocked copy: ${d.path.split(/[\\/]/).pop()}`);
     }
     document.getElementById('btn-finalize').addEventListener('click', doFinalize);
     document.getElementById('btn-finalize-sign').addEventListener('click', doFinalize);
@@ -4747,6 +5050,10 @@
     });
 
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'node_modules/pdfjs-dist/build/pdf.worker.min.js';
+    // fonts a PDF names but doesn't carry (Helvetica, Times, Courier, Symbol...) and Asian text: pdf.js's own,
+    // so text never shows garbled or in a wildly different width
+    { const open = pdfjsLib.getDocument;
+      pdfjsLib.getDocument = src => open(Object.assign({ standardFontDataUrl: 'node_modules/pdfjs-dist/standard_fonts/', cMapUrl: 'node_modules/pdfjs-dist/cmaps/', cMapPacked: true, useSystemFonts: true }, src)); }
     let currentPdfDoc = null;
     let pageNum = 1;
     let currentRenderScale = 1; 
@@ -5181,6 +5488,7 @@
       if (toolName !== 'draw') clearInkSel();
       if (toolName !== 'shape') selectShape(null);
       if (toolName !== 'place') { placing = null; document.querySelectorAll('.mark-btn').forEach(b => b.classList.remove('on')); }
+      if (toolName !== 'printarea') { document.getElementById('area-menu')?.remove(); areaSnap = null; }
       
       if (toolName !== 'edit' && toolName !== 'pointer' && toolName !== 'add') {
           clearActiveText();
@@ -6589,7 +6897,7 @@
       document.getElementById('strip-tools').classList.toggle('active', show);
       renderTabs();   // no document tab looks selected while All tools is showing
     };
-    ['strip-home', 'strip-tools'].forEach(id => document.getElementById(id).addEventListener('click', () => goTab('tools')));
+    document.getElementById('strip-tools').addEventListener('click', () => goTab('tools'));
     document.querySelectorAll('.tab-btn').forEach(b => b.addEventListener('click', () => setToolsView(b.dataset.tab === 'tools')));
     const goTab = t => document.querySelector(`.tab-btn[data-tab="${t}"]`).click();
     const toolActions = {
@@ -6598,7 +6906,7 @@
       merge: () => document.getElementById('btn-merge').click(), convert: () => document.getElementById('btn-process-all').click(),
       compress: () => document.getElementById('btn-compress').click(), split: () => document.getElementById('btn-split').click(),
       number: () => document.getElementById('btn-number').click(), delpages: showPageDelete,
-      exportall: doExportAll, extract: showPagePicking, ocr: doOcr, print: doPrint, fillform: startFilling, compare: doCompare, redact: startRedacting, comment: () => startMarkup(), template: doTemplate, boxlabels: doBoxLabels, defaultpdf: makeDefaultPdfApp, report: sendProblemReport, watermark: doWatermark, sidebyside: openSideBySide, insert: () => doInsertPages(), pagesize: doPageSize,
+      exportall: doExportAll, extract: showPagePicking, ocr: doOcr, print: doPrint, fillform: startFilling, compare: doCompare, redact: startRedacting, comment: () => startMarkup(), template: doTemplate, boxlabels: doBoxLabels, defaultpdf: makeDefaultPdfApp, unlockmine: unlockMine, printarea: startPrintArea, report: sendProblemReport, watermark: doWatermark, sidebyside: openSideBySide, insert: () => doInsertPages(), pagesize: doPageSize,
       bookmarks: () => { goTab('edit'); openBookmarks(true); }, certsign: doCertSign, certcheck: () => checkSignatures(), batch: doBatch, read: openReader, measure: startMeasure, pdfa: doPdfa, privacy: () => doPrivacyCheck(), finalize: doFinalize, replace: doReplace, bates: doBates, shapes: () => { goTab('edit'); switchTool('btn-shape', 'shape'); }, stamps: openStamps, prepare: startPrepare, translate: doTranslate, speak: () => startSpeaking(), edit: () => goTab('edit'), sign: () => { goTab('sign'); }
     };
     // Delete pages: bring up the page thumbnails with their trash buttons showing for a moment

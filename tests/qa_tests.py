@@ -76,15 +76,22 @@ if os.path.exists(app):
     mine = [p for p in procs if p.name().lower() in ('mypdfkit.exe', 'server.exe')]
     mb = sum(p.memory_info().private for p in mine) / 1048576
     check('uses under 700 MB of memory while idle', mb < 700, f'{mb:.0f} MB in {len(mine)} processes (Office it keeps ready not counted)')
-    for p in reversed(procs):
-        try: p.kill()
-        except Exception: pass
-    # its Office helpers belong to it only when started after it; leave any others alone
-    time.sleep(1)
-    for p in psutil.process_iter(['name', 'create_time', 'cmdline']):
-        if (p.info['name'] or '').upper() in ('WINWORD.EXE', 'EXCEL.EXE') and p.info['create_time'] >= t0 and '/automation' in ' '.join(p.info['cmdline'] or []).lower():
+    # the app goes away suddenly (as in a crash): its converter must notice, close the Word and Excel it
+    # kept ready, and exit by itself
+    engine = [p for p in procs if p.name().lower() == 'server.exe']
+    for p in procs:
+        if p.name().lower() == 'mypdfkit.exe':
             try: p.kill()
             except Exception: pass
+    mine = lambda: [p for p in psutil.process_iter(['name', 'create_time']) if (p.info['name'] or '').upper() in ('WINWORD.EXE', 'EXCEL.EXE') and p.info['create_time'] >= t0]
+    for _ in range(40):
+        if not mine() and not any(p.is_running() for p in engine): break
+        time.sleep(0.5)
+    left = mine()
+    check('after a crash, the converter closes its Office and itself', not left and not any(p.is_running() for p in engine), f'{len(left)} Office left')
+    for p in left + engine:   # never leave test leftovers running
+        try: p.kill()
+        except Exception: pass
 
 shutil.rmtree(work, ignore_errors=True)
 print(f'\n{sum(results)} of {len(results)} checks passed')

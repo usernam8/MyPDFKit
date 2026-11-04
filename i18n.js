@@ -66,7 +66,7 @@ const I18N = {
     'Uncheck what you never use: it disappears from the side panel (it stays in All tools).': 'Desmarca lo que nunca usas: desaparece del panel lateral (sigue en Todas las herramientas).',
   },
 };
-const I18N_ATTRS = ['title', 'placeholder', 'aria-label'];
+const I18N_ATTRS = ['title', 'placeholder', 'aria-label', 'data-empty'];
 let uiLang = 'en';
 const _orig = new WeakMap();   // node -> its English text (to switch back)
 function _tr(str) {
@@ -92,7 +92,8 @@ function translateNode(node) {
 let _observer = null;
 function setUiLanguage(lang) {
   if (lang !== 'en' && !I18N[lang]) lang = 'en';
-  if (uiLang !== 'en' && lang === 'en') {   // back to English: put every changed text back
+  if (_observer) { _observer.disconnect(); _observer = null; }
+  if (uiLang !== 'en' && lang !== uiLang) {   // another language: first put every changed text back to English
     const walk = n => {
       if (n.nodeType === 3 && _orig.has(n)) { n.nodeValue = _orig.get(n); _orig.delete(n); }
       if (n.nodeType === 1) {

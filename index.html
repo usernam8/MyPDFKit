@@ -106,7 +106,7 @@
     .mini-btn.danger:hover { color:var(--danger); }
 
     #queue-list { max-height:30vh; overflow-y:auto; }
-    #queue-list:empty::before { content:"No files yet"; display:block; padding:6px 16px; color:var(--dim); }
+    #queue-list:empty::before { content:attr(data-empty); display:block; padding:6px 16px; color:var(--dim); }
     .queue-item { display:flex; align-items:center; gap:9px; height:30px; padding:0 10px 0 16px; border-left:2px solid transparent; cursor:grab; color:var(--text); }
     .queue-item:active { cursor:grabbing; }
     .queue-item:hover { background:var(--raised); }
@@ -815,6 +815,7 @@
   </style>
   <script src="node_modules/pdfjs-dist/build/pdf.min.js"></script>
   <script src="i18n.js"></script>
+  <script src="i18n-langs.js"></script>
 </head>
 <body class="tool-pointer">
   <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
@@ -957,7 +958,7 @@
           <button id="btn-add-files" class="mini-btn" title="Add files (Ctrl+O)"><svg class="ico"><use href="#i-plus"/></svg>Add</button>
           <button id="btn-clear-queue" class="mini-btn danger" title="Remove every file from the list">Clear</button>
         </span></div>
-        <div id="queue-list"></div>
+        <div id="queue-list" data-empty="No files yet"></div>
 
         <!-- Each action lives in one place: page actions are in the toolbar's "More" menu,
              Save and Undo in the menu bar, Rotate and zoom on the right rail. -->
@@ -2871,7 +2872,7 @@
         tools: [...p.querySelectorAll('.side-btn[id]')].map(b => ({ id: b.id, label: (b.dataset.enlabel || b.textContent).trim() })) })).filter(p => p.tools.length);
       const key = claudeKey();
       const bd = showPanel('Settings', `
-        <h4>Language</h4><select class="st-lang"><option value="en">English</option><option value="es">Español</option></select>
+        <h4>Language</h4><select class="st-lang">${Object.entries(I18N_NAMES).map(([v, n]) => `<option value="${v}">${n}</option>`).join('')}</select>
         <h4>Tools shown in the side panel</h4><p class="ai-meta">Uncheck what you never use: it disappears from the side panel (it stays in All tools).</p>
         <div class="st-tools">${panes.map(p => `<div class="st-group"><b>${esc(p.name)}</b>${p.tools.map(t => `<label><input type="checkbox" data-id="${t.id}" ${hidden.has(t.id) ? '' : 'checked'}> ${esc(t.label)}</label>`).join('')}</div>`).join('')}</div>
         <button class="lb-btn st-all">Show all</button>

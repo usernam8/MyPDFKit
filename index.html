@@ -512,6 +512,8 @@
     .ai-dlg .ai-answer { margin-top:10px; line-height:1.5; } .ai-dlg .ai-answer p { margin:0 0 6px; } .ai-dlg .ai-answer ul, .ai-dlg .ai-answer ol { margin:2px 0 8px; padding-left:20px; }
     .ai-dlg .ai-answer li { margin:2px 0; } .ai-dlg .ai-answer h5 { margin:10px 0 4px; font-size:13px; }
     .ai-dlg .ai-prov { display:flex; align-items:center; gap:8px; margin-bottom:6px; } .ai-dlg .ai-prov select { background:var(--raised); color:var(--text); border:1px solid var(--line); border-radius:8px; padding:5px; font:inherit; }
+    .st-adv summary { cursor:pointer; color:var(--dim); font-size:12.5px; margin:8px 0 4px; } .st-adv[open] summary { color:var(--text); }
+    .ai-dl .pp-bar { height:6px; background:var(--line); border-radius:3px; overflow:hidden; margin-top:8px; } .ai-dl .pp-fill { height:100%; width:0; background:var(--accent); transition:width .2s; }
     .st-key { margin-bottom:6px; align-items:center; } .st-key-name { width:150px; flex:none; font-size:12.5px; } .ai-dlg .ai-answer.busy { color:var(--dim); }
     .side-btn.user-hidden { display:none !important; }
     .icon-tool.ai-btn { width:auto; padding:0 8px; gap:4px; display:inline-flex; align-items:center; font:600 12px Segoe UI, sans-serif; } .icon-tool.ai-btn span { color:var(--accent); }
@@ -2782,23 +2784,35 @@
     }
     // ---------- summaries and questions ----------
     // Summarize is free and made on this PC (nothing is sent anywhere). The AI (a smart, dense summary, or any
-    // question) uses the person's own key: Google Gemini, free with a Google account, or Claude (paid).
+    // question) is built in and runs on this PC too, with no internet. Advanced: an online AI with the person's
+    // own key (Google Gemini is free; ChatGPT, Grok and Claude are paid by use).
     const AI = {
+      local: { name: 'Built-in AI', local: true },
       gemini: { name: 'Google Gemini', file: 'gemini-key.txt', hint: 'AIza…', get: 'https://aistudio.google.com/apikey',
         how: 'Free: open aistudio.google.com/apikey, sign in with a Google account, click Create API key, and paste it here.',
         privacy: 'Asking sends this file to Google to read. On the free plan Google may use it to improve its products, so don\'t ask about private files.' },
-      claude: { name: 'Claude', file: 'claude-key.txt', hint: 'sk-ant-…', get: 'https://console.anthropic.com/settings/keys',
+      claude: { paid: true, name: 'Claude', file: 'claude-key.txt', hint: 'sk-ant-…', get: 'https://console.anthropic.com/settings/keys',
         how: 'Get one at console.anthropic.com (pay as you go, usually a few cents a question).',
         privacy: 'Asking sends this file to Anthropic (the maker of Claude) to read. Don\'t ask about files you can\'t share.' },
+      openai: { paid: true, name: 'ChatGPT', file: 'openai-key.txt', hint: 'sk-…', get: 'https://platform.openai.com/api-keys',
+        how: 'Get one at platform.openai.com/api-keys (pay as you go; a ChatGPT Plus subscription doesn\'t include it).',
+        privacy: 'Asking sends this file\'s text to OpenAI (the maker of ChatGPT) to read. Don\'t ask about files you can\'t share.' },
+      xai: { paid: true, name: 'Grok', file: 'xai-key.txt', hint: 'xai-…', get: 'https://console.x.ai',
+        how: 'Get one at console.x.ai (pay as you go).',
+        privacy: 'Asking sends this file\'s text to xAI (the maker of Grok) to read. Don\'t ask about files you can\'t share.' },
     };
-    const aiKeyFile = p => STATE_FILE.replace(/reading\.json$/, AI[p].file);
-    const aiKey = p => { try { return fs.readFileSync(aiKeyFile(p), 'utf8').trim(); } catch (e) { return ''; } };
+    const ONLINE = ['gemini', 'openai', 'xai', 'claude'];
+    let localAi = { ready: false };
+    const checkLocalAi = () => api('ai_local_info', {}).then(d => (localAi = d)).catch(() => localAi);
+    const aiKeyFile = p => STATE_FILE.replace(/reading\.json$/, AI[p].file || 'none.txt');
+    const aiKey = p => { if (AI[p].local) return localAi.ready ? 'local' : ''; try { return fs.readFileSync(aiKeyFile(p), 'utf8').trim(); } catch (e) { return ''; } };
     const claudeKeyFile = () => aiKeyFile('claude');
     const claudeKey = () => aiKey('claude');
-    function aiProvider() {
-      const chosen = store('ai-provider', '');
-      if (chosen && aiKey(chosen)) return chosen;
-      return aiKey('gemini') ? 'gemini' : aiKey('claude') ? 'claude' : (chosen || 'gemini');
+    function aiProvider() {   // the built-in AI, unless the person chose an online one in Settings and added its key
+      const chosen = store('ai-provider', 'local');
+      if (AI[chosen] && aiKey(chosen)) return chosen;
+      if (localAi.ready) return 'local';
+      return ONLINE.find(p => aiKey(p)) || 'local';
     }
     const LANG_EN = { es: 'Spanish', de: 'German', fr: 'French', pt: 'Portuguese', zh: 'Simplified Chinese', ja: 'Japanese', ko: 'Korean' };
     // the AI's answer, with its bold words, headings and bullets
@@ -2852,18 +2866,44 @@
       showPanel('Summary', html, [['Copy', () => { require('electron').clipboard.writeText(plain); showToast('Copied'); }],
         ['Smarter summary with AI…', bd => { bd.remove(); askClaude({ dense: true }); }, true]]);
     }
-    // the AI button: with a key, straight to the smart summary; without one, the free summary made here
-    function aiButton() { return aiKey('gemini') || aiKey('claude') ? askClaude({ dense: true }) : doSummarize(); }
+    // the AI button: straight to the smart summary (the Lite version first offers the one-time download)
+    async function aiButton() {
+      await checkLocalAi();
+      if (aiKey(aiProvider())) return askClaude({ dense: true });
+      if (!await needDoc()) return;
+      offerLocalAi(() => askClaude({ dense: true }));
+    }
+    // the Lite version: the built-in AI is one download (once; then it works without internet)
+    function offerLocalAi(then) {
+      const bd = showPanel('Turn on the built-in AI', `<p>MyPDFKit's AI reads your files and writes summaries and answers right on this computer: no account, no internet, nothing sent anywhere.</p>
+        <p>It's a one-time download of about 1.3 GB. After that it always works, even offline.</p>
+        <div class="ai-dl" style="display:none"><div class="pp-bar"><div class="pp-fill"></div></div><p class="ai-meta ai-dl-text"></p></div>`,
+        [['Quick summary instead', bd => { bd.remove(); doSummarize(); }], ['Download (1.3 GB)', async bd => {
+          const btn = [...bd.querySelectorAll('.dialog-actions .btn')].find(b => /Download/.test(b.textContent)); if (btn) btn.disabled = true;
+          bd.querySelector('.ai-dl').style.display = '';
+          const fill = bd.querySelector('.pp-fill'), txt = bd.querySelector('.ai-dl-text');
+          const onp = (e, d) => { fill.style.width = (d.done / d.total * 100).toFixed(1) + '%'; txt.textContent = `${(d.done / 1e9).toFixed(2)} of ${(d.total / 1e9).toFixed(2)} GB`; };
+          ipcRenderer.on('ai-download-progress', onp);
+          const r = await ipcRenderer.invoke('ai-download', localAi.download_dir).catch(e => ({ error: String(e) }));
+          ipcRenderer.removeListener('ai-download-progress', onp);
+          if (r.error) { txt.textContent = r.error; if (btn) btn.disabled = false; return; }
+          await checkLocalAi();
+          if (!localAi.ready) { txt.textContent = 'The download finished but the AI could not be found. Try again.'; if (btn) btn.disabled = false; return; }
+          bd.remove(); showToast('The built-in AI is ready'); if (then) then();
+        }, true]]);
+      return bd;
+    }
     async function askClaude(opts = {}) {
       if (typeof opts === 'string') opts = { question: opts };
       if (!await needDoc()) return;
+      await checkLocalAi();
       let prov = aiProvider();
       const presets = [['Dense summary', null],
         ['Dates and amounts', 'List every date, deadline and amount of money in this document, with the page each is on.'],
         ['Explain simply', 'Explain this document in simple words, as if to someone who has never seen it.'],
         ['Translate to Spanish', 'Translate this document into Spanish, keeping its meaning and tone. Keep names, numbers and codes as they are.']];
       const bd = showPanel('Ask AI about this PDF', `
-        <div class="ai-prov"><label>AI</label><select class="ai-prov-sel"><option value="gemini">Google Gemini (free)</option><option value="claude">Claude</option></select></div>
+        <div class="ai-prov"><label>AI</label><select class="ai-prov-sel"><option value="local">Built-in (on this computer, no internet)</option><option value="gemini">Google Gemini (free, online)</option><option value="openai">ChatGPT (paid, online)</option><option value="xai">Grok (paid, online)</option><option value="claude">Claude (paid, online)</option></select></div>
         <div class="ai-presets">${presets.map(([l], i) => `<button class="lb-btn" data-p="${i}">${l}</button>`).join('')}</div>
         <textarea class="ai-q" rows="3" placeholder="Ask anything about this file, or ask for it in another language"></textarea>
         <div class="ai-key"><label class="ai-key-label"></label><div class="st-key"><input class="ai-key-in" type="password" spellcheck="false"><button class="lb-btn ai-get">Get a key</button></div>
@@ -2875,20 +2915,45 @@
       let dense = !!opts.dense;
       const show = () => {
         const has = !!aiKey(prov);
+        if (AI[prov].local) {
+          bd.querySelector('.ai-key').style.display = 'none'; bd.querySelector('.ai-forget').style.display = 'none';
+          bd.querySelector('.ai-privacy').textContent = has ? 'Runs on this computer: nothing is sent anywhere, and it works without internet.' : 'The built-in AI isn\'t downloaded yet.';
+          return;
+        }
         bd.querySelector('.ai-key').style.display = has ? 'none' : '';
         bd.querySelector('.ai-key-label').textContent = `Your ${AI[prov].name} key`;
         bd.querySelector('.ai-key-in').placeholder = AI[prov].hint;
         bd.querySelector('.ai-how').textContent = AI[prov].how;
-        bd.querySelector('.ai-privacy').textContent = AI[prov].privacy;
+        bd.querySelector('.ai-privacy').textContent = AI[prov].privacy + (AI[prov].paid ? ' Paid: its company bills your account a little for each question.' : '');
         bd.querySelector('.ai-forget').style.display = has ? '' : 'none';
       };
       sel.value = prov; show();
       sel.onchange = () => { prov = sel.value; keep('ai-provider', prov); show(); };
       bd.querySelector('.ai-get').onclick = () => require('electron').shell.openExternal(AI[prov].get);
       bd.querySelector('.ai-forget').onclick = e => { e.preventDefault(); try { fs.unlinkSync(aiKeyFile(prov)); } catch (x) {} showToast(`Removed your ${AI[prov].name} key`); show(); };
+      let job = null;
+      new MutationObserver(() => { if (!bd.isConnected && job) { api('ai_status', { id: job, cancel: true }).catch(() => {}); job = null; } }).observe(document.body, { childList: true });
       async function run() {
         const question = q.value.trim();
         if (!question && !dense) return q.focus();
+        if (AI[prov].local) {
+          if (!localAi.ready) { bd.remove(); return offerLocalAi(() => askClaude({ question, dense })); }
+          if (job) return;
+          await syncEditsToPython();
+          out.innerHTML = ''; out.textContent = 'Starting…'; out.classList.add('busy');
+          const st = await api('ai_start', { filepath: currentTempPdf, question, dense: dense && !question, language: LANG_EN[store('ui-lang', 'en')] || 'English' });
+          job = st.id; const t0 = Date.now();
+          while (job === st.id) {
+            await new Promise(r => setTimeout(r, 400));
+            const d = await api('ai_status', { id: st.id }).catch(e => ({ error: String(e), finished: true }));
+            if (!bd.isConnected) break;
+            if (d.text) { out.classList.remove('busy'); out.innerHTML = mdHtml(d.text); out.dataset.text = d.text; }
+            else out.textContent = `${d.stage || 'Working…'} ${Math.round((Date.now() - t0) / 1000)} s`;
+            if (d.finished) { if (d.error) { out.classList.remove('busy'); out.textContent = d.error; } break; }
+          }
+          job = null; out.classList.remove('busy');
+          return;
+        }
         let k = aiKey(prov);
         if (!k) {
           k = bd.querySelector('.ai-key-in').value.trim();
@@ -2909,7 +2974,8 @@
       });
       q.oninput = () => { dense = false; };
       if (opts.question) { q.value = opts.question; dense = false; }
-      if (dense && aiKey(prov)) run(); else q.focus();
+      if (dense && aiKey(prov) && !AI[prov].paid) run();
+      else { if (dense) q.placeholder = 'Press Ask for a dense summary, or type a question'; q.focus(); if (AI[prov].local && localAi.ready) api('ai_warm', { filepath: currentTempPdf }).catch(() => {}); }
     }
     // a scan just opened: offer to make its text searchable (once per file)
     async function offerOcr(f) {
@@ -2930,8 +2996,9 @@
       const hidden = new Set(store('hidden-tools', []));
       document.querySelectorAll('.pane .side-btn[id]').forEach(b => b.classList.toggle('user-hidden', hidden.has(b.id)));
     }
-    function openSettings() {
+    async function openSettings() {
       document.getElementById('settings-panel')?.remove();
+      await checkLocalAi();
       const hidden = new Set(store('hidden-tools', []));
       const panes = [...document.querySelectorAll('.pane[data-pane]')].map(p => ({ name: { edit: 'Edit', convert: 'Convert', sign: 'E-Sign' }[p.dataset.pane] || p.dataset.pane,
         tools: [...p.querySelectorAll('.side-btn[id]')].map(b => ({ id: b.id, label: (b.dataset.enlabel || b.textContent).trim() })) })).filter(p => p.tools.length);
@@ -2940,8 +3007,12 @@
         <h4>Tools shown in the side panel</h4><p class="ai-meta">Uncheck what you never use: it disappears from the side panel (it stays in All tools).</p>
         <div class="st-tools">${panes.map(p => `<div class="st-group"><b>${esc(p.name)}</b>${p.tools.map(t => `<label><input type="checkbox" data-id="${t.id}" ${hidden.has(t.id) ? '' : 'checked'}> ${esc(t.label)}</label>`).join('')}</div>`).join('')}</div>
         <button class="lb-btn st-all">Show all</button>
-        <h4>AI (optional)</h4><p class="ai-meta">For a smart, dense summary and answers to any question about your files. Google Gemini is free: sign in at aistudio.google.com/apikey with a Google account, click Create API key, and paste it here.</p>
-        ${['gemini', 'claude'].map(p => { const k = aiKey(p); return `<div class="st-key" data-p="${p}"><span class="st-key-name">${AI[p].name}${p === 'gemini' ? ' (free)' : ''}</span><input type="password" class="st-key-in" placeholder="${k ? '••••••••••' : AI[p].hint}" spellcheck="false"><button class="lb-btn st-key-save">Save key</button>${k ? '<button class="lb-btn st-key-del">Remove my key</button>' : `<button class="lb-btn st-key-get">Get a key</button>`}</div>`; }).join('')}
+        <h4>AI</h4><p class="ai-meta">${localAi.ready ? 'The built-in AI is ready. It runs on this computer: no account, no internet, nothing sent anywhere.' : 'The built-in AI isn\'t downloaded yet (one time, about 1.3 GB).'}</p>
+        ${localAi.ready ? '' : '<button class="lb-btn st-ai-dl">Download the built-in AI</button>'}
+        <details class="st-adv"><summary>Advanced: use an online AI instead</summary>
+        <p class="ai-meta">For very long files, an online AI can be smarter. Each needs its own key from its website. Google Gemini's key is free; the paid ones bill your account with that company for each question, and MyPDFKit only uses them when you press Ask. The AI you save last is the one used; choose Built-in in the AI window to go back.</p>
+        ${ONLINE.map(p => { const k = aiKey(p); return `<div class="st-key" data-p="${p}"><span class="st-key-name">${AI[p].name}${p === 'gemini' ? ' (free)' : ' (paid)'}</span><input type="password" class="st-key-in" placeholder="${k ? '••••••••••' : AI[p].hint}" spellcheck="false"><button class="lb-btn st-key-save">Save key</button>${k ? '<button class="lb-btn st-key-del">Remove my key</button>' : `<button class="lb-btn st-key-get">Get a key</button>`}</div>`; }).join('')}
+        </details>
         <h4>PDF app</h4><button class="lb-btn st-default">Make it my PDF app</button>
         <h4>Help</h4><button class="lb-btn st-report">Send a problem report</button><p class="ai-meta">Version ${esc(window.appVersion || '')}</p>`, []);
       const lang = bd.querySelector('.st-lang'); lang.value = store('ui-lang', 'en');
@@ -2950,10 +3021,11 @@
         const h = new Set(store('hidden-tools', [])); c.checked ? h.delete(c.dataset.id) : h.add(c.dataset.id); keep('hidden-tools', [...h]); applyHiddenTools();
       });
       bd.querySelector('.st-all').onclick = () => { keep('hidden-tools', []); bd.querySelectorAll('.st-tools input').forEach(c => c.checked = true); applyHiddenTools(); };
+      const dl = bd.querySelector('.st-ai-dl'); if (dl) dl.onclick = () => { bd.remove(); offerLocalAi(() => openSettings()); };
       bd.querySelectorAll('.st-key[data-p]').forEach(row => {
         const p = row.dataset.p, $r = c => row.querySelector(c);
         $r('.st-key-save').onclick = () => { const v = $r('.st-key-in').value.trim(); if (!v) return $r('.st-key-in').focus(); try { fs.writeFileSync(aiKeyFile(p), v); } catch (e) {} keep('ai-provider', p); showToast(`Saved your ${AI[p].name} key`); openSettings(); };
-        if ($r('.st-key-del')) $r('.st-key-del').onclick = () => { try { fs.unlinkSync(aiKeyFile(p)); } catch (e) {} showToast(`Removed your ${AI[p].name} key`); openSettings(); };
+        if ($r('.st-key-del')) $r('.st-key-del').onclick = () => { try { fs.unlinkSync(aiKeyFile(p)); } catch (e) {} if (store('ai-provider', '') === p) keep('ai-provider', 'local'); showToast(`Removed your ${AI[p].name} key`); openSettings(); };
         if ($r('.st-key-get')) $r('.st-key-get').onclick = () => require('electron').shell.openExternal(AI[p].get);
       });
       bd.querySelector('.st-default').onclick = () => makeDefaultPdfApp();
@@ -2961,6 +3033,13 @@
     }
     applyHiddenTools();
     document.getElementById('btn-ai').addEventListener('click', () => aiButton());
+    let aiWarmed = 0;
+    document.getElementById('btn-ai').addEventListener('mouseenter', async () => {
+      if (!currentTempPdf || Date.now() - aiWarmed < 60000) return;
+      aiWarmed = Date.now();
+      await checkLocalAi();
+      if (localAi.ready && aiProvider() === 'local') api('ai_warm', { filepath: currentTempPdf }).catch(() => {});
+    });
     // Ctrl+K: find any tool by typing
     document.addEventListener('keydown', e => { if (e.ctrlKey && !e.shiftKey && e.key.toLowerCase() === 'k') { e.preventDefault(); goTab('tools'); const t = document.getElementById('tool-search'); t.focus(); t.select(); } });
     try { const l = JSON.parse(localStorage.getItem('ui-lang')); if (l && l !== 'en') setUiLanguage(l); } catch (e) {}

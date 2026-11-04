@@ -225,6 +225,43 @@ function setupAutoUpdate() {
   ipcMain.on('install-update', () => { closing = true; closeBackend().then(() => autoUpdater.quitAndInstall(true, true)); });
 }
 ipcMain.handle('app-version', () => app.getVersion());
+// the built-in AI for the Lite version: downloaded once, checked by its fingerprint, then it works offline
+const AI_MODEL = { file: 'Qwen3.5-2B-Q4_K_M.gguf', size: 1280835840, sha256: 'aaf42c8b7c3cab2bf3d69c355048d4a0ee9973d48f16c731c0520ee914699223',
+  urls: ['https://github.com/usernam8/MyPDFKit-releases/releases/download/ai-model-1/Qwen3.5-2B-Q4_K_M.gguf',
+         'https://huggingface.co/unsloth/Qwen3.5-2B-GGUF/resolve/main/Qwen3.5-2B-Q4_K_M.gguf'] };
+ipcMain.handle('ai-download', async (e, dir) => {
+  const fs = require('fs'), crypto = require('crypto'), { net } = require('electron');
+  if (!dir) return { error: 'No place to save the AI' };
+  fs.mkdirSync(dir, { recursive: true });
+  const dest = path.join(dir, AI_MODEL.file), part = dest + '.part';
+  let lastErr = 'Could not download the AI. Check the internet connection and try again.';
+  for (const url of AI_MODEL.urls) {
+    try {
+      await new Promise((resolve, reject) => {
+        const req = net.request({ url, redirect: 'follow' });
+        req.on('response', res => {
+          if (res.statusCode !== 200) return reject(new Error('HTTP ' + res.statusCode));
+          const total = +res.headers['content-length'] || AI_MODEL.size, out = fs.createWriteStream(part), hash = crypto.createHash('sha256');
+          let done = 0, shown = 0;
+          res.on('data', c => { out.write(c); hash.update(c); done += c.length; if (done - shown > 4e6) { shown = done; e.sender.send('ai-download-progress', { done, total }); } });
+          res.on('end', () => out.end(() => { e.sender.send('ai-download-progress', { done, total });
+            hash.digest('hex') === AI_MODEL.sha256 ? resolve() : reject(new Error('The download was damaged')); }));
+          res.on('error', reject);
+        });
+        req.on('error', reject);
+        req.end();
+      });
+      fs.renameSync(part, dest);
+      logLine('ai', 'downloaded ' + url);
+      return { ok: true, path: dest };
+    } catch (err) {
+      lastErr = String(err.message || err) === 'The download was damaged' ? 'The download was damaged. Try again.' : lastErr;
+      logLine('ai', 'download failed ' + url + ': ' + (err.message || err));
+      try { fs.unlinkSync(part); } catch (x) {}
+    }
+  }
+  return { error: lastErr };
+});
 ipcMain.handle('set-fullscreen', (e, on) => { const w = BrowserWindow.fromWebContents(e.sender); if (w) w.setFullScreen(!!on); });
 ipcMain.handle('user-data', () => app.getPath('userData'));
 // a text file on the desktop with the version, the PC and the recent problems, to send to whoever helps

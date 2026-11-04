@@ -55,6 +55,36 @@ check('finds the amounts', '$48,300' in s.get('facts', {}).get('money', []), str
 s = c.post('/summarize', json={'filepath': f if 'scan' in f else os.path.join(work, 'scan_300.pdf')}).get_json()
 check('says when a file is only pictures', s.get('empty') is True)
 
+if server._local_model() and server._llama_exe():
+    import psutil
+    print('\nBuilt-in AI (runs on this PC)')
+    inv = os.path.join(work, 'invoice.pdf'); d = pymupdf.open(); p = d.new_page()
+    p.insert_text((72, 80), 'INVOICE 1042 - Acme Supplies Inc.', fontsize=18)
+    p.insert_textbox(pymupdf.Rect(60, 100, 550, 800), 'Bill to: Blue River Market. Invoice date: February 1, 2026. Payment is due March 3, 2026. '
+                     '10 boxes of copy paper at $18.00 each; 4 toner cartridges at $60.00 each. Total due: $420.00.', fontsize=11)
+    d.save(inv); d.close()
+    def ask(question, dense):
+        t0 = time.time(); first = None
+        j = c.post('/ai_start', json={'filepath': inv, 'question': question, 'dense': dense}).get_json()['id']
+        while True:
+            r = c.post('/ai_status', json={'id': j}).get_json()
+            if r['text'] and first is None: first = time.time() - t0
+            if r['finished']: return r, first or 0, time.time() - t0
+            time.sleep(0.1)
+    server._local_ai_up()
+    r, first, total = ask('', True)
+    check('a dense summary has the total and who it is from', '420' in r['text'] and 'Acme' in r['text'] and not r['error'], f'first words {first:.1f}s, done {total:.1f}s')
+    r, first, total = ask('When is the payment due?', False)
+    check('answers a question about the file', 'March 3' in r['text'], f'first words {first:.1f}s, done {total:.1f}s')
+    check('starts answering a short file in under 5 s', first < 5, f'{first:.1f}s')
+    try: os.remove(inv); ok_unlocked = True
+    except OSError: ok_unlocked = False
+    check('leaves the file free (not locked) after reading it', ok_unlocked)
+    pid = server.LOCAL_AI['proc'].pid
+    c.post('/shutdown')
+    time.sleep(1)
+    check('closes the AI when the app closes', not psutil.pid_exists(pid) or not psutil.Process(pid).is_running())
+
 app = os.path.join(ROOT, 'release', 'win-unpacked', 'MyPDFKit.exe')
 if os.path.exists(app):
     import psutil

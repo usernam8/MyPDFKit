@@ -17,7 +17,7 @@ def run(name, args, ok_pattern, env=None):
     r = subprocess.run([sys.executable, '-W', 'ignore'] + args, capture_output=True, text=True, encoding='utf-8', errors='replace',
                        env=dict(os.environ, **(env or {})), cwd=ROOT)
     out = (r.stdout or '') + (r.stderr or '')
-    last = [l for l in out.splitlines() if l.strip()][-3:]
+    last = [l for l in out.splitlines() if 'FAIL' in l][:10] + [l for l in out.splitlines() if l.strip()][-3:]   # what failed, then the totals
     print('\n'.join(last))
     ok = r.returncode == 0 and bool(re.search(ok_pattern, out, re.M))
     results.append((name, ok))

@@ -129,3 +129,12 @@ const I18N_NAMES = { en: 'English', es: 'Español', de: 'Deutsch', fr: 'Françai
    '賢く凝縮した要約と、ファイルについてのあらゆる質問への回答に。Google Gemini は無料です：Google アカウントで aistudio.google.com/apikey にログインし、Create API key をクリックして、ここに貼り付けます。',
    '똑똑한 핵심 요약과 파일에 대한 모든 질문의 답을 위해. Google Gemini는 무료입니다: Google 계정으로 aistudio.google.com/apikey에 로그인하고 Create API key를 누른 뒤 여기에 붙여 넣으세요.'],
 ].forEach(([en, ...tr]) => ['es', 'de', 'fr', 'pt', 'zh', 'ja', 'ko'].forEach((l, i) => { if (I18N[l]) I18N[l][en] = tr[i]; }));
+
+[
+  ['Built-in (on this computer, no internet)', 'Integrada (en esta computadora, sin internet)', 'Eingebaut (auf diesem Computer, ohne Internet)', 'Intégrée (sur cet ordinateur, sans internet)', 'Integrada (neste computador, sem internet)', '内置（在这台电脑上，无需联网）', '内蔵 (このパソコンで動作、ネット不要)', '내장(이 컴퓨터에서, 인터넷 없이)'],
+  ['Turn on the built-in AI', 'Activar la IA integrada', 'Eingebaute KI einschalten', 'Activer l’IA intégrée', 'Ativar a IA integrada', '启用内置 AI', '内蔵 AI をオンにする', '내장 AI 켜기'],
+  ['Quick summary instead', 'Mejor un resumen rápido', 'Stattdessen Kurzfassung', 'Plutôt un résumé rapide', 'Prefiro um resumo rápido', '改用快速摘要', '代わりにクイック要約', '대신 빠른 요약'],
+  ['Download the built-in AI', 'Descargar la IA integrada', 'Eingebaute KI herunterladen', 'Télécharger l’IA intégrée', 'Baixar a IA integrada', '下载内置 AI', '内蔵 AI をダウンロード', '내장 AI 다운로드'],
+  ['Advanced: use an online AI instead', 'Avanzado: usar una IA en línea', 'Erweitert: stattdessen eine Online-KI verwenden', 'Avancé : utiliser une IA en ligne', 'Avançado: usar uma IA online', '高级：改用在线 AI', '詳細：オンライン AI を使う', '고급: 온라인 AI 사용'],
+  ['Google Gemini (free, online)', 'Google Gemini (gratis, en línea)', 'Google Gemini (kostenlos, online)', 'Google Gemini (gratuit, en ligne)', 'Google Gemini (grátis, online)', 'Google Gemini（免费，在线）', 'Google Gemini (無料、オンライン)', 'Google Gemini(무료, 온라인)'],
+].forEach(([en, ...tr]) => ['es', 'de', 'fr', 'pt', 'zh', 'ja', 'ko'].forEach((l, i) => { if (I18N[l]) I18N[l][en] = tr[i]; }));

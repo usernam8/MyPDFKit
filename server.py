@@ -3646,7 +3646,8 @@ def _offline_summary(path, max_sentences=None):
     text = '\n'.join(pages)
     words = re.findall(r"[A-Za-z][A-Za-z'\-]{2,}", text)
     if len(words) < 20:
-        return {'empty': True, 'pages': doc.page_count}
+        n = doc.page_count; doc.close()
+        return {'empty': True, 'pages': n}
     freq = {}
     for w in words:
         k = w.lower()
@@ -3688,8 +3689,10 @@ def _offline_summary(path, max_sentences=None):
             if v not in found: found.append(v)
         if found: facts[kind] = found[:8]
     top_words = [w for w, _ in sorted(freq.items(), key=lambda x: -x[1])[:10]]
-    return {'pages': doc.page_count, 'words': len(words), 'headings': heads[:10], 'sentences': [s for _, _, s in best],
-            'facts': facts, 'topics': top_words}
+    out = {'pages': doc.page_count, 'words': len(words), 'headings': heads[:10], 'sentences': [s for _, _, s in best],
+           'facts': facts, 'topics': top_words}
+    doc.close()
+    return out
 
 AI_MODEL = 'claude-opus-5-5'
 
@@ -3706,6 +3709,7 @@ def _ask_claude(path, api_key, question):
     else:
         text = '\n\n'.join(f'--- Page {i + 1} ---\n{doc[i].get_text()}' for i in range(doc.page_count))
         source = {'type': 'text', 'text': 'The document (its text only; it is too big to send whole):\n\n' + text}
+    doc.close()
     response = client.beta.messages.create(
         model=AI_MODEL,
         max_tokens=16000,
@@ -3762,6 +3766,7 @@ def _ask_gemini(path, api_key, question, system):
     else:
         text = '\n\n'.join(f'--- Page {i + 1} ---\n{doc[i].get_text()}' for i in range(doc.page_count))[:2500000]
         source = {'text': 'The document (its text only; it is too big to send whole):\n\n' + text}
+    doc.close()
     body = {'system_instruction': {'parts': [{'text': system}]},
             'contents': [{'role': 'user', 'parts': [source, {'text': question}]}],
             'generationConfig': {'maxOutputTokens': 16000}}
@@ -3811,9 +3816,14 @@ def summarize():
         if d.get('language') and d['language'] != 'English': q += f"\n\nWrite the answer in {d['language']}."
         if d.get('provider') == 'gemini':
             return jsonify(_ask_gemini(d['filepath'], d['api_key'], q, AI_SYSTEM))
+        if d.get('provider') in CHAT_SERVICES:
+            return jsonify(_ask_chat(d['provider'], d['filepath'], d['api_key'], q, AI_SYSTEM))
         return jsonify(_ask_claude(d['filepath'], d['api_key'], q))
     except GeminiError as e:
         msg, code = _gemini_error(e)
+        return jsonify({'error': msg}), code
+    except ChatError as e:
+        msg, code = _chat_error(d.get('provider'), e)
         return jsonify({'error': msg}), code
     except Exception as e:
         try:
@@ -3827,6 +3837,325 @@ def summarize():
         except ImportError: pass
         return jsonify({'error': str(e)}), 500
 
+# ---------- ChatGPT (OpenAI) and Grok (xAI): the same kind of service, each with the person's own key ----------
+OPENAI_URL = os.environ.get('MYPDFKIT_OPENAI_URL', 'https://api.openai.com')
+XAI_URL = os.environ.get('MYPDFKIT_XAI_URL', 'https://api.x.ai')
+_chat_models = {}
+
+class ChatError(Exception): pass
+
+def _chat_call(base, method, path, key, body=None, timeout=300):
+    import urllib.request, urllib.error
+    req = urllib.request.Request(base + path, method=method, data=json.dumps(body).encode() if body is not None else None,
+                                 headers={'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json'})
+    try:
+        return json.loads(urllib.request.urlopen(req, timeout=timeout).read())
+    except urllib.error.HTTPError as e:
+        try: err = json.loads(e.read()).get('error', {}); msg = err.get('message', '') if isinstance(err, dict) else str(err)
+        except Exception: msg = ''
+        raise ChatError((e.code, msg))
+    except (urllib.error.URLError, OSError):
+        raise ChatError((0, ''))
+
+CHAT_SERVICES = {
+    # newest everyday model first; the names change often, so they're looked up from the service
+    'openai': {'name': 'ChatGPT', 'base': lambda: OPENAI_URL, 'tokens': 'max_completion_tokens', 'site': 'platform.openai.com',
+               'pick': [r'gpt-(\d+(?:\.\d+)?)-mini', r'gpt-(\d+(?:\.\d+)?)'], 'fallback': ['gpt-5-mini', 'gpt-4o-mini']},
+    'xai': {'name': 'Grok', 'base': lambda: XAI_URL, 'tokens': 'max_tokens', 'site': 'console.x.ai',
+            'pick': [r'grok-(\d+(?:\.\d+)?)-fast(?:-non-reasoning)?', r'grok-(\d+(?:\.\d+)?)(?:-mini)?'], 'fallback': ['grok-4-fast', 'grok-3-mini']},
+}
+
+def _chat_candidates(svc, key):
+    c = CHAT_SERVICES[svc]
+    if (svc, key) in _chat_models: return _chat_models[(svc, key)]
+    names = []
+    try:
+        ids = [m.get('id', '') for m in _chat_call(c['base'](), 'GET', '/v1/models', key, timeout=30).get('data', [])]
+        for pat in c['pick']:
+            hits = sorted(((float(re.fullmatch(pat, i).group(1)), i) for i in ids if re.fullmatch(pat, i)), reverse=True)
+            names += [i for _, i in hits if i not in names]
+    except ChatError as e:
+        if e.args[0][0] in (401, 403): raise
+    _chat_models[(svc, key)] = (names or c['fallback'])[:3]
+    return _chat_models[(svc, key)]
+
+def _ask_chat(svc, path, api_key, question, system):
+    c = CHAT_SERVICES[svc]
+    doc = fitz.open(path)
+    text = '\n\n'.join(f'--- Page {i + 1} ---\n{doc[i].get_text()}' for i in range(doc.page_count))[:400000]
+    doc.close()   # never keep the file locked
+    last = None
+    for model in _chat_candidates(svc, api_key):
+        body = {'model': model, c['tokens']: 8000,
+                'messages': [{'role': 'system', 'content': system},
+                             {'role': 'user', 'content': 'The document:\n\n' + text + '\n\n' + question}]}
+        try:
+            r = _chat_call(c['base'](), 'POST', '/v1/chat/completions', api_key, body)
+        except ChatError as e:
+            last = e
+            if e.args[0][0] in (404, 429, 500, 503) or (e.args[0][0] == 400 and 'model' in e.args[0][1].lower()): continue
+            raise
+        ch = (r.get('choices') or [{}])[0]
+        answer = ((ch.get('message') or {}).get('content') or '').strip()
+        if not answer: return {'error': f"{c['name']} couldn't help with this one."}
+        if ch.get('finish_reason') == 'length': answer += '\n\n(The answer was cut short.)'
+        return {'answer': answer, 'model': model}
+    raise last or ChatError((0, ''))
+
+def _chat_error(svc, e):
+    c = CHAT_SERVICES[svc]; code, msg = e.args[0]
+    if code == 0: return f"Couldn't reach {c['name']}. Check the internet connection", 502
+    if code in (401, 403): return f"That {c['name']} key wasn't accepted. Check it at {c['site']}", 400
+    if code == 429: return f"{c['name']} says the account is out of credit or busy. Check it at {c['site']}, or try again in a minute", 429
+    if code == 400: return f"{c['name']} couldn't read this file: {msg[:200]}", 400
+    return f"{c['name']} had a problem ({code}). Try again later", 502
+
+# ---------- the built-in AI: a small model that runs on this PC (no internet, nothing leaves the computer) ----------
+# llama.cpp's llama-server runs the model; it starts on first use, is closed after 10 idle minutes, and is tied
+# to this engine (a Windows job), so it can never be left running when the app closes or crashes.
+_here = os.path.dirname(sys.executable if getattr(sys, 'frozen', False) else os.path.abspath(__file__))
+
+def _local_ai_dirs():
+    return [d for d in [os.environ.get('MYPDFKIT_AI_DIR'),
+                        os.path.join(os.environ.get('PROGRAMDATA', r'C:\ProgramData'), 'MyPDFKit', 'ai'),   # the full installer puts it here
+                        os.path.join(os.environ.get('LOCALAPPDATA', ''), 'MyPDFKit', 'ai'),                # downloaded by the Lite version
+                        os.path.join(_here, '..', 'ai'), os.path.join(_here, 'vendor', 'ai')] if d]
+
+def _local_model():
+    for d in _local_ai_dirs():
+        try:
+            g = sorted((f for f in os.listdir(d) if f.lower().endswith('.gguf')), key=lambda f: -os.path.getsize(os.path.join(d, f)))
+            if g and os.path.getsize(os.path.join(d, g[0])) > 100 * 1024 * 1024: return os.path.join(d, g[0])
+        except OSError: continue
+    return None
+
+def _llama_exe():
+    for d in [os.environ.get('MYPDFKIT_LLAMA_DIR'), os.path.join(_here, '..', 'llama'), os.path.join(_here, 'vendor', 'llama')]:
+        if d and os.path.isfile(os.path.join(d, 'llama-server.exe')): return os.path.abspath(os.path.join(d, 'llama-server.exe'))
+    return None
+
+LOCAL_AI = {'proc': None, 'port': None, 'last': 0.0, 'job': None, 'model': None}
+_local_lock = threading.Lock()
+LOCAL_CTX = 16384
+
+def _free_port():
+    import socket
+    with socket.socket() as so:
+        so.bind(('127.0.0.1', 0)); return so.getsockname()[1]
+
+def _local_ai_up():
+    """Start the model if it isn't running, and wait until it's ready (loading takes a few seconds)."""
+    import urllib.request
+    with _local_lock:
+        pr = LOCAL_AI['proc']
+        if pr and pr.poll() is None:
+            LOCAL_AI['last'] = _time.time(); return LOCAL_AI['port']
+        exe, model = _llama_exe(), _local_model()
+        if not exe or not model: raise RuntimeError('The built-in AI is not installed')
+        port = _free_port()
+        logical = int(os.environ.get('MYPDFKIT_AI_THREADS') or 0) or os.cpu_count() or 4   # (the test of a slow PC sets it)
+        args = [exe, '-m', model, '--host', '127.0.0.1', '--port', str(port), '-c', str(LOCAL_CTX),
+                '-t', str(max(2, logical // 2)), '-tb', str(logical), '-ub', '512',
+                '-np', '1', '--jinja', '-rea', 'off', '-fa', 'on', '--no-webui']
+        pr = subprocess.Popen(args, cwd=os.path.dirname(exe), stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                              stderr=open(os.path.join(TEMP_DIR, 'ai.log'), 'w'), creationflags=0x08000000)
+        try:   # tie it to this engine: when the engine ends for any reason, Windows ends the model too
+            import win32job, win32api, win32con
+            if not LOCAL_AI['job']:
+                job = win32job.CreateJobObject(None, '')
+                info = win32job.QueryInformationJobObject(job, win32job.JobObjectExtendedLimitInformation)
+                info['BasicLimitInformation']['LimitFlags'] |= win32job.JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+                win32job.SetInformationJobObject(job, win32job.JobObjectExtendedLimitInformation, info)
+                LOCAL_AI['job'] = job
+            h = win32api.OpenProcess(win32con.PROCESS_SET_QUOTA | win32con.PROCESS_TERMINATE, False, pr.pid)
+            win32job.AssignProcessToJobObject(LOCAL_AI['job'], h)
+        except Exception as e:
+            print('[ai] job:', e, flush=True)
+        LOCAL_AI.update(proc=pr, port=port, last=_time.time(), model=model)
+        for _ in range(240):   # up to 2 minutes on a slow PC
+            if pr.poll() is not None: raise RuntimeError('The built-in AI could not start on this PC')
+            try:
+                if json.loads(urllib.request.urlopen(f'http://127.0.0.1:{port}/health', timeout=2).read()).get('status') == 'ok': return port
+            except Exception: pass
+            _time.sleep(0.5)
+        raise RuntimeError('The built-in AI took too long to start')
+
+def _local_ai_down():
+    pr = LOCAL_AI.get('proc')
+    if pr and pr.poll() is None:
+        try: pr.kill()
+        except Exception: pass
+    LOCAL_AI['proc'] = None
+
+def _local_ai_idle_watch():
+    while True:
+        _time.sleep(30)
+        if LOCAL_AI['proc'] and not LOCAL_AI.get('busy') and _time.time() - LOCAL_AI['last'] > 600: _local_ai_down()
+threading.Thread(target=_local_ai_idle_watch, daemon=True).start()
+
+def _passages(doc):
+    """The document in short pieces, each with its page."""
+    out = []
+    for i in range(doc.page_count):
+        t = re.sub(r'[ \t]+', ' ', doc[i].get_text()).strip()
+        for para in re.split(r'\n\s*\n', t):
+            para = re.sub(r'\s*\n\s*', ' ', para).strip()
+            if len(para) < 3: continue
+            while para:
+                cut = para[:1200]
+                if len(para) > 1200 and ' ' in cut: cut = cut[:cut.rfind(' ')]
+                out.append((i + 1, cut)); para = para[len(cut):].strip()
+    return out
+
+def _local_context(path, question, budget):
+    """What the small model reads: the whole document when it fits; otherwise the pieces that matter most
+    (for a summary, the most telling ones spread through the document; for a question, the ones about it)."""
+    doc = fitz.open(path)
+    ps = _passages(doc); count = doc.page_count; doc.close()
+    whole = '\n'.join(f'[p.{pg}] {t}' for pg, t in ps)
+    sample = whole[:20000]
+    wide = sum(1 for ch in sample if ord(ch) > 0x2E80) / max(1, len(sample))   # Chinese, Japanese, Korean: about one piece per letter
+    budget = int(budget / (1 + 2.5 * wide))
+    if len(whole) <= budget: return whole, count, False
+    words = lambda t: [w.lower() for w in re.findall(r"[A-Za-z0-9][A-Za-z0-9'\-]{2,}", t) if w.lower() not in _STOP]
+    df = {}
+    for _, t in ps:
+        for w in set(words(t)): df[w] = df.get(w, 0) + 1
+    import math
+    n = len(ps)
+    qw = set(words(question or ''))
+    def score(t):
+        ws = words(t)
+        if not ws: return 0
+        if qw: return sum(math.log(1 + n / df[w]) for w in set(ws) if w in qw)
+        freq = {}
+        for w in ws: freq[w] = freq.get(w, 0) + 1
+        return sum(math.log(1 + df[w]) for w in set(ws)) / (len(ws) ** 0.5) + (3 if re.search(r'[$€£]\s?\d|\d{4}', t) else 0)
+    picked, used = set(), 0
+    if qw:
+        order = sorted(range(n), key=lambda i: -score(ps[i][1]))
+    else:   # the best piece of each stretch of the document, so the summary covers all of it
+        parts = max(1, budget // 900)
+        order, seen = [], set()
+        for i in sorted(range(n), key=lambda i: -score(ps[i][1])):
+            part = i * parts // n
+            if part not in seen: seen.add(part); order.append(i)
+        order += [i for i in sorted(range(n), key=lambda i: -score(ps[i][1])) if i not in order]
+        # the start says what the document is
+        order = list(range(min(3, n))) + [i for i in order if i >= 3]
+    for i in order:
+        L = len(ps[i][1]) + 12
+        if used + L > budget: continue
+        picked.add(i); used += L
+    return '\n'.join(f'[p.{ps[i][0]}] {ps[i][1]}' for i in sorted(picked)), count, True
+
+LOCAL_DENSE = ("Write a dense summary of the document above. Every line must carry a fact; no filler.\n"
+               "Start with one sentence: what the document is, who it's from and for, and its date.\n"
+               "Then **Key points**: up to 10 short bullets with the important facts, numbers, names, decisions and rules, each with its page like (p. 3).\n"
+               "Then **To do**: deadlines, amounts owed and actions required, with pages. Leave it out if there are none.")
+AI_JOBS = {}
+
+# how much of a long document the small model reads: enough to be right, little enough to be quick
+# (on a 6-core PC from 2018 it reads about 600 characters a second)
+LOCAL_BUDGET_SUMMARY, LOCAL_BUDGET_QUESTION = 12000, 7000
+LOCAL_SYSTEM = ("You help someone with a PDF they have open. Answer straight away: no greeting, no praise, no filler. "
+                "Be brief and exact; use short bullets when they help. Use only what the document says. "
+                "Mention the page of a fact like (p. 3), at most two pages per point.")
+
+def _local_messages(context, pages, partial, ask):
+    head = f'The document ({pages} pages' + ('; it is long, so these are its most relevant parts, each marked with its page' if partial else '') + '):\n\n'
+    return [{'role': 'system', 'content': LOCAL_SYSTEM}, {'role': 'user', 'content': head + context + '\n\n---\n\n' + ask}]
+
+def _local_context_for(path, question, dense):
+    return _local_context(path, None if dense else question, LOCAL_BUDGET_SUMMARY if dense else LOCAL_BUDGET_QUESTION)
+
+def _local_run(job, path, question, dense, language):
+    import urllib.request
+    try:
+        job['stage'] = 'Starting the built-in AI…'
+        ctx = {}
+        reader = threading.Thread(target=lambda: ctx.update(r=_local_context_for(path, question, dense)))
+        reader.start()   # picks what to read while the model starts
+        port = _local_ai_up()
+        LOCAL_AI['busy'] = True
+        job['stage'] = 'Reading the document…'
+        reader.join()
+        context, pages, partial = ctx['r']
+        ask = LOCAL_DENSE if dense else question
+        if language and language != 'English': ask += f"\nWrite the answer in {language}."
+        body = {'messages': _local_messages(context, pages, partial, ask),
+                'max_tokens': 900 if dense else 700, 'temperature': 0.2, 'top_p': 0.9, 'stream': True, 'cache_prompt': True,
+                'chat_template_kwargs': {'enable_thinking': False}}
+        req = urllib.request.Request(f'http://127.0.0.1:{port}/v1/chat/completions', data=json.dumps(body).encode(),
+                                     headers={'Content-Type': 'application/json'})
+        resp = urllib.request.urlopen(req, timeout=1800)
+        job['stage'] = 'Writing…'
+        for raw in resp:
+            if job['cancel']: resp.close(); break
+            line = raw.decode('utf-8', 'replace').strip()
+            if not line.startswith('data:'): continue
+            data = line[5:].strip()
+            if data == '[DONE]': break
+            try: d = json.loads(data)
+            except ValueError: continue
+            ch = (d.get('choices') or [{}])[0]
+            piece = (ch.get('delta') or {}).get('content') or ''
+            if piece: job['text'] += piece; job['stage'] = 'Writing…'
+            elif (ch.get('delta') or {}).get('reasoning_content'): job['stage'] = 'Thinking…'
+            if ch.get('finish_reason') == 'length': job['text'] += '\n\n(The answer was cut short.)'
+        job['text'] = re.sub(r'(?s)<think>.*?</think>\s*', '', job['text']).strip()
+        if not job['text'] and not job['cancel']: job['error'] = "The built-in AI didn't write anything. Try asking another way."
+    except Exception as e:
+        job['error'] = str(e) if isinstance(e, RuntimeError) else f'The built-in AI had a problem ({str(e)[:160]})'
+    finally:
+        LOCAL_AI['busy'] = False; LOCAL_AI['last'] = _time.time()
+        job['finished'] = True
+
+@app.route('/ai_local_info', methods=['POST'])
+def ai_local_info():
+    m = _local_model()
+    return jsonify({'ready': bool(m and _llama_exe()), 'engine': bool(_llama_exe()), 'model': m,
+                    'download_dir': os.path.join(os.environ.get('LOCALAPPDATA', ''), 'MyPDFKit', 'ai')})
+
+def _local_warm(path):
+    import urllib.request
+    try:
+        port = _local_ai_up()
+        if not path or LOCAL_AI.get('busy'): return
+        context, pages, partial = _local_context_for(path, '', True)
+        if partial: return   # a long document is read per question; nothing to get ready
+        body = {'messages': _local_messages(context, pages, partial, ''), 'max_tokens': 1, 'cache_prompt': True,
+                'chat_template_kwargs': {'enable_thinking': False}}
+        LOCAL_AI['busy'] = True
+        urllib.request.urlopen(urllib.request.Request(f'http://127.0.0.1:{port}/v1/chat/completions', data=json.dumps(body).encode(),
+                                                      headers={'Content-Type': 'application/json'}), timeout=600).read()
+    except Exception as e:
+        print('[ai] warm:', e, flush=True)
+    finally:
+        LOCAL_AI['busy'] = False; LOCAL_AI['last'] = _time.time()
+
+@app.route('/ai_warm', methods=['POST'])
+def ai_warm():
+    if not (_local_model() and _llama_exe()): return jsonify({'ready': False})
+    threading.Thread(target=_local_warm, args=((request.json or {}).get('filepath'),), daemon=True).start()
+    return jsonify({'ready': True})
+
+@app.route('/ai_start', methods=['POST'])
+def ai_start():
+    d = request.json
+    jid = uuid.uuid4().hex
+    AI_JOBS[jid] = job = {'text': '', 'stage': 'Starting…', 'finished': False, 'cancel': False, 'error': None}
+    threading.Thread(target=_local_run, args=(job, d['filepath'], d.get('question') or '', bool(d.get('dense')) or not d.get('question'),
+                                              d.get('language')), daemon=True).start()
+    return jsonify({'id': jid})
+
+@app.route('/ai_status', methods=['POST'])
+def ai_status():
+    job = AI_JOBS.get(request.json['id'])
+    if not job: return jsonify({'error': 'No such job', 'finished': True}), 404
+    if request.json.get('cancel'): job['cancel'] = True
+    return jsonify(job)
+
 @app.route('/is_scanned', methods=['POST'])
 def is_scanned():
     """A scan: the first pages are pictures with no text to select or search."""
@@ -3839,8 +4168,10 @@ def is_scanned():
 
 @app.route('/shutdown', methods=['POST'])
 def shutdown():
-    """The app is closing: close the hidden Word (nothing else is left running)."""
+    """The app is closing: close the hidden Word and the built-in AI (nothing else is left running)."""
     try: OFFICE.shutdown()
+    except Exception: pass
+    try: _local_ai_down()
     except Exception: pass
     return jsonify({"success": True})
 
@@ -6061,6 +6392,8 @@ def _exit_with_parent():
         return
     k.WaitForSingleObject(h, 0xFFFFFFFF)
     try: OFFICE.shutdown()
+    except Exception: pass
+    try: _local_ai_down()
     except Exception: pass
     os._exit(0)
 

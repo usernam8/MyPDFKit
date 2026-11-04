@@ -1,6 +1,6 @@
 {
   "name": "my-pdf-kit",
-  "version": "1.8.2",
+  "version": "1.9.0",
   "description": "Modern PDF Editor",
   "author": "usernam8",
   "main": "main.js",
@@ -45,12 +45,16 @@
       "include": "build/installer.nsh",
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
-      "artifactName": "MyPDFKit-Setup-${version}.${ext}"
+      "artifactName": "MyPDFKit-Lite-Setup-${version}.${ext}"
     },
     "extraResources": [
       {
         "from": "dist/server",
         "to": "server"
+      },
+      {
+        "from": "vendor/llama",
+        "to": "llama"
       }
     ],
     "publish": [

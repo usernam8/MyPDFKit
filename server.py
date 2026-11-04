@@ -3627,6 +3627,130 @@ def cleanup():
         except OSError: continue   # open in another program: next time
     return jsonify({"success": True, "removed": removed, "freed_mb": round(freed / 1048576, 1)})
 
+# ---------- summaries and questions ----------
+# A free summary made here (nothing leaves the PC): the sentences that carry the document's main words, plus
+# the facts in it (dates, amounts, emails, phone numbers). With the person's own Claude API key it can also
+# ask Claude: a written summary, or an answer to any question about the file (translation included).
+_STOP = set('''a an and are as at be been but by can could did do does for from had has have he her his i if in
+into is it its may might more most must no not of on or our she should so such than that the their them then
+there these they this those to was we were what when where which while who will with would you your also any
+all each other only very about after before over under up out per page pages'''.split())
+
+def _doc_text(path, limit_pages=400):
+    doc = fitz.open(path)
+    return doc, [doc[i].get_text() for i in range(min(doc.page_count, limit_pages))]
+
+def _offline_summary(path, max_sentences=7):
+    doc, pages = _doc_text(path)
+    text = '\n'.join(pages)
+    words = re.findall(r"[A-Za-z][A-Za-z'\-]{2,}", text)
+    if len(words) < 20:
+        return {'empty': True, 'pages': doc.page_count}
+    freq = {}
+    for w in words:
+        k = w.lower()
+        if k not in _STOP: freq[k] = freq.get(k, 0) + 1
+    top = max(freq.values())
+    flat = re.sub(r'\s+', ' ', text)
+    sentences = [s.strip() for s in re.split(r'(?<=[.!?])\s+(?=[A-Z0-9"(])', flat) if 40 <= len(s.strip()) <= 400]
+    scored = []
+    for i, s in enumerate(sentences):
+        ws = [w.lower() for w in re.findall(r"[A-Za-z][A-Za-z'\-]{2,}", s)]
+        if len(ws) < 6: continue
+        score = sum(freq.get(w, 0) / top for w in ws if w not in _STOP) / (len(ws) ** 0.6)
+        scored.append((score, i, s))
+    picked, seen = [], set()
+    for sc in sorted(scored, reverse=True):
+        key = sc[2].lower()
+        if key in seen: continue
+        seen.add(key); picked.append(sc)
+        if len(picked) >= max_sentences: break
+    best = sorted(picked, key=lambda x: x[1])
+    # the document's headings: its largest text
+    sizes = []
+    for pg in doc.pages(0, min(doc.page_count, 30)):
+        for b in pg.get_text('dict')['blocks']:
+            for l in b.get('lines', []):
+                t = ''.join(s['text'] for s in l['spans']).strip()
+                if 3 <= len(t) <= 90 and l['spans']: sizes.append((max(s['size'] for s in l['spans']), t))
+    body = sorted(s for s, _ in sizes)[len(sizes) // 2] if sizes else 0
+    heads = []
+    for s, t in sizes:
+        if s >= body * 1.35 and t not in heads: heads.append(t)
+    facts = {}
+    for kind in ('date', 'money', 'email', 'phone'):
+        found = []
+        for m in re.finditer(REDACT_PATTERNS[kind], flat):
+            v = m.group(0).strip()
+            if v not in found: found.append(v)
+        if found: facts[kind] = found[:8]
+    top_words = [w for w, _ in sorted(freq.items(), key=lambda x: -x[1])[:10]]
+    return {'pages': doc.page_count, 'words': len(words), 'headings': heads[:10], 'sentences': [s for _, _, s in best],
+            'facts': facts, 'topics': top_words}
+
+AI_MODEL = 'claude-opus-5-5'
+
+def _ask_claude(path, api_key, question):
+    """Claude reads the PDF (pages and pictures, up to 600 pages) and answers; falls back to the text when the
+    file is too big to send whole."""
+    import anthropic
+    client = anthropic.Anthropic(api_key=api_key, max_retries=2, timeout=300)
+    size = os.path.getsize(path)
+    doc = fitz.open(path)
+    if size <= 30 * 1024 * 1024 and doc.page_count <= 600:
+        source = {'type': 'document', 'source': {'type': 'base64', 'media_type': 'application/pdf',
+                  'data': base64.standard_b64encode(open(path, 'rb').read()).decode('ascii')}}
+    else:
+        text = '\n\n'.join(f'--- Page {i + 1} ---\n{doc[i].get_text()}' for i in range(doc.page_count))
+        source = {'type': 'text', 'text': 'The document (its text only; it is too big to send whole):\n\n' + text}
+    response = client.beta.messages.create(
+        model=AI_MODEL,
+        max_tokens=16000,
+        betas=['server-side-fallback-2026-07-01'],
+        fallbacks='default',
+        system=("You help someone with a PDF they have open in MyPDFKit. Answer in plain, friendly language, in the "
+                "language they write in unless they ask for another. Be concise; use short lists when they help. "
+                "When you mention something from the document, say which page it's on."),
+        messages=[{'role': 'user', 'content': [source, {'type': 'text', 'text': question}]}],
+    )
+    if response.stop_reason == 'refusal':
+        return {'error': "Claude couldn't help with this one."}
+    answer = '\n'.join(b.text for b in response.content if b.type == 'text').strip()
+    if response.stop_reason == 'max_tokens': answer += '\n\n(The answer was cut short.)'
+    return {'answer': answer, 'model': response.model}
+
+@app.route('/summarize', methods=['POST'])
+def summarize():
+    d = request.json
+    try:
+        if d.get('mode') != 'ai':
+            return jsonify(_offline_summary(d['filepath']))
+        if not d.get('api_key'): return jsonify({'error': 'Add your Claude API key first'}), 400
+        q = d.get('question') or ('Summarize this document: what it is, the main points, and anything someone needs to do '
+                                  '(dates, amounts, deadlines). Keep it short.')
+        return jsonify(_ask_claude(d['filepath'], d['api_key'], q))
+    except Exception as e:
+        try:
+            import anthropic
+            if isinstance(e, anthropic.AuthenticationError): return jsonify({'error': "That Claude API key wasn't accepted. Check it in console.anthropic.com"}), 400
+            if isinstance(e, anthropic.PermissionDeniedError): return jsonify({'error': "That API key isn't allowed to use Claude. Check its workspace in console.anthropic.com"}), 400
+            if isinstance(e, anthropic.RateLimitError): return jsonify({'error': 'Claude is busy right now (or your account hit its limit). Try again in a minute'}), 429
+            if isinstance(e, anthropic.BadRequestError): return jsonify({'error': f"Claude couldn't read this file: {e.message}"}), 400
+            if isinstance(e, anthropic.APIStatusError): return jsonify({'error': f'Claude had a problem ({e.status_code}). Try again later'}), 502
+            if isinstance(e, anthropic.APIConnectionError): return jsonify({'error': "Couldn't reach Claude. Check the internet connection"}), 502
+        except ImportError: pass
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/is_scanned', methods=['POST'])
+def is_scanned():
+    """A scan: the first pages are pictures with no text to select or search."""
+    try:
+        doc = fitz.open(request.json['filepath'])
+        pages = [doc[i] for i in range(min(3, doc.page_count))]
+        scanned = bool(pages) and all(not p.get_text('words') and p.get_images() for p in pages)
+        return jsonify({'scanned': scanned})
+    except Exception as e: return jsonify({'scanned': False, 'error': str(e)})
+
 @app.route('/shutdown', methods=['POST'])
 def shutdown():
     """The app is closing: close the hidden Word (nothing else is left running)."""

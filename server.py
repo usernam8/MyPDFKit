@@ -5127,15 +5127,26 @@ def print_prepare():
     """The sheets to print, as a PDF (the preview shows exactly these)."""
     d = request.json
     try:
-        out, plan, skipped = _sheets(d)
-        if not out.page_count: return jsonify({'error': 'Nothing to print on the pages chosen', 'skipped': skipped}), 400
         files = d.get('files') or [d['filepath']]
         path = os.path.join(TEMP_DIR, 'sheets_' + hashlib.md5((json.dumps(d, sort_keys=True) + ''.join(str(os.path.getmtime(f)) for f in files)).encode()).hexdigest() + '.pdf')
-        out.save(path, garbage=3, deflate=True)
+        if os.path.exists(path) and os.path.exists(path + '.json'):   # the same settings again: the sheets are already made
+            with open(path + '.json', encoding='utf-8') as f: return jsonify(json.load(f))
+        out, plan, skipped = _sheets(d)
+        if not out.page_count: return jsonify({'error': 'Nothing to print on the pages chosen', 'skipped': skipped}), 400
+        out.save(path, garbage=1, deflate=True)
         sizes = [[round(p.rect.width, 2), round(p.rect.height, 2)] for p in out]
-        return jsonify({'path': path, 'sheets': [{'page': n, 'rect': list(r) if r else None} for n, r in plan], 'skipped': skipped, 'sizes': sizes,
-                        'count': getattr(out, 'item_count', len(plan))})
+        info = {'path': path, 'sheets': [{'page': n, 'rect': list(r) if r else None} for n, r in plan], 'skipped': skipped, 'sizes': sizes,
+                'count': getattr(out, 'item_count', len(plan))}
+        with open(path + '.json', 'w', encoding='utf-8') as f: json.dump(info, f)
+        return jsonify(info)
     except Exception as e: return jsonify({'error': str(e)}), 500
+
+def _is_gray(page):
+    """No color on the page (checked on a tiny picture of it)."""
+    import numpy as np
+    pix = page.get_pixmap(dpi=24)
+    a = np.frombuffer(pix.samples, np.uint8).reshape(-1, pix.n)[:, :3].astype(np.int16)
+    return bool(np.abs(a[:, 0] - a[:, 1]).max() < 12 and np.abs(a[:, 1] - a[:, 2]).max() < 12)
 
 @app.route('/print_render', methods=['POST'])
 def print_render():
@@ -5152,9 +5163,11 @@ def print_render():
         for i in order:
             p = doc[i]
             f = os.path.join(out, f'{i + 1}.png')
-            pix = p.get_pixmap(dpi=dpi, colorspace=fitz.csGRAY if d.get('bw') or d.get('toner') else fitz.csRGB)
+            # a page with no color is made in gray: a third of the data, so it's written about 4 times faster
+            gray = d.get('bw') or d.get('toner') or _is_gray(p)
+            pix = p.get_pixmap(dpi=dpi, colorspace=fitz.csGRAY if gray else fitz.csRGB)
             if d.get('toner'): pix.tint_with(0x6E6E6E, 0xFFFFFF)   # black prints as mid gray: about half the toner
-            pix.save(f)
+            Image.frombytes('L' if gray else 'RGB', (pix.width, pix.height), pix.samples).save(f, compress_level=1)   # light, fast, lossless
             pages.append({'path': f, 'w': p.rect.width, 'h': p.rect.height})
         return jsonify({'success': True, 'pages': pages, 'total': doc.page_count})
     except Exception as e: return jsonify({'error': str(e)}), 500
@@ -5219,7 +5232,41 @@ async def _ocr_png(png):
     engine = OcrEngine.try_create_from_user_profile_languages()
     if engine is None: raise RuntimeError("Windows text recognition isn't available. Add a language with OCR in Windows Settings.")
     res = await engine.recognize_async(bmp)
-    return [(wd.text, wd.bounding_rect) for line in res.lines for wd in line.words]
+    return [(wd.text, wd.bounding_rect, li) for li, line in enumerate(res.lines) for wd in line.words]
+
+_CASE_TWINS = set('cosuvwxz')   # small letters shaped like their capitals: only their height tells them apart
+
+def _fix_case(found, pix):
+    """Windows' text recognition sometimes reads a capital C, O, S, U, V, W, X or Z as small. Its height on
+    the page says which it is: a capital reaches as high as the other capitals and tall letters on its line."""
+    w, h, sam = pix.width, pix.height, pix.samples
+    def ink_rows(x0, x1, y0, y1):
+        x0, x1, y0, y1 = max(0, int(x0)), min(w, int(x1)), max(0, int(y0)), min(h, int(y1))
+        rows = [y for y in range(y0, y1) if min(sam[y * w + x0:y * w + x1] or b'\xff') < 128]
+        return (rows[0], rows[-1]) if rows else None
+    lines = {}
+    for i, (t, r, li) in enumerate(found): lines.setdefault(li, []).append(i)
+    out = [t for t, _, _ in found]
+    for li, idx in lines.items():
+        # how tall capitals and tall letters stand on this line (from words that have them)
+        tall = []
+        for i in idx:
+            t, r, _ = found[i]
+            if any(ch.isupper() or ch.isdigit() or ch in 'bdfhklt' for ch in t):
+                ink = ink_rows(r.x, r.x + r.width, r.y, r.y + r.height)
+                if ink: tall.append(ink)
+        if not tall: continue
+        top = sorted(a for a, b in tall)[len(tall) // 2]
+        for i in idx:
+            t, r, _ = found[i]
+            if len(t) < 2 or t[0] not in _CASE_TWINS or not t[1:2].isalpha(): continue
+            fw = r.width / len(t)          # about one letter wide
+            ink = ink_rows(r.x, r.x + fw * 0.9, r.y, r.y + r.height)
+            if not ink: continue
+            base = ink[1]
+            x_h = base - ink[0]; cap = base - top
+            if cap > 0 and x_h / cap > 0.86: out[i] = t[0].upper() + t[1:]
+    return out
 
 @app.route('/ocr', methods=['POST'])
 def ocr_pdf():
@@ -5231,11 +5278,21 @@ def ocr_pdf():
     try:
         doc = fitz.open(fp)
         done = words = 0
-        for page in doc:
-            if len(page.get_text().strip()) >= 20: continue
-            dpi = 300; k = 72 / dpi
-            found = asyncio.run(_ocr_png(page.get_pixmap(dpi=dpi).tobytes('png')))
-            for text, r in found:
+        todo = [page.number for page in doc if len(page.get_text().strip()) < 20]
+        dpi = 300; k = 72 / dpi
+        # pictures of the pages, then all of them read at once (several pages in parallel)
+        pixes = {n: doc[n].get_pixmap(dpi=dpi, colorspace=fitz.csGRAY) for n in todo}
+        async def read_all():
+            sem = asyncio.Semaphore(6)
+            async def one(n):
+                async with sem: return n, await _ocr_png(pixes[n].tobytes('png'))
+            return dict(await asyncio.gather(*(one(n) for n in todo)))
+        results = asyncio.run(read_all()) if todo else {}
+        for n in todo:
+            page = doc[n]
+            found = results[n]
+            texts = _fix_case(found, pixes[n])
+            for text, (_, r, _) in zip(texts, found):
                 x0, y0, w, h = r.x * k, r.y * k, r.width * k, r.height * k
                 size = min(w / max(fitz.get_text_length(text, fontname='helv', fontsize=1), 0.01), h * 1.3)
                 page.insert_text((x0, y0 + h * 0.85), text, fontsize=max(1, size), fontname='helv', render_mode=3)

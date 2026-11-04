@@ -17,7 +17,8 @@ def check(name, ok, info=''):
 
 print('OCR accuracy')
 TRUTH = ['PACKING LIST 2026 Order 4471', 'Ship to: Maria Lopez, 8402 Main Street', 'Cartons 16  Units 249  Weight 523 kg',
-         'Style DR3775 Color BLACK Size M', 'Thank you for your business']
+         'Style DR3775 Color BLACK Size M', 'Thank you for your business',
+         'some soft cotton socks were sold out', 'Ocean View Suite with very warm water', 'call us on weekdays or visit our store']
 for dpi, label in ((300, 'a clean 300 dpi scan'), (150, 'a rough 150 dpi scan')):
     src = pymupdf.open(); p = src.new_page(width=612, height=792)
     for i, line in enumerate(TRUTH): p.insert_text((72, 100 + i * 40), line, fontname='helv', fontsize=16)
@@ -29,7 +30,7 @@ for dpi, label in ((300, 'a clean 300 dpi scan'), (150, 'a rough 150 dpi scan'))
     want = ' '.join(TRUTH).split()
     have = got.split()
     hits = sum(1 for w in want if w in have)
-    check(f'reads {label}', hits / len(want) >= 0.95, f'{hits} of {len(want)} words right')
+    check(f'reads {label}, every word exactly', hits == len(want), f'{hits} of {len(want)} words right')
 check('a scan is recognized as one (to offer making it searchable)', c.post('/is_scanned', json={'filepath': f}).get_json().get('scanned') is True)
 
 print('\nLoad speed')

@@ -3,7 +3,7 @@ against PDFium (Chrome's PDF engine).  python tests/print_library.py
 Files: tests/pdfs (real work files, kept off GitHub), tests/samples/pdf, plus ones made here on purpose:
 a scanned page, rotated and landscape pages, mixed sizes, fonts that aren't embedded, a damaged file, a
 password-protected file and a 220-page file."""
-import os, sys, io, time, shutil, tempfile
+import os, sys, io, re, time, shutil, tempfile
 T = os.path.dirname(os.path.abspath(__file__)); ROOT = os.path.dirname(T)
 sys.path.insert(0, ROOT)
 import server, pymupdf, pypdfium2 as pdfium
@@ -149,6 +149,35 @@ for name, path in files.items():
         want = sum(1 for f in fields if f[2] == fname)
         a = mupdf_page(filled, pno); b = pdfium_page(filled, pno, 50 / 72)
         check('fills every copy of a field, shown like Chrome', copies == want and diff(a, b) < LIMIT, f'{copies} of {want} copies, differs by {diff(a, b):.1f}')
+
+# ----- layouts: several per sheet, booklet, poster, sticker sheets, receipts, exact size, a whole batch -----
+print('\nlayouts')
+mixed = files['mixed_sizes.pdf']; L = {'paper': [612, 792], 'printable': [18, 18, 594, 774], 'mode': 'page'}
+def sheets_of(d):
+    r = c.post('/print_prepare', json={**L, **d}).get_json()
+    return (pymupdf.open(r['path']), r) if 'path' in r else (None, r)
+doc, r = sheets_of({'filepath': files['long_220_pages.pdf'], 'pages': list(range(1, 9)), 'layout': 'nup', 'nup': 4})
+check('4 per sheet: 8 pages on 2 sheets', doc and doc.page_count == 2 and len(doc[0].get_text('words')) >= 16, f'{doc.page_count if doc else r}')
+doc, r = sheets_of({'filepath': files['long_220_pages.pdf'], 'pages': list(range(1, 7)), 'layout': 'booklet'})
+order = [[int(x) for x in re.findall(r'Page (\d+) of', p.get_text())] for p in doc] if doc else []
+check('booklet: fold order (8|1, 2|7, 6|3, 4|5; 7 and 8 are empty)', order == [[1], [2], [6, 3], [4, 5]], f'{order}')
+check('booklet: sheets lie sideways', doc and all(p.rect.width > p.rect.height for p in doc))
+doc, r = sheets_of({'filepath': files['landscape.pdf'], 'layout': 'poster', 'cols': 3, 'rows': 3})
+check('poster 3 x 3: nine sheets with cut lines', doc and doc.page_count == 9 and any(dr.get('dashes') for dr in doc[4].get_drawings()), f'{doc.page_count if doc else r}')
+doc, r = sheets_of({'filepath': files['long_220_pages.pdf'], 'pages': list(range(1, 12)), 'layout': 'sheet', 'sheet': '5163', 'start': 3})
+check('sticker sheet (10 per sheet) from sticker 3: 11 items on 2 sheets', doc and doc.page_count == 2 and r['count'] == 11, f'{doc.page_count if doc else r}')
+first = sorted(fitz_rect.y0 for fitz_rect in [pymupdf.Rect(b[:4]) for b in doc[0].get_text('blocks')])[0] if doc else 0
+check('sticker sheet: the first two stickers are left empty', first > 2 * 72, f'first item starts {first / 72:.2f} in down')
+doc, r = sheets_of({'filepath': mixed, 'pages': [3], 'layout': 'receipt', 'paper': [226.77, 1000], 'printable': None})
+check('80 mm receipt: full width, only as long as needed', doc and abs(doc[0].rect.width - 226.77) < 1 and doc[0].rect.height < 1000, f'{doc[0].rect if doc else r}')
+doc, r = sheets_of({'filepath': files['landscape.pdf'], 'scale': 'pct', 'percent': 50, 'orient': 'landscape'})
+blk = pymupdf.Rect(); [blk.include_rect(dr['rect']) for dr in doc[0].get_drawings()]
+check('exact 50%: the page is drawn at half size', doc and abs(max(blk.width, blk.height) - 0.5 * (792 - 72)) < 6, f'{blk.width:.0f} x {blk.height:.0f} pt')
+doc, r = sheets_of({'files': [files['landscape.pdf'], files['rotated.pdf'], files['mixed_sizes.pdf']]})
+check('whole tab: every page of every file', doc and doc.page_count == 1 + 2 + 5, f'{doc.page_count if doc else r}')
+rr = c.post('/print_render', json={'path': r['path'], 'dpi': 100, 'toner': True, 'indices': [2, 0]}).get_json()
+im = Image.open(rr['pages'][0]['path']).convert('L')
+check('toner saver prints black as gray; sheets in the order asked', min(im.getdata()) > 80 and rr['pages'][0]['path'].endswith('3.png'), f'darkest {min(im.getdata())}')
 
 shutil.rmtree(work, ignore_errors=True)
 print(f'\n{sum(results)} of {len(results)} checks passed')

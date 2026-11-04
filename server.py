@@ -1630,7 +1630,7 @@ def fill_form():
                     if w.field_name not in names or w.field_type == fitz.PDF_WIDGET_TYPE_RADIOBUTTON: continue
                     kind, value = names[w.field_name]
                     w.field_value = (w.on_state() if value else 'Off') if kind == 'checkbox' else str(value)
-                    w.update()
+                    _draw_widget(w, doc)
                 except Exception as e: print('field skipped:', w.field_name, e, file=sys.stderr)
         if d.get('flatten'):   # turn the fields into plain page content
             try: doc.bake(annots=False, widgets=True)
@@ -4664,6 +4664,46 @@ def _flag(doc, xref, key='F'):
     try: return int(v) if t == 'int' else 0
     except ValueError: return 0
 
+def _pdf_str(t):
+    return '(' + t.replace('\\', '\\\\').replace('(', '\\(').replace(')', '\\)') + ')'
+
+def _draw_widget(w, doc=None):
+    """Make a field's picture of its value, the way Chrome shows it. PyMuPDF draws the box, but it always puts
+    the text 2 points from the left and ignores the field's alignment (often set on its parent field), so a
+    one-line value is placed here: aligned as the field says, sized to fit when the size is "auto", and in the
+    middle up and down (also in boxes that allow several lines, where it would otherwise touch the top edge)."""
+    doc = doc or w.parent.parent
+    w.update()
+    v = w.field_value
+    if w.field_type != fitz.PDF_WIDGET_TYPE_TEXT or not isinstance(v, str) or not v.strip() or '\n' in v or '\r' in v: return
+    try:
+        v.encode('cp1252')
+    except UnicodeEncodeError: return          # letters Helvetica can't show: keep PyMuPDF's drawing
+    try:
+        t, ref = doc.xref_get_key(w.xref, 'AP/N')
+        if t != 'xref': return
+        ap = int(ref.split()[0]); st = doc.xref_stream(ap).decode('latin-1')
+        bt, et = st.find('BT'), st.rfind('ET')
+        if bt < 0 or et < 0 or st.count(' Tj') != 1: return
+        font = re.search(r'/(\w+) ([\d.]+) Tf', st[bt:et])
+        color = re.search(r'([\d.]+ [\d.]+ [\d.]+ rg|[\d.]+ g)\s', st[bt:et])
+        fname = font.group(1) if font else 'Helv'
+        bw, bh = w.rect.width, w.rect.height
+        size = w.text_fontsize or 0
+        multi = bool(w.field_flags & 4096)
+        one = fitz.get_text_length(v, 'helv', 1)
+        if not size:   # auto: as big as the box allows (12 in boxes for several lines), smaller if it's long
+            size = 12 if multi else min(bh * 0.68, 24)
+        if one * size > bw - 4: size = max(4, (bw - 4) / one)
+        if multi and one * size > bw - 4: return   # it wraps: leave PyMuPDF's lines
+        tw = one * size
+        q = _inherited_q(doc, w.xref)
+        x = 2 if q == 0 else (bw - tw) / 2 if q == 1 else bw - 2 - tw
+        y = (bh - 0.718 * size) / 2            # the capitals' middle on the box's middle
+        text = f"BT\n{color.group(1) if color else '0 g'}\n/{fname} {size:.2f} Tf\n{x:.2f} {y:.2f} Td\n{_pdf_str(v)} Tj\n"
+        doc.update_stream(ap, (st[:bt] + text + st[et:]).encode('latin-1'))
+    except Exception as e: print('field drawing kept as is:', e, file=sys.stderr)
+
 def _fix_widget_looks(doc, everything=False):
     """Fields filled in another app often have no picture of their value (or ask viewers to make one):
     make it, so the value shows and prints everywhere."""
@@ -4677,18 +4717,19 @@ def _fix_widget_looks(doc, everything=False):
             try:
                 if w.field_type in (fitz.PDF_WIDGET_TYPE_BUTTON, fitz.PDF_WIDGET_TYPE_SIGNATURE): continue
                 no_ap = doc.xref_get_key(w.xref, 'AP')[0] == 'null'
-                if (need or no_ap) and w.field_value not in (None, '', 'Off'): w.update()
+                if (need or no_ap) and w.field_value not in (None, '', 'Off'): _draw_widget(w, doc)
             except Exception: continue
 
-def _printable_copy(path):
-    """The document as it prints: field values drawn in, hidden and not-for-print comments and fields left out."""
+def _printable_copy(path, comments=True):
+    """The document as it prints: field values drawn in, hidden and not-for-print comments and fields left out
+    (and every comment, when comments=False)."""
     doc = fitz.open(path)
     if doc.needs_pass: raise ValueError('This PDF is locked with a password')
     _fix_widget_looks(doc)
     for page in doc:
         for a in list(page.annots() or []):
             f = a.flags
-            if f & 2 or not f & 4: page.delete_annot(a)           # hidden, or not marked to print
+            if f & 2 or not f & 4 or not comments: page.delete_annot(a)   # hidden, not marked to print, or comments left out
         for w in list(page.widgets() or []):
             f = _flag(doc, w.xref)
             if f & 2 or not f & 4: page.delete_widget(w)
@@ -4796,51 +4837,166 @@ def content_edges():
         return jsonify({'x': xs, 'y': ys})
     except Exception as e: return jsonify({'error': str(e), 'x': [], 'y': []})
 
-def _place(out, src, n, clip, paper, area, orient, scale):
-    """One sheet: page n of src (or the clip of it, in page coordinates as shown) placed on paper inside the
-    printable area, turned when that's asked or when it fits bigger, centered."""
-    pw, ph = paper
+# Label sheets for Letter paper (Avery and the same sizes from other brands), in inches:
+# label width, height, columns, rows, left margin, top margin, step across, step down
+LABEL_SHEETS = {
+    '5160': ('Address 2⅝ × 1 in, 30 per sheet (5160, 8160)', 2.625, 1, 3, 10, 0.1875, 0.5, 2.75, 1),
+    '5163': ('Shipping 4 × 2 in, 10 per sheet (5163, 8163)', 4, 2, 2, 5, 0.15625, 0.5, 4.1875, 2),
+    '5164': ('Shipping 4 × 3⅓ in, 6 per sheet (5164, 8164)', 4, 3.3333, 2, 3, 0.15625, 0.5, 4.1875, 3.3333),
+    '5168': ('Shipping 3½ × 5 in, 4 per sheet (5168, 8168)', 3.5, 5, 2, 2, 0.5, 0.5, 4.0, 5.0),
+    '5126': ('Shipping half sheet 8½ × 5½ in, 2 per sheet (5126, 8126)', 8.5, 5.5, 1, 2, 0, 0, 8.5, 5.5),
+    '5167': ('Return address 1¾ × ½ in, 80 per sheet (5167, 8167)', 1.75, 0.5, 4, 20, 0.28125, 0.5, 2.0625, 0.5),
+    '22806': ('Square 2 × 2 in, 12 per sheet (22806)', 2, 2, 3, 4, 0.625, 0.625, 2.625, 2.625),
+}
+
+@app.route('/print_layouts', methods=['GET'])
+def print_layouts():
+    return jsonify({'label_sheets': [[k, v[0]] for k, v in LABEL_SHEETS.items()]})
+
+def _place_in(page, src, n, clip, area, orient='auto', scale='fit', pct=100, rot_min_gain=1.15):
+    """Draw page n of src (or its clip, in page coordinates as shown) into area of page: turned when asked or
+    when it fits clearly bigger, sized by scale ('fit', 'shrink', 'actual' or 'pct'), centered."""
     sp = src[n - 1]
     box = fitz.Rect(clip) if clip else sp.rect
     cw, ch = box.width, box.height
     aw, ah = area.width, area.height
     fit = lambda rot: min(aw / (ch if rot else cw), ah / (cw if rot else ch))
-    if orient == 'auto': rot = 90 if fit(True) > fit(False) * 1.15 else 0   # turned only when it's clearly bigger
-    else:   # portrait: the page upright on the paper; landscape: lying on its side
-        rot = 0 if (orient == 'landscape') == (pw > ph) else 90
-    f = fit(rot) if scale == 'fit' else min(1.0, fit(rot)) if scale == 'shrink' else 1.0
+    if orient == 'auto': rot = 90 if fit(True) > fit(False) * rot_min_gain else 0
+    else: rot = 0 if (orient == 'landscape') == (page.rect.width > page.rect.height) else 90
+    f = fit(rot) if scale == 'fit' else min(1.0, fit(rot)) if scale == 'shrink' else (pct / 100.0 if scale == 'pct' else 1.0)
     tw, th = ((ch, cw) if rot else (cw, ch))
     tw, th = tw * f, th * f
     cx, cy = (area.x0 + area.x1) / 2, (area.y0 + area.y1) / 2
     target = fitz.Rect(cx - tw / 2, cy - th / 2, cx + tw / 2, cy + th / 2)
-    page = out.new_page(width=pw, height=ph)
-    # show_pdf_page's clip is in the unrotated page's coordinates
-    clip_src = (box * sp.derotation_matrix) if clip else None
-    page.show_pdf_page(target, src, n - 1, clip=clip_src, rotate=-rot if rot else 0)
-    return page
+    page.show_pdf_page(target, src, n - 1, clip=(box * sp.derotation_matrix) if clip else None, rotate=-rot if rot else 0)
+    return target
+
+def _items(d):
+    """What goes on the sheets: (document, page, area) for every page (or label) of every file asked for."""
+    files = d.get('files') or [d['filepath']]
+    mode, regions = d.get('mode', 'page'), {int(k): v for k, v in (d.get('regions') or {}).items()}
+    items, skipped = [], []
+    for fi, fp in enumerate(files):
+        src = _printable_copy(fp, comments=d.get('comments', True))
+        pages = (d.get('pages') if fi == 0 and not d.get('files') else None) or list(range(1, src.page_count + 1))
+        for n in pages:
+            if n < 1 or n > src.page_count: continue
+            tag = n if len(files) == 1 else f'{fi + 1}:{n}'
+            if d.get('skip_blank') and _is_blank(src[n - 1]): skipped.append(tag); continue
+            if mode == 'label':
+                rs = regions.get(n) if len(files) == 1 else None
+                if rs is None: rs, _ = _label_regions(src[n - 1])
+                if not rs: skipped.append(tag); continue
+                items += [(src, n, r, tag) for r in rs]
+            else: items.append((src, n, None, tag))
+    return items, skipped
 
 def _sheets(d):
-    src = _printable_copy(d['filepath'])
-    pages = d.get('pages') or list(range(1, src.page_count + 1))
     paper = d.get('paper') or [612, 792]
-    area = fitz.Rect(d.get('printable') or (0, 0, paper[0], paper[1])) & fitz.Rect(0, 0, paper[0], paper[1])
+    pw, ph = paper
+    area = fitz.Rect(d.get('printable') or (0, 0, pw, ph)) & fitz.Rect(0, 0, pw, ph)
     if d.get('margin'): area = area + (d['margin'], d['margin'], -d['margin'], -d['margin'])
-    mode, regions = d.get('mode', 'page'), {int(k): v for k, v in (d.get('regions') or {}).items()}
-    skipped, plan = [], []
-    for n in pages:
-        if n < 1 or n > src.page_count: continue
-        if d.get('skip_blank') and _is_blank(src[n - 1]): skipped.append(n); continue
-        if mode in ('label', 'area'):
-            rs = regions.get(n)
-            if rs is None:
-                rs, _ = _label_regions(src[n - 1]) if mode == 'label' else ([], '')
-            if not rs and mode == 'label': skipped.append(n); continue
-            for r in rs or [None]: plan.append((n, r))
-        else: plan.append((n, None))
-    out = fitz.open()
-    for n, clip in plan:
-        _place(out, src, n, clip, paper, area, d.get('orient', 'auto'), d.get('scale', 'fit'))
+    items, skipped = _items(d)
+    layout = d.get('layout') or 'single'
+    orient, scale, pct = d.get('orient', 'auto'), d.get('scale', 'fit'), float(d.get('percent') or 100)
+    out, plan = fitz.open(), []
+    gap = 6
+    if layout == 'nup':   # several pages on each sheet, in a grid that gives them the most room
+        nup = int(d.get('nup') or 2)
+        grids = {2: (1, 2), 4: (2, 2), 6: (2, 3), 9: (3, 3), 16: (4, 4)}
+        c, r = grids.get(nup, (1, 2))
+        if items:
+            s0, n0, clip0, _ = items[0]
+            b = fitz.Rect(clip0) if clip0 else s0[n0 - 1].rect
+            def cell_fit(cols, rows):
+                cw_, ch_ = (area.width - gap * (cols - 1)) / cols, (area.height - gap * (rows - 1)) / rows
+                return max(min(cw_ / b.width, ch_ / b.height), min(cw_ / b.height, ch_ / b.width))
+            if cell_fit(r, c) > cell_fit(c, r): c, r = r, c
+        cw_, ch_ = (area.width - gap * (c - 1)) / c, (area.height - gap * (r - 1)) / r
+        for k, (src, n, clip, tag) in enumerate(items):
+            if k % (c * r) == 0: page = out.new_page(width=pw, height=ph)
+            i = k % (c * r); col, row = i % c, i // c
+            cell = fitz.Rect(area.x0 + col * (cw_ + gap), area.y0 + row * (ch_ + gap), area.x0 + col * (cw_ + gap) + cw_, area.y0 + row * (ch_ + gap) + ch_)
+            _place_in(page, src, n, clip, cell, 'auto', 'fit', rot_min_gain=1.0)
+            if i == 0: plan.append((tag, clip))
+    elif layout == 'booklet':   # fold the stack in half: two pages side by side on each side of a sheet
+        lw, lh = max(pw, ph), min(pw, ph)
+        la = fitz.Rect(area.y0, area.x0, area.y1, area.x1) if pw < ph else fitz.Rect(area)
+        seq = items + [None] * ((-len(items)) % 4)
+        total = len(seq)
+        for sheet in range(total // 4):
+            for left, right in ((total - 1 - 2 * sheet, 2 * sheet), (2 * sheet + 1, total - 2 - 2 * sheet)):
+                page = out.new_page(width=lw, height=lh)
+                half = la.width / 2
+                for idx, cell in ((left, fitz.Rect(la.x0, la.y0, la.x0 + half - gap / 2, la.y1)), (right, fitz.Rect(la.x0 + half + gap / 2, la.y0, la.x1, la.y1))):
+                    if seq[idx] is None: continue
+                    src, n, clip, tag = seq[idx]
+                    _place_in(page, src, n, clip, cell, 'auto', 'fit', rot_min_gain=10)
+                plan.append((seq[right][3] if seq[right] else (seq[left][3] if seq[left] else None), None))
+    elif layout == 'poster':   # one page across several sheets, overlapping a little, with lines to cut along
+        cols, rows = int(d.get('cols') or 2), int(d.get('rows') or 2)
+        ov = float(d.get('overlap') or 18)
+        big = fitz.Rect(0, 0, cols * area.width - (cols - 1) * ov, rows * area.height - (rows - 1) * ov)
+        for src, n, clip, tag in items:
+            b = fitz.Rect(clip) if clip else src[n - 1].rect
+            rot = 90 if min(big.width / b.height, big.height / b.width) > min(big.width / b.width, big.height / b.height) * 1.001 else 0
+            tw, th = (b.height, b.width) if rot else (b.width, b.height)
+            f = min(big.width / tw, big.height / th) if scale != 'pct' else pct / 100
+            tw, th = tw * f, th * f
+            ox, oy = (big.width - tw) / 2, (big.height - th) / 2
+            for row in range(rows):
+                for col in range(cols):
+                    page = out.new_page(width=pw, height=ph)
+                    x0, y0 = col * (area.width - ov), row * (area.height - ov)
+                    target = fitz.Rect(area.x0 - x0 + ox, area.y0 - y0 + oy, area.x0 - x0 + ox + tw, area.y0 - y0 + oy + th)
+                    page.show_pdf_page(target, src, n - 1, clip=(b * src[n - 1].derotation_matrix) if clip else None, rotate=-rot if rot else 0)
+                    # outside the printable part stays white; the overlap edge is marked to cut along
+                    sh = page.new_shape()
+                    if col: sh.draw_line((area.x0 + ov, area.y0), (area.x0 + ov, area.y1))
+                    if row: sh.draw_line((area.x0, area.y0 + ov), (area.x1, area.y0 + ov))
+                    sh.finish(color=(0.55, 0.55, 0.55), width=0.4, dashes='[3 3] 0'); sh.commit()
+                    page.insert_text((area.x0 + 3, area.y1 - 3), f'{chr(65 + row)}{col + 1}', fontsize=7, color=(0.5, 0.5, 0.5))
+                    plan.append((tag, clip))
+    elif layout == 'sheet':   # a sheet of stickers (Avery...): one item per sticker, from the sticker chosen
+        key = d.get('sheet') or '5163'
+        _, lw_, lh_, cols, rows, ml, mt, sx, sy = LABEL_SHEETS.get(key, LABEL_SHEETS['5163'])
+        pw, ph = 612, 792
+        slots = [fitz.Rect((ml + c_ * sx) * 72, (mt + r_ * sy) * 72, (ml + c_ * sx + lw_) * 72, (mt + r_ * sy + lh_) * 72) for r_ in range(rows) for c_ in range(cols)]
+        k = max(0, int(d.get('start') or 1) - 1) % len(slots)
+        page = None
+        for src, n, clip, tag in items:
+            if page is None or k >= len(slots):
+                if page is not None: k = 0
+                page = out.new_page(width=pw, height=ph); plan.append((tag, clip))
+            _place_in(page, src, n, clip, slots[k] + (2, 2, -2, -2), 'auto', 'fit', rot_min_gain=1.0)
+            k += 1
+    elif layout == 'receipt':   # a receipt roll: the full width, as long as the page needs
+        m = 4
+        for src, n, clip, tag in items:
+            b = fitz.Rect(clip) if clip else _content_box(src[n - 1])
+            f = (pw - 2 * m) / b.width
+            page = out.new_page(width=pw, height=b.height * f + 2 * m)
+            _place_in(page, src, n, b, fitz.Rect(m, m, pw - m, page.rect.height - m), 'portrait' if page.rect.width < page.rect.height else 'landscape', 'fit')
+            plan.append((tag, b))
+    else:
+        for src, n, clip, tag in items:
+            page = out.new_page(width=pw, height=ph)
+            _place_in(page, src, n, clip, area, orient, scale, pct)
+            plan.append((tag, clip))
+    out.item_count = len(items)
     return out, plan, skipped
+
+def _content_box(page):
+    """The part of a page with something on it (white margins left off)."""
+    rs, kind = _label_regions(page)
+    if kind == 'trim' and rs: return rs[0]
+    pix = page.get_pixmap(dpi=50, colorspace=fitz.csGRAY, annots=True)
+    w, h, s = pix.width, pix.height, pix.samples
+    rows = [y for y in range(h) if min(s[y * w:(y + 1) * w]) < 235]
+    if not rows: return page.rect
+    cols = [x for x in range(w) if min(s[x::w]) < 235]
+    k = 72 / 50
+    return fitz.Rect(cols[0] * k - 4, rows[0] * k - 4, (cols[-1] + 1) * k + 4, (rows[-1] + 1) * k + 4) & page.rect
 
 @app.route('/print_prepare', methods=['POST'])
 def print_prepare():
@@ -4849,9 +5005,12 @@ def print_prepare():
     try:
         out, plan, skipped = _sheets(d)
         if not out.page_count: return jsonify({'error': 'Nothing to print on the pages chosen', 'skipped': skipped}), 400
-        path = os.path.join(TEMP_DIR, 'sheets_' + hashlib.md5((d['filepath'] + json.dumps(d, sort_keys=True) + str(os.path.getmtime(d['filepath']))).encode()).hexdigest() + '.pdf')
+        files = d.get('files') or [d['filepath']]
+        path = os.path.join(TEMP_DIR, 'sheets_' + hashlib.md5((json.dumps(d, sort_keys=True) + ''.join(str(os.path.getmtime(f)) for f in files)).encode()).hexdigest() + '.pdf')
         out.save(path, garbage=3, deflate=True)
-        return jsonify({'path': path, 'sheets': [{'page': n, 'rect': list(r) if r else None} for n, r in plan], 'skipped': skipped})
+        sizes = [[round(p.rect.width, 2), round(p.rect.height, 2)] for p in out]
+        return jsonify({'path': path, 'sheets': [{'page': n, 'rect': list(r) if r else None} for n, r in plan], 'skipped': skipped, 'sizes': sizes,
+                        'count': getattr(out, 'item_count', len(plan))})
     except Exception as e: return jsonify({'error': str(e)}), 500
 
 @app.route('/print_render', methods=['POST'])
@@ -4864,11 +5023,14 @@ def print_render():
         dpi = dpi if 150 <= dpi <= 300 else 300
         out = tempfile.mkdtemp(dir=TEMP_DIR, prefix='print_')
         first, count = int(d.get('first', 0)), int(d.get('count', doc.page_count))
+        order = [int(i) for i in d['indices'] if 0 <= int(i) < doc.page_count] if d.get('indices') else range(first, min(doc.page_count, first + count))
         pages = []
-        for i in range(first, min(doc.page_count, first + count)):
+        for i in order:
             p = doc[i]
             f = os.path.join(out, f'{i + 1}.png')
-            p.get_pixmap(dpi=dpi, colorspace=fitz.csGRAY if d.get('bw') else fitz.csRGB).save(f)
+            pix = p.get_pixmap(dpi=dpi, colorspace=fitz.csGRAY if d.get('bw') or d.get('toner') else fitz.csRGB)
+            if d.get('toner'): pix.tint_with(0x6E6E6E, 0xFFFFFF)   # black prints as mid gray: about half the toner
+            pix.save(f)
             pages.append({'path': f, 'w': p.rect.width, 'h': p.rect.height})
         return jsonify({'success': True, 'pages': pages, 'total': doc.page_count})
     except Exception as e: return jsonify({'error': str(e)}), 500
@@ -4883,7 +5045,7 @@ def save_labels():
                   'mode': d.get('mode') or 'label'})
         out, plan, skipped = _sheets(d)
         if not out.page_count: return jsonify({'error': 'No labels found on those pages'}), 400
-        orig = d.get('original_path') or d['filepath']
+        orig = d.get('original_path') or d.get('filepath') or d['files'][0]
         base = os.path.splitext(os.path.basename(orig))[0]
         tag = f'{size[0] / 72:g}x{size[1] / 72:g}'
         path = d.get('out') or get_unique_filename(os.path.join(os.path.dirname(orig), f'{base} ({tag} labels).pdf'))

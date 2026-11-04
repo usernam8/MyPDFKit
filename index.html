@@ -2062,6 +2062,8 @@
       const tw = ctx.measureText(el.value || '').width;
       if (el.tagName !== 'TEXTAREA' && tw > w - 12) size = Math.max(6, size * (w - 12) / tw);   // inside the box's padding and border
       el.style.fontSize = size + 'px';
+      // one line in a box for several: in the middle, as it prints (not against the top edge)
+      if (el.tagName === 'TEXTAREA') { const oneLine = !/[\r\n]/.test(el.value || ''); el.style.paddingTop = oneLine ? Math.max(0, (h - size * 1.2) / 2) + 'px' : ''; el.style.lineHeight = '1.2'; }
     }
     let pageParagraphs = [];     // paragraphs on the page shown (for editing one as a whole)
     let pageNotes = [];          // comments and markup on the page shown
@@ -2666,7 +2668,8 @@
     // Our own print window: the preview shows each sheet exactly as it will come out (paper, orientation,
     // scale, color), then main.js prints the same pictures with the same settings.
     const PAPER = { Letter: [612, 792], Legal: [612, 1008], Tabloid: [792, 1224], A4: [595.28, 841.89], A3: [841.89, 1190.55], A5: [419.53, 595.28],
-      '4 × 6 in (label)': [288, 432], '4 × 4 in (label)': [288, 288] };
+      '4 × 6 in (label)': [288, 432], '4 × 4 in (label)': [288, 288], '80 mm receipt roll': [226.77, 0], '58 mm receipt roll': [164.41, 0] };
+    const isReceipt = name => /receipt roll/.test(name || '');
     function parsePages(text, max) {   // "1-3, 5" -> [1, 2, 3, 5]; null if it makes no sense
       const out = [];
       for (const part of text.split(/[,;\s]+/).filter(Boolean)) {
@@ -2756,6 +2759,8 @@
       const file = currentActiveFile, src = currentTempPdf;
       const total = currentPdfDoc.numPages, here = pageNum;
       const printers = await ipcRenderer.invoke('printers').catch(() => []);
+      const tabFiles = fileQueue.filter(f => f.status === 'ready' && (f.pdfPath || f.originalPath === file));
+      const sheetKinds = (await api('print_layouts', {}).catch(() => ({}))).label_sheets || [];
       const saved = store('print-settings', {}), byPrinter = store('print-by-printer', {});
 
       const bd = document.createElement('div'); bd.className = 'backdrop print-bd';
@@ -2772,14 +2777,20 @@
           <div class="field"><label>Printer</label><select data-k="printer"></select></div>
           <div class="field"><label>Paper</label><select data-k="paper"></select></div>
           <div class="field"><label>Print</label><select data-k="mode"><option value="page">Whole page</option><option value="label">Label only</option></select></div>
-          <div class="field"><label>Pages</label><select data-k="range"><option value="all">All ${total} pages</option><option value="current">Current page (${here})</option><option value="custom">Custom...</option></select>
+          <div class="field"><label>Pages</label><select data-k="range"><option value="all">All ${total} pages</option><option value="current">Current page (${here})</option><option value="custom">Custom...</option>${tabFiles.length > 1 ? `<option value="tab">All ${tabFiles.length} files in this tab</option>` : ''}</select>
             <input data-k="custom" placeholder="e.g. 1-3, 5" style="display:none"></div>
+          <div class="field"><label>Layout</label><select data-k="layout"><option value="single">One per sheet</option><option value="nup2">2 per sheet</option><option value="nup4">4 per sheet</option><option value="nup6">6 per sheet</option><option value="nup9">9 per sheet</option><option value="booklet">Booklet (fold in half)</option><option value="poster">Poster (across several sheets)</option><option value="sheet">Sticker sheet (Avery and similar)</option></select></div>
+          <div class="field pp-opt" data-for="poster"><label>Poster size</label><select data-k="poster"><option value="2x2">2 × 2 sheets</option><option value="3x3">3 × 3 sheets</option><option value="4x4">4 × 4 sheets</option><option value="2x1">2 sheets side by side</option><option value="1x2">2 sheets top and bottom</option></select></div>
+          <div class="field pp-opt" data-for="sheet"><label>Sticker sheet</label><select data-k="sheet"></select></div>
+          <div class="field pp-opt" data-for="sheet"><label>Start at sticker</label><input data-k="start" type="number" min="1" max="80" value="1" title="On a sheet that's partly used, the first empty sticker (counting across, then down)"></div>
           <div class="field"><label>Copies</label><input data-k="copies" type="number" min="1" max="999" value="1"></div>
           <div class="field"><label>Orientation</label><select data-k="orient"><option value="auto">Automatic</option><option value="portrait">Portrait</option><option value="landscape">Landscape</option></select></div>
-          <div class="field"><label>Size on paper</label><select data-k="scale"><option value="fit">Fit to paper</option><option value="shrink">Shrink large pages only</option><option value="actual">Actual size</option></select></div>
-          <div class="field"><label>Color</label><select data-k="color"><option value="color">Color</option><option value="bw">Black and white</option></select></div>
-          <div class="field"><label>Two-sided</label><select data-k="duplex"><option value="simplex">Off</option><option value="longEdge">Flip on long edge</option><option value="shortEdge">Flip on short edge</option></select></div>
+          <div class="field"><label>Size on paper</label><select data-k="scale"><option value="fit">Fit to paper</option><option value="shrink">Shrink large pages only</option><option value="actual">Actual size</option><option value="pct">Exact percent...</option></select>
+            <input data-k="percent" type="number" min="5" max="400" value="100" style="display:none" title="Percent of the actual size"></div>
+          <div class="field"><label>Color</label><select data-k="color"><option value="color">Color</option><option value="bw">Black and white</option><option value="toner">Toner saver (lighter)</option></select></div>
+          <div class="field"><label>Two-sided</label><select data-k="duplex"><option value="simplex">Off</option><option value="longEdge">Flip on long edge</option><option value="shortEdge">Flip on short edge</option><option value="manual">By hand: fronts, then backs</option></select></div>
           <label class="pp-check"><input type="checkbox" data-k="skip"> Skip blank pages</label>
+          <label class="pp-check"><input type="checkbox" data-k="comments" checked> Print comments and markup</label>
           <div class="pp-label-tools"><button class="btn quiet pp-adjust-btn" title="Drag the corners to choose exactly what prints">Adjust area...</button><button class="btn quiet pp-save-labels" title="Each label as its own page, sharp, in a new PDF next to this file">Save as PDF</button></div>
           <div class="dialog-actions"><button class="btn quiet pp-system" title="Open Windows' print dialog for printer-specific options">More options...</button><span class="spacer"></span><button class="btn quiet pp-cancel">Cancel</button><button class="btn primary pp-print">Print</button></div>
         </div></div>`;
@@ -2790,13 +2801,21 @@
       sel.add(new Option('Test print: save as PDF (no printer)', '__test__'));
       const def = printers.find(p => p.isDefault || (p.options && p.options['printer-is-default'] === 'true'));
       sel.value = printers.some(p => p.name === saved.printer) || saved.printer === '__test__' ? saved.printer : def ? def.name : sel.options[0].value;
-      for (const k of ['orient', 'scale', 'color', 'duplex']) if (saved[k]) $(k).value = saved[k];
+      for (const [k, name] of sheetKinds) $('sheet').add(new Option(name, k));
+      for (const k of ['orient', 'scale', 'color', 'duplex', 'sheet', 'poster', 'percent']) if (saved[k]) $(k).value = saved[k];
+      if (saved.comments === false) $('comments').checked = false;
+      const showOptions = () => {
+        bd.querySelectorAll('.pp-opt').forEach(el => el.style.display = el.dataset.for === $('layout').value ? '' : 'none');
+        $('percent').style.display = $('scale').value === 'pct' ? '' : 'none';
+        $('layout').parentElement.style.display = isReceipt($('paper').value) ? 'none' : '';
+      };
       if (opts.pages) { $('range').value = 'custom'; $('custom').style.display = ''; $('custom').value = opts.pages; }
 
       let info = null, prepared = null, sheetsDoc = null, sheet = 0, prepToken = 0;
       const paperOf = () => {
         const v = $('paper').value;
         if (v === 'printer' && info) return { paper: info.paper, printable: info.printable };
+        if (isReceipt(v)) return { paper: [PAPER[v][0], 1000], printable: null, receipt: true };
         const p = (PAPER[v] || [612, 792]).slice();
         if (info && info.paper[0] > info.paper[1]) p.reverse();            // the printer feeds it sideways
         const m = info && v !== 'printer' ? Math.min(18, Math.max(info.printable[0], info.printable[1])) : 0;   // its usual margin
@@ -2805,6 +2824,7 @@
       const chosen = () => {
         const r = $('range').value;
         if (r === 'current') return [here];
+        if (r === 'tab') return [1];
         if (r === 'custom') return parsePages($('custom').value, total);
         return Array.from({ length: total }, (_, i) => i + 1);
       };
@@ -2822,9 +2842,15 @@
         $('skip').checked = mem.skip !== undefined ? mem.skip : label;
       };
       const settingsNow = () => {
-        const list = chosen(); const { paper, printable } = paperOf();
-        return { filepath: src, pages: list, paper, printable, mode: $('mode').value, orient: $('orient').value, scale: $('scale').value,
-                 skip_blank: $('skip').checked, regions: $('mode').value === 'label' ? areaRegions(file, list || []) : null };
+        const list = chosen(); const { paper, printable, receipt } = paperOf();
+        const lay = receipt ? 'receipt' : $('layout').value, [pc, pr] = $('poster').value.split('x').map(Number);
+        const s = { filepath: src, pages: list, paper, printable, mode: $('mode').value, orient: $('orient').value, scale: $('scale').value,
+                 percent: +$('percent').value || 100, skip_blank: $('skip').checked, comments: $('comments').checked,
+                 layout: lay.startsWith('nup') ? 'nup' : lay, nup: lay.startsWith('nup') ? +lay.slice(3) : undefined, cols: pc, rows: pr,
+                 sheet: $('sheet').value, start: +$('start').value || 1,
+                 regions: $('mode').value === 'label' && $('range').value !== 'tab' ? areaRegions(file, list || []) : null };
+        if ($('range').value === 'tab') { s.files = tabFiles.map(f => f.originalPath === file ? src : f.pdfPath); delete s.pages; }
+        return s;
       };
       // make the sheets (shortly after a change) and show them
       let prepTimer = null;
@@ -2835,7 +2861,7 @@
         bd.querySelector('.pp-label-tools').style.display = s.mode === 'label' ? '' : 'none';
         const printBtn = bd.querySelector('.pp-print');
         $('custom').classList.toggle('bad', $('range').value === 'custom' && !s.pages && $('custom').value.trim() !== '');
-        if (!s.pages) { printBtn.disabled = true; bd.querySelector('.pp-count').textContent = 'Type the pages to print'; return; }
+        if (!s.pages && !s.files) { printBtn.disabled = true; bd.querySelector('.pp-count').textContent = 'Type the pages to print'; return; }
         bd.querySelector('.pp-count').textContent = 'Getting the preview ready…';
         const d = await api('print_prepare', s);
         if (token !== prepToken || !document.body.contains(bd)) return;
@@ -2844,16 +2870,19 @@
         sheetsDoc = await pdfjsLib.getDocument({ data: new Uint8Array(fs.readFileSync(d.path)) }).promise;
         sheet = Math.min(sheet, sheetsDoc.numPages - 1);
         const notes = [];
-        if (s.mode === 'label') { const pagesWith = new Set(d.sheets.map(x => x.page)).size; notes.push(`${d.sheets.length} ${d.sheets.length === 1 ? 'label' : 'labels'} from ${pagesWith} ${pagesWith === 1 ? 'page' : 'pages'}`); }
+        if (s.mode === 'label') { const n = d.count || d.sheets.length; notes.push(`${n} ${n === 1 ? 'label' : 'labels'}` + (n !== d.sheets.length ? ` on ${d.sheets.length} ${d.sheets.length === 1 ? 'sheet' : 'sheets'}` : '')); }
         if (d.skipped.length) notes.push(`${d.skipped.length} blank ${d.skipped.length === 1 ? 'page' : 'pages'} left out (${d.skipped.slice(0, 6).join(', ')}${d.skipped.length > 6 ? '…' : ''})`);
         bd.querySelector('.pp-note').textContent = notes.join(' · ');
         draw();
       }
       let task = null;
+      // how black and white or toner saver will look, right away
+      const tint = () => { bd.querySelector('.pp-sheet canvas').style.filter = $('color').value === 'bw' ? 'grayscale(1)' : $('color').value === 'toner' ? 'grayscale(1) contrast(.55) brightness(1.25)' : ''; };
       async function draw() {
         if (!prepared || !sheetsDoc) return;
-        const { paper, printable } = paperOf();
-        const [pw, ph] = paper;
+        const { paper, printable: pa0 } = paperOf();
+        const [pw, ph] = (prepared.sizes || [])[sheet] || paper;
+        const printable = pa0 && Math.abs(pw - paper[0]) < 1 && Math.abs(ph - paper[1]) < 1 ? pa0 : [0, 0, pw, ph];
         const stage = bd.querySelector('.pp-stage'), sh = bd.querySelector('.pp-sheet'), cv = sh.querySelector('canvas');
         const k = Math.min((stage.clientWidth - 40) / pw, (stage.clientHeight - 40) / ph);
         Object.assign(sh.style, { width: pw * k + 'px', height: ph * k + 'px' });
@@ -2872,17 +2901,20 @@
         task = null;
         cv.width = off.width; cv.height = off.height; cv.style.display = ''; cv.getContext('2d').drawImage(off, 0, 0);
         cv.style.width = pw * k + 'px'; cv.style.height = ph * k + 'px';
-        cv.style.filter = $('color').value === 'bw' ? 'grayscale(1)' : '';
+        tint();
       }
       const remember = () => {
         byPrinter[sel.value] = { paper: $('paper').value, mode: $('mode').value, skip: $('skip').checked }; keep('print-by-printer', byPrinter);
-        keep('print-settings', { printer: sel.value, orient: $('orient').value, scale: $('scale').value, color: $('color').value, duplex: $('duplex').value });
+        keep('print-settings', { printer: sel.value, orient: $('orient').value, scale: $('scale').value, color: $('color').value, duplex: $('duplex').value,
+                                 sheet: $('sheet').value, poster: $('poster').value, percent: $('percent').value, comments: $('comments').checked });
       };
       sel.addEventListener('change', async () => { await onPrinter(); prepare(); });
       bd.querySelectorAll('select:not([data-k=printer]), input').forEach(el => el.addEventListener('input', () => {
         if (el === $('range')) { $('custom').style.display = el.value === 'custom' ? '' : 'none'; if (el.value === 'custom') $('custom').focus(); sheet = 0; }
-        if (el === $('paper') && !opts.mode) { const label = isLabelPaper(paperOf().paper); $('mode').value = label ? 'label' : 'page'; $('skip').checked = label; }
-        if (el === $('color')) return draw();
+        if (el === $('paper') && !opts.mode && !isReceipt(el.value)) { const label = isLabelPaper(paperOf().paper); $('mode').value = label ? 'label' : 'page'; $('skip').checked = label; }
+        if (el === $('layout') && el.value === 'booklet' && $('duplex').value === 'simplex') $('duplex').value = 'shortEdge';   // booklets are printed two-sided
+        showOptions();
+        if (el === $('color')) return tint();
         prepare();
       }));
       bd.querySelector('.pp-prev').onclick = () => { sheet--; draw(); };
@@ -2949,18 +2981,38 @@
           if (!dryRun) return;
         }
         const totalSheets = sheetsDoc.numPages, dpi = info ? info.dpi : 300;
+        const manual = $('duplex').value === 'manual' && totalSheets > 1;
+        const all = Array.from({ length: totalSheets }, (_, i) => i);
+        const passes = manual ? [all.filter(i => i % 2 === 0), all.filter(i => i % 2 === 1).reverse()] : [all];
         const CH = testing || system ? totalSheets : 20;
         close();
-        const bar = printProgress(totalSheets);
         let sent = 0, result = null;
-        for (let first = 0; first < totalSheets && !bar.cancelled; first += CH) {
-          const d = await api('print_render', { path: prepared.path, dpi, bw: $('color').value === 'bw', first, count: CH });
-          if (d.error) { result = { error: d.error }; break; }
-          if (bar.cancelled) break;
-          result = await ipcRenderer.invoke('print-pages', d.pages, { system, deviceName: testing ? '' : sel.value, dryRun,
-            copies: Math.max(1, Math.min(999, parseInt($('copies').value) || 1)), color: $('color').value === 'color', duplex: $('duplex').value });
+        const bar = printProgress(totalSheets);
+        const job = { system, deviceName: testing ? '' : sel.value, copies: Math.max(1, Math.min(999, parseInt($('copies').value) || 1)),
+                      color: $('color').value === 'color', duplex: manual ? 'simplex' : $('duplex').value };
+        for (let pass = 0; pass < passes.length && !bar.cancelled; pass++) {
+          if (pass === 1) {
+            bar.el.style.display = 'none';
+            const ok = await askDialog('Now the backs', [{ key: 'n', label: `The fronts are printed. Take the ${passes[0].length} sheets, turn the stack over without changing their order, and put it back in the paper tray. Then click Print the backs.`, type: 'hidden' }], 'Print the backs');
+            bar.el.style.display = '';
+            if (!ok) { bar.cancelled = true; break; }
+          }
+          const order = passes[pass];
+          for (let k = 0; k < order.length && !bar.cancelled; k += CH) {
+            const d = await api('print_render', { path: prepared.path, dpi, bw: $('color').value === 'bw', toner: $('color').value === 'toner', indices: order.slice(k, k + CH) });
+            if (d.error) { result = { error: d.error }; break; }
+            // one print job per run of sheets that are the same size
+            for (let a = 0; a < d.pages.length && !bar.cancelled; ) {
+              let b = a + 1;
+              while (b < d.pages.length && Math.abs(d.pages[b].w - d.pages[a].w) < 1 && Math.abs(d.pages[b].h - d.pages[a].h) < 1) b++;
+              const out = dryRun && (passes.length > 1 || a > 0 || k > 0) ? dryRun.replace(/\.pdf$/i, '') + ` (${pass + 1}-${k + a + 1}).pdf` : dryRun;
+              result = await ipcRenderer.invoke('print-pages', d.pages.slice(a, b), { ...job, dryRun: out });
+              if (!result || result.error || !result.ok) break;
+              sent += b - a; bar.update(sent); a = b;
+            }
+            if (!result || result.error || !result.ok) break;
+          }
           if (!result || result.error || !result.ok) break;
-          sent += d.pages.length; bar.update(sent);
         }
         bar.done();
         if (result && result.error) showToast(result.error, true);
@@ -2974,6 +3026,7 @@
       bd.addEventListener('keydown', e => { if (e.key === 'Escape' && !document.querySelector('.backdrop:not(.print-bd)')) close(); if (e.key === 'Enter' && e.target.tagName !== 'INPUT' && !bd.querySelector('.pp-print').disabled) bd.querySelector('.pp-print').click(); });
       bd.addEventListener('mousedown', e => { if (e.target === bd) close(); });
       await onPrinter();
+      showOptions();
       requestAnimationFrame(doPrepare);
       bd.querySelector('.pp-print').focus();
     }

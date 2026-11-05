@@ -3252,7 +3252,7 @@
           <div class="field"><label>Color</label><select data-k="color"><option value="color">Color</option><option value="bw">Black and white</option><option value="toner">Toner saver (lighter)</option></select></div>
           <div class="field"><label>Two-sided</label><select data-k="duplex"><option value="simplex">Off</option><option value="longEdge">Flip on long edge</option><option value="shortEdge">Flip on short edge</option><option value="manual">By hand: fronts, then backs</option></select></div>
           <label class="pp-check"><input type="checkbox" data-k="skip"> Skip blank pages</label>
-          <label class="pp-check" title="Tick this if the paper comes out turned the other way from this preview. The preview keeps showing the label the right way up; only the printout is turned. Remembered for this printer (wide labels turned onto the paper separately)."><input type="checkbox" data-k="flip"> Paper comes out upside down</label>
+          <label class="pp-check" title="Tick this if this printer puts the paper out turned the other way from the preview. The preview then turns too, so it shows exactly how the paper comes out. Remembered for this printer (wide labels turned onto the paper separately)."><input type="checkbox" data-k="flip"> Paper comes out upside down</label>
           <label class="pp-check"><input type="checkbox" data-k="comments" checked> Print comments and markup</label>
           <div class="pp-label-tools"><button class="btn quiet pp-adjust-btn" title="Drag the corners to choose exactly what prints">Adjust area...</button><button class="btn quiet pp-save-labels" title="Each label as its own page, sharp, in a new PDF next to this file">Save as PDF</button></div>
           <div class="dialog-actions"><button class="btn quiet pp-system" title="Open Windows' print dialog for printer-specific options">More options...</button><span class="spacer"></span><button class="btn quiet pp-cancel">Cancel</button><button class="btn primary pp-print">Print</button></div>
@@ -3364,7 +3364,12 @@
       }
       let task = null;
       // how black and white or toner saver will look, right away
-      const tint = () => { bd.querySelector('.pp-sheet canvas').style.filter = $('color').value === 'bw' ? 'grayscale(1)' : $('color').value === 'toner' ? 'grayscale(1) contrast(.55) brightness(1.25)' : ''; };
+      // and with "Paper comes out upside down" ticked, turned the way this printer puts the paper out
+      const tint = () => {
+        const cv = bd.querySelector('.pp-sheet canvas');
+        cv.style.filter = $('color').value === 'bw' ? 'grayscale(1)' : $('color').value === 'toner' ? 'grayscale(1) contrast(.55) brightness(1.25)' : '';
+        cv.style.transform = $('flip').checked ? 'rotate(180deg)' : '';
+      };
       async function draw() {
         if (!prepared || !sheetsDoc) return;
         const { paper, printable: pa0 } = paperOf();
@@ -3404,7 +3409,7 @@
         if (el === $('paper') && !opts.mode && !isReceipt(el.value)) { const label = isLabelPaper(paperOf().paper); $('mode').value = label ? 'label' : 'page'; $('skip').checked = label; }
         if (el === $('layout') && el.value === 'booklet' && $('duplex').value === 'simplex') $('duplex').value = 'shortEdge';   // booklets are printed two-sided
         showOptions();
-        if (el === $('color')) return tint();
+        if (el === $('color') || el === $('flip')) { if (el === $('flip')) remember(); return tint(); }
         prepare();
       }));
       bd.querySelector('.pp-prev').onclick = () => { sheet--; draw(); };
@@ -3491,7 +3496,7 @@
           // in parts: a small first one so the printer starts at once, and each next part made while this one prints
           const parts = [];
           for (let k = 0; k < order.length; ) { const n = testing || system ? order.length : parts.length ? CH : 5; parts.push([k, order.slice(k, k + n)]); k += n; }
-          const render = part => api('print_render', { path: prepared.path, dpi, bw: $('color').value === 'bw', toner: $('color').value === 'toner', flip: $('flip').checked, indices: part[1] });
+          const render = part => api('print_render', { path: prepared.path, dpi, bw: $('color').value === 'bw', toner: $('color').value === 'toner', indices: part[1] });
           let next = parts.length ? render(parts[0]) : null;
           for (let pi = 0; pi < parts.length && !bar.cancelled; pi++) {
             const k = parts[pi][0];

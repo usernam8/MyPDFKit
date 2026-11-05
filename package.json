@@ -20,7 +20,7 @@
   },
   "build": {
     "appId": "com.mypdfkit.app",
-    "productName": "MyPDFKit",
+    "productName": "Toast Docs",
     "directories": {
       "output": "release"
     },
@@ -49,7 +49,7 @@
       "createDesktopShortcut": true,
       "shortcutName": "Toast Docs",
       "uninstallDisplayName": "Toast Docs",
-      "artifactName": "MyPDFKit-Lite-Setup-${version}.${ext}"
+      "artifactName": "Toast-Docs-Lite-Setup-${version}.${ext}"
     },
     "extraResources": [
       {

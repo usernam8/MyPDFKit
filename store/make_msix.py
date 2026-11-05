@@ -3,7 +3,7 @@ from the Windows SDK). Microsoft signs the package when it's accepted in the Sto
 
   1. npx electron-builder --win dir --publish never --config electron-builder.store.js -c.directories.output=release-store
   2. python store/make_msix.py
-     -> release-store/MyPDFKit-Store-<version>.msix  (upload it in Partner Center: Packages)
+     -> release-store/Toast-Docs-Store-<version>.msix  (upload it in Partner Center: Packages)
 
 The three Store names (identityName, publisher, publisherDisplayName) come from Partner Center, Product
 identity, after reserving the app's name; put them in store-identity.json (see electron-builder.store.js)."""
@@ -51,7 +51,7 @@ manifest = f'''<?xml version="1.0" encoding="utf-8"?>
   <Resources><Resource Language="en-US"/><Resource Language="es-ES"/><Resource Language="de-DE"/><Resource Language="fr-FR"/><Resource Language="pt-BR"/><Resource Language="zh-CN"/><Resource Language="ja-JP"/><Resource Language="ko-KR"/></Resources>
   <Capabilities><rescap:Capability Name="runFullTrust"/><Capability Name="internetClient"/></Capabilities>
   <Applications>
-    <Application Id="MyPDFKit" Executable="app\\MyPDFKit.exe" EntryPoint="Windows.FullTrustApplication">
+    <Application Id="MyPDFKit" Executable="app\\Toast Docs.exe" EntryPoint="Windows.FullTrustApplication">
       <uap:VisualElements DisplayName="{ident['displayName']}" Description="Edit, sign, convert, print and summarize PDFs"
           BackgroundColor="transparent" Square150x150Logo="assets\\Square150x150Logo.png" Square44x44Logo="assets\\Square44x44Logo.png">
         <uap:DefaultTile Wide310x150Logo="assets\\Wide310x150Logo.png"/>
@@ -81,7 +81,7 @@ with open(mapping, 'w', encoding='utf-8') as f:
             # python-docx's unused template source folder (it uses templates\default.docx), so that folder is left out
             if n.lower() == '[content_types].xml' or '_rels' in os.path.relpath(r, app).lower().split(os.sep) or 'default-docx-template' in r: continue
             full = os.path.join(r, n); f.write(f'"{full}" "app\\{os.path.relpath(full, app)}"\n')
-out = os.path.join(out_dir, f'MyPDFKit-Store-{version}.msix')
+out = os.path.join(out_dir, f'Toast-Docs-Store-{version}.msix')
 if os.path.exists(out): os.remove(out)
 r = subprocess.run([makeappx, 'pack', '/f', mapping, '/p', out, '/o'], capture_output=True, text=True)
 print((r.stdout or '')[-600:], (r.stderr or '')[-600:])

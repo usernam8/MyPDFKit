@@ -20,6 +20,10 @@ function pickPort() {
 let serverProc = null;
 let win = null;
 
+// The app is called Toast Docs now, but its settings, recent files and owner mode stay in the folder it always used
+// (%APPDATA%\MyPDFKit), so nothing is lost when an older MyPDFKit updates itself. A test copy can still pass --user-data-dir.
+if (!app.commandLine.hasSwitch('user-data-dir')) app.setPath('userData', path.join(app.getPath('appData'), 'my-pdf-kit'));
+
 // Only allow one running copy; a second launch (e.g. double-clicking another file)
 // hands its file to the first window.
 const gotLock = app.requestSingleInstanceLock();
@@ -195,6 +199,46 @@ app.on('second-instance', (_e, argv) => {
   win.focus();
   const files = filesFromArgv(argv);
   if (files.length) win.webContents.send('open-files', files);
+});
+
+// ---------- owner mode: publishing which tools everyone else sees ----------
+// The owner's GitHub key (allowed to change only the releases page) stays on this PC, encrypted by Windows for this user.
+const OWNER_REPO = 'usernam8/MyPDFKit-releases';
+const ownerKeyFile = () => path.join(app.getPath('userData'), 'owner-github.bin');
+function ownerKey() {
+  try {
+    const raw = fs.readFileSync(ownerKeyFile());
+    const { safeStorage } = require('electron');
+    return safeStorage.isEncryptionAvailable() ? safeStorage.decryptString(raw) : raw.toString('utf8');
+  } catch (e) { return ''; }
+}
+ipcMain.handle('owner-key', (e, op, value) => {
+  if (op === 'has') return !!ownerKey();
+  if (op === 'clear') { try { fs.unlinkSync(ownerKeyFile()); } catch (err) {} return true; }
+  if (op === 'set') {
+    const { safeStorage } = require('electron');
+    const v = String(value || '').trim();
+    fs.writeFileSync(ownerKeyFile(), safeStorage.isEncryptionAvailable() ? safeStorage.encryptString(v) : Buffer.from(v, 'utf8'));
+    return true;
+  }
+  return false;
+});
+ipcMain.handle('owner-publish', async (e, data) => {
+  const key = ownerKey();
+  if (!key) return { error: 'nokey' };
+  const url = `https://api.github.com/repos/${OWNER_REPO}/contents/features.json`;
+  const headers = { Authorization: `Bearer ${key}`, Accept: 'application/vnd.github+json', 'User-Agent': 'ToastDocs', 'X-GitHub-Api-Version': '2022-11-28' };
+  try {
+    const cur = await fetch(url, { headers });
+    if (cur.status === 401) return { error: 'badkey' };
+    const sha = cur.ok ? (await cur.json()).sha : undefined;
+    const body = { message: 'Toast Docs: tools everyone sees', content: Buffer.from(JSON.stringify(data, null, 2) + '\n').toString('base64'), sha };
+    const r = await fetch(url, { method: 'PUT', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    if (r.status === 401) return { error: 'badkey' };
+    if (r.status === 403 || r.status === 404) return { error: 'noaccess' };
+    if (!r.ok) return { error: 'http ' + r.status };
+    return { ok: true };
+  } catch (err) { return { error: 'offline' }; }
 });
 
 if (gotLock) app.whenReady().then(async () => {

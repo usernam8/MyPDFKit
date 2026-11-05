@@ -529,6 +529,37 @@
     .st-key { margin-bottom:6px; align-items:center; } .st-key-name { width:150px; flex:none; font-size:12.5px; } .ai-dlg .ai-answer.busy { color:var(--dim); }
     .side-btn.user-hidden { display:none !important; }
     .feat-off { display:none !important; }
+    #owner-panel { padding-top:8vh; }
+    #owner-panel .op { width:min(820px, calc(100vw - 40px)); max-height:84vh; display:flex; flex-direction:column; padding:0; overflow:hidden; border-radius:14px; }
+    .op-head { padding:22px 26px 16px; border-bottom:1px solid var(--line); background:linear-gradient(180deg, var(--accent-soft), transparent 85%); }
+    .op-title { font-size:19px; font-weight:600; display:flex; align-items:center; gap:10px; }
+    .op-badge { font-size:11px; font-weight:600; letter-spacing:.04em; padding:3px 9px; border-radius:99px; background:var(--accent); color:var(--accent-ink); }
+    .op-sub { color:var(--dim); font-size:12.5px; margin-top:6px; line-height:1.5; max-width:620px; }
+    .op-bar { display:flex; gap:12px; margin-top:14px; align-items:center; }
+    .op-search { flex:1; height:36px; box-sizing:border-box; border-radius:9px; border:1px solid var(--line); background:var(--canvas); color:var(--text); padding:0 14px; font:inherit; outline:none; }
+    .op-search:focus { border-color:var(--accent); }
+    .op-stat { font-size:12px; color:var(--dim); white-space:nowrap; }
+    .op-body { overflow:auto; padding:4px 26px 20px; }
+    .op-group h5 { display:flex; justify-content:space-between; align-items:center; font-size:11px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:var(--faint); margin:18px 0 8px; }
+    .op-links a { color:var(--dim); text-decoration:none; text-transform:none; letter-spacing:0; font-weight:500; margin-left:12px; font-size:12px; }
+    .op-links a:hover { color:var(--accent); }
+    .op-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(240px, 1fr)); gap:8px; }
+    .op-row { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:var(--raised); cursor:pointer; user-select:none; transition:border-color .12s, background .12s; }
+    .op-row:hover { border-color:#4a4b52; }
+    .op-row.off { background:transparent; }
+    .op-row.off .op-name { color:var(--faint); text-decoration:line-through; text-decoration-color:rgba(255,255,255,.25); }
+    .op-name { font-size:13px; }
+    .op-switch { flex:none; width:34px; height:20px; border-radius:99px; background:#4a4b52; position:relative; transition:background .15s; }
+    .op-switch::after { content:''; position:absolute; top:3px; left:3px; width:14px; height:14px; border-radius:50%; background:#fff; transition:left .15s; }
+    .op-row.on .op-switch, .op-preview.on .op-switch { background:var(--accent); }
+    .op-row.on .op-switch::after, .op-preview.on .op-switch::after { left:17px; }
+    .op-switch.sm { width:30px; height:18px; } .op-switch.sm::after { width:12px; height:12px; }
+    .op-preview.on .op-switch.sm::after { left:15px; }
+    .op-foot { display:flex; align-items:center; gap:10px; padding:14px 26px; border-top:1px solid var(--line); background:var(--panel); }
+    .op-preview { display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--dim); cursor:pointer; user-select:none; }
+    .op-status { flex:1; text-align:right; font-size:12px; color:var(--dim); }
+    .op-empty { color:var(--dim); font-size:13px; padding:20px 0; }
+    .op-open { display:none; } body.owner-on .op-open { display:inline-block; }
     .icon-tool.ai-btn { width:auto; padding:0 8px; gap:4px; display:inline-flex; align-items:center; font:600 12px Segoe UI, sans-serif; } .icon-tool.ai-btn span { color:var(--accent); }
     .st-tools { display:grid; grid-template-columns:repeat(3, 1fr); gap:10px; margin:6px 0 8px; }
     .st-group { display:flex; flex-direction:column; gap:3px; font-size:12.5px; } .st-group b { font-size:12px; color:var(--dim); margin-bottom:2px; }
@@ -3011,20 +3042,21 @@
       const panes = [...document.querySelectorAll('.pane[data-pane]')].map(p => ({ name: { edit: 'Edit', convert: 'Convert', sign: 'E-Sign' }[p.dataset.pane] || p.dataset.pane,
         tools: [...p.querySelectorAll('.side-btn[id]:not(.feat-off)')].map(b => ({ id: b.id, label: (b.dataset.enlabel || b.textContent).trim() })) })).filter(p => p.tools.length);
       const bd = showPanel('Settings', `
-        <h4>Language</h4><select class="st-lang">${Object.entries(I18N_NAMES).map(([v, n]) => `<option value="${v}">${n}</option>`).join('')}</select>
-        <h4>Tools shown in the side panel</h4><p class="ai-meta">Uncheck what you never use: it disappears from the side panel (it stays in All tools).</p>
+        <div data-feat="language"><h4>Language</h4><select class="st-lang">${Object.entries(I18N_NAMES).map(([v, n]) => `<option value="${v}">${n}</option>`).join('')}</select></div>
+        <div data-feat="sidetools"><h4>Tools shown in the side panel</h4><p class="ai-meta">Uncheck what you never use: it disappears from the side panel (it stays in All tools).</p>
         <div class="st-tools">${panes.map(p => `<div class="st-group"><b>${esc(p.name)}</b>${p.tools.map(t => `<label><input type="checkbox" data-id="${t.id}" ${hidden.has(t.id) ? '' : 'checked'}> ${esc(t.label)}</label>`).join('')}</div>`).join('')}</div>
-        <button class="lb-btn st-all">Show all</button>
+        <button class="lb-btn st-all">Show all</button></div>
         <h4>AI</h4><p class="ai-meta">${localAi.ready ? 'The built-in AI is ready. It runs on this computer: no account, no internet, nothing sent anywhere.' : 'The built-in AI isn\'t downloaded yet (one time, about 1.3 GB).'}</p>
         ${localAi.ready ? '' : '<button class="lb-btn st-ai-dl">Download the built-in AI</button>'}
-        <details class="st-adv"><summary>Advanced: use an online AI instead</summary>
+        <details class="st-adv" data-feat="onlineai"><summary>Advanced: use an online AI instead</summary>
         <p class="ai-meta">For very long files, an online AI can be smarter. Each needs its own key from its website. Google Gemini's key is free; the paid ones bill your account with that company for each question, and Toast Docs only uses them when you press Ask. The AI you save last is the one used; choose Built-in in the AI window to go back.</p>
         ${ONLINE.map(p => { const k = aiKey(p); return `<div class="st-key" data-p="${p}"><span class="st-key-name">${AI[p].name}${p === 'gemini' ? ' (free)' : ' (paid)'}</span><input type="password" class="st-key-in" placeholder="${k ? '••••••••••' : AI[p].hint}" spellcheck="false"><button class="lb-btn st-key-save">Save key</button>${k ? '<button class="lb-btn st-key-del">Remove my key</button>' : `<button class="lb-btn st-key-get">Get a key</button>`}</div>`; }).join('')}
         </details>
-        <h4>Keyboard shortcuts</h4><input class="st-key-find" placeholder="Search shortcuts" spellcheck="false">
-        <div class="st-shortcuts"></div><div class="st-sc-msg ai-meta"></div><button class="lb-btn st-sc-reset">Reset to defaults</button>
-        <h4>PDF app</h4><button class="lb-btn st-default">Make it my PDF app</button>
-        <h4>Help</h4><button class="lb-btn st-report">Send a problem report</button><p class="ai-meta">Version ${esc(window.appVersion || '')}. Free software under the GNU AGPL 3.0: <a href="#" class="st-source">source code and license</a></p>`, []);
+        <div data-feat="shortcuts"><h4>Keyboard shortcuts</h4><input class="st-key-find" placeholder="Search shortcuts" spellcheck="false">
+        <div class="st-shortcuts"></div><div class="st-sc-msg ai-meta"></div><button class="lb-btn st-sc-reset">Reset to defaults</button></div>
+        <div data-feat="defaultapp"><h4>PDF app</h4><button class="lb-btn st-default">Make it my PDF app</button></div>
+        <h4>Help</h4><button class="lb-btn st-report" data-feat="report">Send a problem report</button> <button class="lb-btn op-open st-owner">What others see</button><p class="ai-meta">Version ${esc(window.appVersion || '')}. Free software under the GNU AGPL 3.0: <a href="#" class="st-source">source code and license</a></p>`, []);
+        applyFeatures(); bd.querySelector('.st-owner').onclick = () => { bd.remove(); openOwnerPanel(); };
         bd.querySelector('.st-source').onclick = e => { e.preventDefault(); require('electron').shell.openExternal('https://github.com/usernam8/MyPDFKit'); };
       const lang = bd.querySelector('.st-lang'); lang.value = store('ui-lang', 'en');
       lang.onchange = () => { keep('ui-lang', lang.value); setUiLanguage(lang.value); };
@@ -3150,6 +3182,7 @@
       if (!typing && !e.ctrlKey && !e.altKey && !e.metaKey && !/^F\d+$/.test(e.key) && !['Home', 'End'].includes(e.key)) return;
       const hit = SHORTCUTS.find(([id]) => keysOf(id).includes(combo));
       if (!hit || (typing && !hit[4])) return;
+      if (featureOff(SHORTCUT_FEATURE[hit[0]] || hit[0]) || (hit[5] && document.getElementById(hit[5])?.classList.contains('feat-off'))) return;
       if (reader && hit[0] !== 'reading' && hit[0] !== 'bookmark') return;   // reading view has its own keys
       e.preventDefault(); e.stopImmediatePropagation();
       hit[3]();
@@ -6356,7 +6389,7 @@
     function askDialog(title, fields, okLabel) {
       return new Promise(resolve => {
         const bd = document.createElement('div'); bd.className = 'backdrop';
-        const dlg = document.createElement('div'); dlg.className = 'dialog';
+        const dlg = document.createElement('div'); dlg.className = 'dialog'; dlg.style.maxWidth = 'min(560px, calc(100vw - 40px))';
         const h = document.createElement('h3'); h.textContent = title; dlg.append(h);
         const inputs = {};
         fields.forEach(f => {
@@ -7544,20 +7577,43 @@
       if (v && +v.n) goToPage(+v.n);
     }
 
-    // ---------- tools the owner can switch off for everyone ----------
-    // Everyone's copy reads features.json from the public releases page at start ({"off": ["boxlabels", ...]}) and
-    // hides those tools; it remembers the last list for when there's no internet. The work-only packing-list tool is off
-    // until that file says otherwise. The owner (Ctrl+Shift+D, then the owner code) always sees every tool.
+    // ---------- owner mode: what everyone else sees ----------
+    // Everyone's copy reads features.json from the public releases page when it starts ({"off": ["boxlabels", ...]})
+    // and hides those tools; it remembers the last list for when there's no internet. The work-only packing-list tool
+    // is off until that file says otherwise. The owner (Ctrl+Shift+D, then the owner code) sees every tool and gets the
+    // "What others see" panel, which publishes the list back to GitHub with the owner's own key.
+    // This hides things; it doesn't lock them (the code is public), so it's for tidiness, not secrets.
     const FEATURES_URL = 'https://raw.githubusercontent.com/usernam8/MyPDFKit-releases/main/features.json';
     const OWNER_HASH = 'bdce743e66dea0a283466a422509b218bccbe118df91591884f74cf4e6ba628a';
-    const FEATURE_EXTRA = { boxlabels: ['#btn-boxlabels'] };
+    // each tool's buttons outside All tools (side panel and top bar)
+    const FEATURE_EL = {
+      compress: ['#btn-compress'], protect: ['#btn-protect'], number: ['#btn-number'], headfoot: ['#btn-headfoot'], blank: ['#btn-blank'],
+      watermark: ['#btn-watermark'], pagesize: ['#btn-pagesize'], insert: ['#btn-insert'], privacy: ['#btn-privacy'],
+      finalize: ['#btn-finalize', '#btn-finalize-sign'], replace: ['#btn-replace'], bates: ['#btn-bates'], redact: ['#btn-redact'], ocr: ['#btn-ocr'],
+      sign: ['#btn-add-sig'], stamps: ['#btn-stamps'], prepare: ['#btn-prepare'], certsign: ['#btn-cert-sign'], certcheck: ['#btn-cert-check'],
+      convert: ['#btn-process-all'], merge: ['#btn-merge'], split: ['#btn-split'], export: ['#btn-export'], exportall: ['#btn-export-all'],
+      template: ['#btn-template'], boxlabels: ['#btn-boxlabels'], pdfa: ['#btn-pdfa'], translate: ['#btn-translate'], batch: ['#btn-batch'],
+      compare: ['#btn-compare'], print: ['#btn-print'], read: ['#btn-read'], speak: ['#btn-speak'], sidebyside: ['#btn-side'],
+      ai: ['#btn-ai', '.tool-card[data-tool="summarize"]', '.tool-card[data-tool="askclaude"]'],
+    };
+    // things that aren't tool cards: the AI as a whole and parts of Settings
+    const FEATURE_EXTRA = [
+      ['Top bar and AI', [['ai', 'AI (summaries and questions)'], ['onlineai', 'Online AI keys (Gemini, ChatGPT, Grok, Claude)']]],
+      ['Settings', [['language', 'Language choice'], ['sidetools', 'Choosing side-panel tools'], ['shortcuts', 'Keyboard shortcut editor'],
+        ['defaultapp', 'Make it my PDF app'], ['report', 'Send a problem report']]],
+    ];
+    // a shortcut stops working when its tool is hidden
+    const SHORTCUT_FEATURE = { print: 'print', replace: 'replace', ai: 'ai', reading: 'read' };
     let featuresOff = new Set(store('features-off', ['boxlabels']));
+    let ownerPreview = false;   // the owner looking at the app the way everyone else sees it
+    let previewOff = null;      // while previewing: the list being edited, even before it's published
     const isOwner = () => store('owner-mode', false) === true;
-    const featureOff = k => featuresOff.has(k) && !isOwner();
+    const featureOff = k => (ownerPreview && previewOff ? previewOff : featuresOff).has(k) && (!isOwner() || ownerPreview);
     function applyFeatures() {
       document.querySelectorAll('.feat-off').forEach(el => el.classList.remove('feat-off'));
-      if (isOwner()) return;
-      featuresOff.forEach(k => [`.tool-card[data-tool="${k}"]`, `#btn-${k}`].concat(FEATURE_EXTRA[k] || [])
+      document.body.classList.toggle('owner-on', isOwner() && !ownerPreview);
+      if (isOwner() && !ownerPreview) return;
+      (ownerPreview && previewOff ? previewOff : featuresOff).forEach(k => [`.tool-card[data-tool="${k}"]`, `[data-feat="${k}"]`].concat(FEATURE_EL[k] || [])
         .forEach(s => { try { document.querySelectorAll(s).forEach(el => el.classList.add('feat-off')); } catch (e) {} }));
     }
     async function loadFeatures() {
@@ -7568,15 +7624,119 @@
         if (Array.isArray(j.off)) { featuresOff = new Set(j.off.map(String)); keep('features-off', [...featuresOff]); applyFeatures(); }
       } catch (e) {}
     }
+    function ownerCatalog() {
+      const paneName = { edit: 'Edit', convert: 'Convert', sign: 'E-Sign' };
+      const groups = {};
+      const seen = new Set(['summarize', 'askclaude']);   // these two are part of "AI"
+      document.querySelectorAll('.tool-card[data-tool]').forEach(c => {
+        const k = c.dataset.tool; if (seen.has(k)) return; seen.add(k);
+        const side = (FEATURE_EL[k] || []).map(s => document.querySelector(s)).find(Boolean);
+        const pane = side?.closest('.pane[data-pane]')?.dataset.pane;
+        const g = paneName[pane] || (side ? 'Top bar and AI' : 'More tools');
+        (groups[g] = groups[g] || []).push([k, (c.dataset.enlabel || c.textContent).trim()]);
+      });
+      FEATURE_EXTRA.forEach(([g, items]) => (groups[g] = (groups[g] || []).concat(items)));
+      return ['Edit', 'E-Sign', 'Convert', 'More tools', 'Top bar and AI', 'Settings'].filter(g => groups[g]).map(g => [g, groups[g]]);
+    }
+    async function openOwnerPanel() {
+      document.getElementById('owner-panel')?.remove();
+      const draft = new Set(featuresOff);
+      const cat = ownerCatalog();
+      const bd = document.createElement('div'); bd.className = 'backdrop'; bd.id = 'owner-panel';
+      bd.innerHTML = `<div class="dialog op">
+        <div class="op-head">
+          <div class="op-title">What others see <span class="op-badge">Owner</span></div>
+          <div class="op-sub">Switch a tool off to hide it for everyone else. You always see everything. Changes reach people the next time they open Toast Docs.</div>
+          <div class="op-bar"><input class="op-search" placeholder="Search tools" spellcheck="false"><span class="op-stat"></span></div>
+        </div>
+        <div class="op-body"></div>
+        <div class="op-foot">
+          <label class="op-preview"><span class="op-switch sm"></span>Preview as everyone</label>
+          <span class="op-status"></span>
+          <button class="btn quiet op-exit">Leave owner mode</button>
+          <button class="btn primary op-publish">Publish to everyone</button>
+        </div></div>`;
+      document.body.append(bd);
+      const $ = s => bd.querySelector(s);
+      const body = $('.op-body'), stat = $('.op-stat'), status = $('.op-status'), pub = $('.op-publish');
+      const same = () => draft.size === featuresOff.size && [...draft].every(k => featuresOff.has(k));
+      const refresh = () => {
+        stat.textContent = draft.size ? `${draft.size} hidden for everyone` : 'Everything is visible';
+        pub.disabled = same();
+        status.textContent = same() ? '' : 'Not published yet';
+      };
+      const draw = () => {
+        const q = $('.op-search').value.trim().toLowerCase();
+        body.innerHTML = cat.map(([g, items]) => {
+          const list = items.filter(([k, n]) => !q || n.toLowerCase().includes(q));
+          if (!list.length) return '';
+          return `<div class="op-group"><h5><span>${esc(g)}</span><span class="op-links"><a href="#" data-all="1" data-g="${esc(g)}">Show all</a><a href="#" data-all="0" data-g="${esc(g)}">Hide all</a></span></h5>
+            <div class="op-grid">${list.map(([k, n]) => `<div class="op-row ${draft.has(k) ? 'off' : 'on'}" data-k="${k}" title="${draft.has(k) ? 'Hidden for everyone' : 'Everyone sees it'}"><span class="op-name">${esc(n)}</span><span class="op-switch"></span></div>`).join('')}</div></div>`;
+        }).join('') || '<p class="op-empty">No tool matches.</p>';
+        refresh();
+      };
+      body.onclick = e => {
+        const row = e.target.closest('.op-row'), link = e.target.closest('a[data-g]');
+        if (row) { const k = row.dataset.k; draft.has(k) ? draft.delete(k) : draft.add(k); if (ownerPreview) applyFeatures(); return draw(); }
+        if (link) {
+          e.preventDefault();
+          const items = (cat.find(([g]) => g === link.dataset.g) || [, []])[1];
+          items.forEach(([k]) => link.dataset.all === '1' ? draft.delete(k) : draft.add(k)); if (ownerPreview) applyFeatures(); draw();
+        }
+      };
+      $('.op-search').oninput = draw;
+      const prev = $('.op-preview');
+      prev.classList.toggle('on', ownerPreview);
+      prev.onclick = () => { ownerPreview = !ownerPreview; previewOff = draft; prev.classList.toggle('on', ownerPreview); applyFeatures(); showToast(ownerPreview ? 'Showing the app the way everyone else sees it' : 'Showing everything again'); };
+      $('.op-exit').onclick = () => { ownerPreview = false; keep('owner-mode', false); applyFeatures(); bd.remove(); showToast('Owner mode off: you see what everyone sees. Ctrl+Shift+D to come back'); };
+      pub.onclick = async () => {
+        if (!await ipcRenderer.invoke('owner-key', 'has') && !await askOwnerKey()) return;
+        pub.disabled = true; status.textContent = 'Publishing…';
+        const data = { off: [...draft].sort(), updated: new Date().toISOString() };
+        let r = await ipcRenderer.invoke('owner-publish', data);
+        if (r.error === 'badkey' || r.error === 'noaccess') {
+          status.textContent = '';
+          showToast(r.error === 'badkey' ? 'GitHub didn\'t accept that key. Paste a new one.' : 'That key can\'t change the releases page. Make one with Contents: Read and write on MyPDFKit-releases.', true);
+          await ipcRenderer.invoke('owner-key', 'clear');
+          if (await askOwnerKey()) r = await ipcRenderer.invoke('owner-publish', data); else return refresh();
+        }
+        if (r.ok) {
+          featuresOff = new Set(draft); keep('features-off', [...featuresOff]); applyFeatures();
+          status.textContent = 'Published'; showToast('Published. Everyone sees the change the next time they open Toast Docs (it can take up to 5 minutes).');
+          pub.disabled = true;
+        } else {
+          status.textContent = 'Not published';
+          showToast(r.error === 'offline' ? 'No internet: nothing was published. Try again when you\'re online.' : 'GitHub said no (' + (r.error || 'unknown') + '). Nothing was published.', true);
+          pub.disabled = false;
+        }
+      };
+      // closing the panel ends the preview, so the app never keeps showing changes that weren't published
+      const close = () => { bd.remove(); if (ownerPreview) { ownerPreview = false; previewOff = null; applyFeatures(); } };
+      bd.closeOwner = close;
+      bd.addEventListener('mousedown', e => { if (e.target === bd) close(); });
+      bd.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
+      draw(); $('.op-search').focus();
+    }
+    async function askOwnerKey() {
+      require('electron').shell.openExternal('https://github.com/settings/personal-access-tokens/new');
+      const v = await askDialog('Connect to GitHub (one time)', [
+        { key: 'help', label: 'Publishing changes the features.json file on your MyPDFKit-releases page, so this PC needs a GitHub key that is allowed to change only that page. On GitHub: Settings, Developer settings, Fine-grained tokens, Generate new token. Repository access: Only select repositories, MyPDFKit-releases. Permissions: Contents, Read and write. Paste the token below; it stays on this PC, locked to your Windows account. (The GitHub page just opened in your browser.)', type: 'hidden' },
+        { key: 't', label: 'GitHub token (starts with github_pat_)', type: 'password' }], 'Save');
+      if (!v || !String(v.t || '').trim()) return false;
+      await ipcRenderer.invoke('owner-key', 'set', String(v.t).trim());
+      return true;
+    }
     document.addEventListener('keydown', async e => {
       if (!(e.ctrlKey && e.shiftKey && !e.altKey && e.code === 'KeyD')) return;
       e.preventDefault(); e.stopPropagation();
-      if (isOwner()) { keep('owner-mode', false); applyFeatures(); return showToast('Owner mode off: you see what everyone sees'); }
+      if (isOwner()) { const op = document.getElementById('owner-panel'); return op ? op.closeOwner() : openOwnerPanel(); }
       const v = await askDialog('Owner mode', [{ key: 'c', label: 'Owner code', type: 'password' }], 'Unlock');
       if (!v || !v.c) return;
       const h = require('crypto').createHash('sha256').update('toastdocs:' + String(v.c).trim().toUpperCase()).digest('hex');
       if (h !== OWNER_HASH) return showToast('That code is not right', true);
-      keep('owner-mode', true); applyFeatures(); showToast('Owner mode on: you see every tool. Ctrl+Shift+D turns it off');
+      keep('owner-mode', true); ownerPreview = false; applyFeatures();
+      showToast('Owner mode on: you see every tool. Ctrl+Shift+D opens What others see');
+      openOwnerPanel();
     }, true);
     applyFeatures(); loadFeatures();
 

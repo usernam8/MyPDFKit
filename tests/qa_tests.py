@@ -85,7 +85,7 @@ if server._local_model() and server._llama_exe():
     time.sleep(1)
     check('closes the AI when the app closes', not psutil.pid_exists(pid) or not psutil.Process(pid).is_running())
 
-app = os.path.join(ROOT, 'release', 'win-unpacked', 'MyPDFKit.exe')
+app = os.path.join(ROOT, 'release', 'win-unpacked', 'Toast Docs.exe')
 if os.path.exists(app):
     import psutil
     print('\nBloat (the built app)')
@@ -104,14 +104,14 @@ if os.path.exists(app):
     check('starts and is ready to open files in under 10 s', ready is not None and ready < 10, f'{ready:.1f}s' if ready else 'never')
     time.sleep(6)   # settled, with a file-less window open
     procs = [psutil.Process(proc.pid)] + psutil.Process(proc.pid).children(recursive=True)
-    mine = [p for p in procs if p.name().lower() in ('mypdfkit.exe', 'server.exe')]
+    mine = [p for p in procs if p.name().lower() in ('toast docs.exe', 'mypdfkit.exe', 'server.exe')]
     mb = sum(p.memory_info().private for p in mine) / 1048576
     check('uses under 700 MB of memory while idle', mb < 700, f'{mb:.0f} MB in {len(mine)} processes (Office it keeps ready not counted)')
     # the app goes away suddenly (as in a crash): its converter must notice, close the Word and Excel it
     # kept ready, and exit by itself
     engine = [p for p in procs if p.name().lower() == 'server.exe']
     for p in procs:
-        if p.name().lower() == 'mypdfkit.exe':
+        if p.name().lower() in ('toast docs.exe', 'mypdfkit.exe'):
             try: p.kill()
             except Exception: pass
     mine = lambda: [p for p in psutil.process_iter(['name', 'create_time']) if (p.info['name'] or '').upper() in ('WINWORD.EXE', 'EXCEL.EXE') and p.info['create_time'] >= t0]

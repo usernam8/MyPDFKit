@@ -6,5 +6,5 @@ const base = require('./package.json').build;
 module.exports = {
   ...base,
   extraResources: [...base.extraResources, { from: 'vendor/ai', to: 'ai' }],
-  nsis: { ...base.nsis, artifactName: 'MyPDFKit-Setup-${version}.${ext}' },
+  nsis: { ...base.nsis, artifactName: 'Toast-Docs-Setup-${version}.${ext}' },
 };

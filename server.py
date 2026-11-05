@@ -37,6 +37,36 @@ from io import BytesIO
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import fitz  # PyMuPDF
+def _install_fast_rect():
+    """PyMuPDF's Rect(...) runs a long general-purpose parser even for the common Rect(x0, y0, x1, y1) and
+    Rect((x0, y0, x1, y1)); reading a 159-page book into Word makes 2.2 million of them (a quarter of the time).
+    Those two forms, Rect() and Rect(other_rect) go straight through here with the same result; the rest go the old way."""
+    import pymupdf as _m
+    R = _m.Rect; slow = R.__init__; num = (int, float)
+    def init(self, *args, **kw):
+        if not kw:
+            n = len(args)
+            if n == 0:
+                self.x0 = self.y0 = self.x1 = self.y1 = 0.0; return
+            if n == 4:
+                a, b, c, d = args
+                if type(a) in num and type(b) in num and type(c) in num and type(d) in num:
+                    self.x0 = float(a); self.y0 = float(b); self.x1 = float(c); self.y1 = float(d); return
+            elif n == 1:
+                a = args[0]; t = type(a)
+                if (t is tuple or t is list) and len(a) == 4:
+                    p, q, r, s = a
+                    if type(p) in num and type(q) in num and type(r) in num and type(s) in num:
+                        self.x0 = float(p); self.y0 = float(q); self.x1 = float(r); self.y1 = float(s); return
+                elif t is R:
+                    self.x0 = a.x0; self.y0 = a.y0; self.x1 = a.x1; self.y1 = a.y1; return
+        slow(self, *args, **kw)
+    R.__init__ = init
+    # reading a rect's four numbers and asking "is it all zeros" go through Python's slow sequence protocol
+    # (__getitem__ four times, then max() and min() over it); these give the same answers directly
+    R.__iter__ = lambda self: iter((self.x0, self.y0, self.x1, self.y1))
+    R.__bool__ = lambda self: not (max(self.x0, self.y0, self.x1, self.y1) == min(self.x0, self.y0, self.x1, self.y1) == 0)
+_install_fast_rect()
 import win32com.client as win32
 from PIL import Image
 
@@ -6278,11 +6308,76 @@ def export_pptx(doc, out):
         if text: slide.notes_slide.notes_text_frame.text = text
     prs.save(out)
 
+def _install_fast_docx_cells():
+    """python-docx finds table cell (r, c) by rebuilding the whole table grid every time, so filling a table
+    cell by cell (what pdf2docx does when it turns a PDF table into Word) costs rows x cols x grid: 20 of
+    28 seconds on a 4-page report. This finds the cell from its own row instead, with the same answer,
+    and falls back to python-docx's way for any table it doesn't fully understand."""
+    try:
+        from docx import table as _t
+        from docx.enum.table import WD_TABLE_ALIGNMENT  # noqa: F401  (makes sure the package is complete)
+        from docx.oxml.simpletypes import ST_Merge
+    except Exception:
+        return
+    slow = _t.Table.cell
+    def cell(self, row_idx, col_idx):
+        try:
+            trs = self._tbl.tr_lst
+            if row_idx < 0 or col_idx < 0 or row_idx >= len(trs): return slow(self, row_idx, col_idx)
+            tr = trs[row_idx]
+            if tr.grid_before: return slow(self, row_idx, col_idx)
+            col = 0
+            for tc in tr.tc_lst:
+                span = tc.grid_span
+                if col <= col_idx < col + span:
+                    if tc.vMerge == ST_Merge.CONTINUE:
+                        return cell(self, row_idx - 1, col_idx) if row_idx > 0 else slow(self, row_idx, col_idx)
+                    return _t._Cell(tc, self)
+                col += span
+        except Exception:
+            pass
+        return slow(self, row_idx, col_idx)
+    _t.Table.cell = cell
+    slow_cells = _t.Table._cells.fget
+    class _Grid:
+        """The table's layout grid, read cell by cell on demand instead of built whole."""
+        def __init__(self, table, n_cols, n_rows): self.t, self.n, self.size = table, n_cols, n_cols * n_rows
+        def __len__(self): return self.size
+        def __getitem__(self, i):
+            if isinstance(i, slice): return [self[k] for k in range(*i.indices(self.size))]
+            if i < 0: i += self.size
+            if not 0 <= i < self.size: raise IndexError(i)
+            return cell(self.t, *divmod(i, self.n))
+        def __iter__(self): return (self[k] for k in range(self.size))
+    shape_seen = {}   # table element -> (its shape when last checked, whether every row fills the grid)
+    def cells(self):
+        try:
+            tbl = self._tbl; n = tbl.col_count
+            # the check below only needs redoing when cells were added, removed or merged since last time
+            key = (n, tbl.xpath('count(./w:tr)'), tbl.xpath('count(./w:tr/w:tc)'), tbl.xpath('sum(./w:tr/w:tc/w:tcPr/w:gridSpan/@w:val)'),
+                   tbl.xpath('count(./w:tr/w:tc/w:tcPr/w:gridSpan)'), tbl.xpath('count(./w:tr/w:trPr/w:gridBefore)'))
+            seen = shape_seen.get(tbl)
+            if seen and seen[0] == key: ok = seen[1]
+            else:
+                ok = True
+                for tr in tbl.tr_lst:
+                    if tr.grid_before: ok = False; break
+                    spans = tr.xpath('./w:tc/w:tcPr/w:gridSpan/@w:val')
+                    if len(tr.xpath('./w:tc')) - len(spans) + sum(int(v) for v in spans) != n: ok = False; break
+                if len(shape_seen) > 200: shape_seen.clear()
+                shape_seen[tbl] = (key, ok)
+            return _Grid(self, n, len(tbl.tr_lst)) if ok else slow_cells(self)
+        except Exception:
+            return slow_cells(self)
+    _t.Table._cells = property(cells)
+_install_fast_docx_cells()
+
 def export_docx(src_pdf, out):
     try:
         from pdf2docx import Converter
     except ImportError:
         raise RuntimeError("Word export needs the pdf2docx package. Run setup-and-build.bat again.")
+    import logging; logging.getLogger().setLevel(logging.ERROR)
     cv = Converter(src_pdf)
     try: cv.convert(out)
     finally: cv.close()

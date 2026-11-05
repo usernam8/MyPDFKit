@@ -5,9 +5,9 @@
 # then the Lite one (electron-builder), then run this.
 $ErrorActionPreference = 'Stop'
 $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
-$files = @("release\MyPDFKit-Setup-$version.exe", "release\MyPDFKit-Lite-Setup-$version.exe", "release\MyPDFKit-Lite-Setup-$version.exe.blockmap", "release\latest.yml")
+$files = @("release\Toast-Docs-Setup-$version.exe", "release\Toast-Docs-Lite-Setup-$version.exe", "release\Toast-Docs-Lite-Setup-$version.exe.blockmap", "release\latest.yml")
 foreach ($f in $files) { if (-not (Test-Path $f)) { throw "Missing $f - run both builds first." } }
-if (-not (Select-String -Path release\latest.yml -Pattern "MyPDFKit-Lite-Setup-$version.exe" -Quiet)) { throw "latest.yml must point at the Lite installer: build the full version first, then the Lite one." }
+if (-not (Select-String -Path release\latest.yml -Pattern "Toast-Docs-Lite-Setup-$version.exe" -Quiet)) { throw "latest.yml must point at the Lite installer: build the full version first, then the Lite one." }
 
 # The built-in AI for the Lite version's one-time download: kept in a release of its own that is never
 # replaced, so the download keeps working for years. Made once (it's older than every app release, so it's
@@ -26,13 +26,13 @@ if ($LASTEXITCODE -ne 0) {
 $notes = @"
 ## How to install
 
-1. Under **Assets** below, click **MyPDFKit-Setup-$version.exe** to download it (about 1.5 GB, with the built-in AI).
-   On a slow connection or a small disk, take **MyPDFKit-Lite-Setup-$version.exe** instead (about 200 MB); it can add the AI later.
+1. Under **Assets** below, click **Toast-Docs-Setup-$version.exe** to download it (about 1.5 GB, with the built-in AI).
+   On a slow connection or a small disk, take **Toast-Docs-Lite-Setup-$version.exe** instead (about 200 MB); it can add the AI later.
 2. Open the downloaded file.
 3. If a blue box says **"Windows protected your PC"**, click **More info**, then **Run anyway**.
-   (MyPDFKit isn't signed with a paid certificate, so Windows doesn't recognize it yet. It's safe.)
+   (Toast Docs isn't signed with a paid certificate, so Windows doesn't recognize it yet. It's safe.)
 4. Click **Yes** when Windows asks to allow changes, then follow the steps and click **Install**.
-5. Open **MyPDFKit** from the desktop or the Start menu and drop in any file.
+5. Open **Toast Docs** from the desktop or the Start menu and drop in any file.
 
 Everything it needs comes with it: it opens PDFs, pictures, web pages, and Word, Excel and PowerPoint files,
 even on a computer without Microsoft Office. The **AI** button summarizes and answers questions about your files
@@ -41,7 +41,7 @@ right on your computer: no account, no internet, nothing sent anywhere, free. Up
 # (from a file: Windows PowerShell breaks quotes inside a long argument)
 $notesFile = Join-Path $env:TEMP "mypdfkit-notes-$version.md"
 [IO.File]::WriteAllText($notesFile, $notes, (New-Object Text.UTF8Encoding $false))
-gh release create "v$version" @files --repo usernam8/MyPDFKit-releases --title "MyPDFKit $version" --notes-file $notesFile --latest
+gh release create "v$version" @files --repo usernam8/MyPDFKit-releases --title "Toast Docs $version" --notes-file $notesFile --latest
 if ($LASTEXITCODE -ne 0) { throw "Publishing failed (gh exited with $LASTEXITCODE)" }
 Remove-Item $notesFile
-Write-Host "Published MyPDFKit $version"
+Write-Host "Published Toast Docs $version"

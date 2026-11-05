@@ -5542,6 +5542,9 @@ def _place_in(page, src, n, clip, area, orient='auto', scale='fit', pct=100, rot
     cx, cy = (area.x0 + area.x1) / 2, (area.y0 + area.y1) / 2
     target = fitz.Rect(cx - tw / 2, cy - th / 2, cx + tw / 2, cy + th / 2)
     page.show_pdf_page(target, src, n - 1, clip=(box * sp.derotation_matrix) if clip else None, rotate=-rot if rot else 0)
+    if rot:
+        try: page.parent.turned = True   # a wide label turned onto tall paper (or the other way): printers can differ on these
+        except Exception: pass
     return target
 
 def _items(d):
@@ -5682,12 +5685,12 @@ def print_prepare():
             with open(path + '.json', encoding='utf-8') as f: return jsonify(json.load(f))
         out, plan, skipped = _sheets(d)
         if not out.page_count: return jsonify({'error': 'Nothing to print on the pages chosen', 'skipped': skipped}), 400
-        if d.get('flip'):   # upside down on the paper: half a turn (not a mirror); the preview shows it the same way
-            for pg in out: pg.set_rotation((pg.rotation + 180) % 360)
+        # (Flip upside down isn't applied here: the preview always shows the label the right way up, and
+        # print_render turns only what goes to the printer, for printers that put it out the other way up)
         out.save(path, garbage=1, deflate=True)
         sizes = [[round(p.rect.width, 2), round(p.rect.height, 2)] for p in out]
         info = {'path': path, 'sheets': [{'page': n, 'rect': list(r) if r else None} for n, r in plan], 'skipped': skipped, 'sizes': sizes,
-                'count': getattr(out, 'item_count', len(plan))}
+                'count': getattr(out, 'item_count', len(plan)), 'turned': bool(getattr(out, 'turned', False))}
         with open(path + '.json', 'w', encoding='utf-8') as f: json.dump(info, f)
         return jsonify(info)
     except Exception as e: return jsonify({'error': str(e)}), 500
@@ -5718,7 +5721,9 @@ def print_render():
             gray = d.get('bw') or d.get('toner') or _is_gray(p)
             pix = p.get_pixmap(dpi=dpi, colorspace=fitz.csGRAY if gray else fitz.csRGB)
             if d.get('toner'): pix.tint_with(0x6E6E6E, 0xFFFFFF)   # black prints as mid gray: about half the toner
-            Image.frombytes('L' if gray else 'RGB', (pix.width, pix.height), pix.samples).save(f, compress_level=1)   # light, fast, lossless
+            im = Image.frombytes('L' if gray else 'RGB', (pix.width, pix.height), pix.samples)
+            if d.get('flip'): im = im.rotate(180)   # this printer puts it out the other way up: turn only what it gets
+            im.save(f, compress_level=1)   # light, fast, lossless
             pages.append({'path': f, 'w': p.rect.width, 'h': p.rect.height})
         return jsonify({'success': True, 'pages': pages, 'total': doc.page_count})
     except Exception as e: return jsonify({'error': str(e)}), 500

@@ -3252,7 +3252,7 @@
           <div class="field"><label>Color</label><select data-k="color"><option value="color">Color</option><option value="bw">Black and white</option><option value="toner">Toner saver (lighter)</option></select></div>
           <div class="field"><label>Two-sided</label><select data-k="duplex"><option value="simplex">Off</option><option value="longEdge">Flip on long edge</option><option value="shortEdge">Flip on short edge</option><option value="manual">By hand: fronts, then backs</option></select></div>
           <label class="pp-check"><input type="checkbox" data-k="skip"> Skip blank pages</label>
-          <label class="pp-check" title="Turns what prints half a turn on the paper (not a mirror). For printers that put it out the other way up."><input type="checkbox" data-k="flip"> Flip upside down</label>
+          <label class="pp-check" title="Tick this if the paper comes out turned the other way from this preview. The preview keeps showing the label the right way up; only the printout is turned. Remembered for this printer (wide labels turned onto the paper separately)."><input type="checkbox" data-k="flip"> Paper comes out upside down</label>
           <label class="pp-check"><input type="checkbox" data-k="comments" checked> Print comments and markup</label>
           <div class="pp-label-tools"><button class="btn quiet pp-adjust-btn" title="Drag the corners to choose exactly what prints">Adjust area...</button><button class="btn quiet pp-save-labels" title="Each label as its own page, sharp, in a new PDF next to this file">Save as PDF</button></div>
           <div class="dialog-actions"><button class="btn quiet pp-system" title="Open Windows' print dialog for printer-specific options">More options...</button><span class="spacer"></span><button class="btn quiet pp-cancel">Cancel</button><button class="btn primary pp-print">Print</button></div>
@@ -3320,15 +3320,17 @@
         const label = isLabelPaper(paperOf().paper);
         $('mode').value = opts.mode || mem.mode || (label ? 'label' : 'page');
         $('skip').checked = mem.skip !== undefined ? mem.skip : label;
-        $('flip').checked = !!mem.flip;
+        $('flip').checked = flipFor(mem, prepared && prepared.turned);
       };
+      // remembered per printer, and separately for wide labels turned onto the paper: some printers turn those the other way
+      const flipFor = (mem, turned) => !!(turned ? (mem.flipTurned !== undefined ? mem.flipTurned : mem.flip) : mem.flip);
       const settingsNow = () => {
         const list = chosen(); const { paper, printable, receipt } = paperOf();
         const lay = receipt ? 'receipt' : $('layout').value, [pc, pr] = $('poster').value.split('x').map(Number);
         const s = { filepath: src, pages: list, paper, printable, mode: $('mode').value, orient: $('orient').value, scale: $('scale').value,
                  percent: +$('percent').value || 100, skip_blank: $('skip').checked, comments: $('comments').checked,
                  layout: lay.startsWith('nup') ? 'nup' : lay, nup: lay.startsWith('nup') ? +lay.slice(3) : undefined, cols: pc, rows: pr,
-                 sheet: $('sheet').value, start: +$('start').value || 1, flip: $('flip').checked,
+                 sheet: $('sheet').value, start: +$('start').value || 1,
                  regions: $('mode').value === 'label' && $('range').value !== 'tab' ? areaRegions(file, list || []) : null };
         if ($('range').value === 'tab') { s.files = tabFiles.map(f => f.originalPath === file ? src : f.pdfPath); delete s.pages; }
         return s;
@@ -3347,7 +3349,9 @@
         const d = await api('print_prepare', s);
         if (token !== prepToken || !document.body.contains(bd)) return;
         if (d.error) { prepared = null; printBtn.disabled = true; bd.querySelector('.pp-count').textContent = d.error; bd.querySelector('.pp-sheet canvas').style.display = 'none'; return; }
+        const wasTurned = prepared && prepared.turned;
         prepared = d; printBtn.disabled = false;
+        if (!!d.turned !== !!wasTurned) $('flip').checked = flipFor(byPrinter[sel.value] || {}, d.turned);
         sheetsDoc = await pdfjsLib.getDocument({ data: new Uint8Array(fs.readFileSync(d.path)) }).promise;
         sheet = Math.min(sheet, sheetsDoc.numPages - 1);
         const notes = [];
@@ -3387,7 +3391,10 @@
         tint();
       }
       const remember = () => {
-        byPrinter[sel.value] = { paper: $('paper').value, mode: $('mode').value, skip: $('skip').checked, flip: $('flip').checked }; keep('print-by-printer', byPrinter);
+        const was = byPrinter[sel.value] || {};
+        byPrinter[sel.value] = { paper: $('paper').value, mode: $('mode').value, skip: $('skip').checked,
+          flip: prepared && prepared.turned ? !!was.flip : $('flip').checked,
+          flipTurned: prepared && prepared.turned ? $('flip').checked : (was.flipTurned !== undefined ? was.flipTurned : !!was.flip) }; keep('print-by-printer', byPrinter);
         keep('print-settings', { printer: sel.value, orient: $('orient').value, scale: $('scale').value, color: $('color').value, duplex: $('duplex').value,
                                  sheet: $('sheet').value, poster: $('poster').value, percent: $('percent').value, comments: $('comments').checked });
       };
@@ -3484,7 +3491,7 @@
           // in parts: a small first one so the printer starts at once, and each next part made while this one prints
           const parts = [];
           for (let k = 0; k < order.length; ) { const n = testing || system ? order.length : parts.length ? CH : 5; parts.push([k, order.slice(k, k + n)]); k += n; }
-          const render = part => api('print_render', { path: prepared.path, dpi, bw: $('color').value === 'bw', toner: $('color').value === 'toner', indices: part[1] });
+          const render = part => api('print_render', { path: prepared.path, dpi, bw: $('color').value === 'bw', toner: $('color').value === 'toner', flip: $('flip').checked, indices: part[1] });
           let next = parts.length ? render(parts[0]) : null;
           for (let pi = 0; pi < parts.length && !bar.cancelled; pi++) {
             const k = parts[pi][0];

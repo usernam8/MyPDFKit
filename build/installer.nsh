@@ -6,7 +6,7 @@
   WriteRegStr SHCTX "Software\Classes\MyPDFKit.PDF\DefaultIcon" "" "$INSTDIR\${APP_EXECUTABLE_FILENAME},0"
   WriteRegStr SHCTX "Software\Classes\MyPDFKit.PDF\shell\open\command" "" '"$INSTDIR\${APP_EXECUTABLE_FILENAME}" "%1"'
   WriteRegStr SHCTX "Software\Classes\.pdf\OpenWithProgids" "MyPDFKit.PDF" ""
-  WriteRegStr SHCTX "Software\MyPDFKit\Capabilities" "ApplicationName" "MyPDFKit"
+  WriteRegStr SHCTX "Software\MyPDFKit\Capabilities" "ApplicationName" "Toast Docs"
   WriteRegStr SHCTX "Software\MyPDFKit\Capabilities" "ApplicationDescription" "Edit, sign, convert and print PDFs"
   WriteRegStr SHCTX "Software\MyPDFKit\Capabilities\FileAssociations" ".pdf" "MyPDFKit.PDF"
   WriteRegStr SHCTX "Software\RegisteredApplications" "MyPDFKit" "Software\MyPDFKit\Capabilities"

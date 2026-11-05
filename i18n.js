@@ -56,7 +56,7 @@ const I18N = {
     'Phone numbers': 'Teléfonos', 'Comes up most': 'Lo que más aparece', 'Ask Claude…': 'Preguntarle a Claude…', 'Ask': 'Preguntar', 'Copy answer': 'Copiar respuesta',
     'Summarize it': 'Resumirlo', 'Dates and amounts': 'Fechas y montos', 'Translate to Spanish': 'Traducir al español', 'Explain simply': 'Explicar fácil',
     'Your Claude API key': 'Tu clave de API de Claude', 'Make it searchable': 'Hacerlo buscable', 'Nothing to read yet': 'Aún no hay nada que leer',
-    'Welcome to MyPDFKit': 'Bienvenido a MyPDFKit', 'Get started': 'Empezar', 'Open PDFs with MyPDFKit when I double-click them': 'Abrir los PDF con MyPDFKit al hacer doble clic',
+    'Welcome to Toast Docs': 'Bienvenido a Toast Docs', 'Get started': 'Empezar', 'Open PDFs with Toast Docs when I double-click them': 'Abrir los PDF con Toast Docs al hacer doble clic',
     // settings
     'Language': 'Idioma', 'Tools shown in the side panel': 'Herramientas en el panel lateral', 'Show all': 'Mostrar todas', 'Claude (optional)': 'Claude (opcional)',
     'Remove my key': 'Quitar mi clave', 'Save key': 'Guardar clave', 'PDF app': 'App de PDF', 'Help': 'Ayuda', 'Version': 'Versión',

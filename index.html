@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>MyPDFKit</title>
+  <title>Toast Docs</title>
   <style>
     :root {
       --canvas:#25262a; --panel:#1c1d20; --raised:#2b2c31; --line:#36373d;
@@ -528,6 +528,7 @@
     .ai-dl .pp-bar { height:6px; background:var(--line); border-radius:3px; overflow:hidden; margin-top:8px; } .ai-dl .pp-fill { height:100%; width:0; background:var(--accent); transition:width .2s; }
     .st-key { margin-bottom:6px; align-items:center; } .st-key-name { width:150px; flex:none; font-size:12.5px; } .ai-dlg .ai-answer.busy { color:var(--dim); }
     .side-btn.user-hidden { display:none !important; }
+    .feat-off { display:none !important; }
     .icon-tool.ai-btn { width:auto; padding:0 8px; gap:4px; display:inline-flex; align-items:center; font:600 12px Segoe UI, sans-serif; } .icon-tool.ai-btn span { color:var(--accent); }
     .st-tools { display:grid; grid-template-columns:repeat(3, 1fr); gap:10px; margin:6px 0 8px; }
     .st-group { display:flex; flex-direction:column; gap:3px; font-size:12.5px; } .st-group b { font-size:12px; color:var(--dim); margin-bottom:2px; }
@@ -1351,7 +1352,7 @@
           setTimeout(checkBackend, 10000);
         }).catch(() => {
           st.textContent = 'Backend offline'; st.classList.remove('online');
-          if (backendWasUp) { backendWasUp = false; showToast('The converter stopped responding. Restart MyPDFKit if this keeps happening.', true); }
+          if (backendWasUp) { backendWasUp = false; showToast('The converter stopped responding. Restart Toast Docs if this keeps happening.', true); }
           setTimeout(checkBackend, backendTries < 600 ? 300 : 5000);   // starting up: retry fast for ~3 minutes
         });
     }
@@ -1368,7 +1369,7 @@
       await syncEditsToPython();   // nothing in progress gets lost
       ipcRenderer.send('install-update');
     });
-    ipcRenderer.invoke('app-version').then(v => { document.getElementById('strip-tools').title = `Settings (MyPDFKit ${v})`; window.appVersion = v; }).catch(() => {});
+    ipcRenderer.invoke('app-version').then(v => { document.getElementById('strip-tools').title = `Settings (Toast Docs ${v})`; window.appVersion = v; }).catch(() => {});
 
     // the font picker lists every font installed on this PC (each shown in its own typeface)
     let fontsLoaded = false;
@@ -2856,7 +2857,7 @@
       document.getElementById('toast-message').classList.remove('show');
       if (d.error) return showToast(d.error, true);
       if (d.empty) {
-        return showPanel('Nothing to read yet', '<p>This file is pictures of pages (a scan), so there\'s no text to summarize. Make it searchable first: MyPDFKit reads the text in the pictures.</p>',
+        return showPanel('Nothing to read yet', '<p>This file is pictures of pages (a scan), so there\'s no text to summarize. Make it searchable first: Toast Docs reads the text in the pictures.</p>',
           [['Make it searchable', async bd => { bd.remove(); await doOcr(); doSummarize(); }, true]]);
       }
       const facts = { date: 'Dates', money: 'Amounts', email: 'Emails', phone: 'Phone numbers' };
@@ -2879,7 +2880,7 @@
     }
     // the Lite version: the built-in AI is one download (once; then it works without internet)
     function offerLocalAi(then) {
-      const bd = showPanel('Turn on the built-in AI', `<p>MyPDFKit's AI reads your files and writes summaries and answers right on this computer: no account, no internet, nothing sent anywhere.</p>
+      const bd = showPanel('Turn on the built-in AI', `<p>Toast Docs's AI reads your files and writes summaries and answers right on this computer: no account, no internet, nothing sent anywhere.</p>
         <p>It's a one-time download of about 1.3 GB. After that it always works, even offline.</p>
         <div class="ai-dl" style="display:none"><div class="pp-bar"><div class="pp-fill"></div></div><p class="ai-meta ai-dl-text"></p></div>`,
         [['Quick summary instead', bd => { bd.remove(); doSummarize(); }], ['Download (1.3 GB)', async bd => {
@@ -3008,7 +3009,7 @@
       await checkLocalAi();
       const hidden = new Set(store('hidden-tools', []));
       const panes = [...document.querySelectorAll('.pane[data-pane]')].map(p => ({ name: { edit: 'Edit', convert: 'Convert', sign: 'E-Sign' }[p.dataset.pane] || p.dataset.pane,
-        tools: [...p.querySelectorAll('.side-btn[id]')].map(b => ({ id: b.id, label: (b.dataset.enlabel || b.textContent).trim() })) })).filter(p => p.tools.length);
+        tools: [...p.querySelectorAll('.side-btn[id]:not(.feat-off)')].map(b => ({ id: b.id, label: (b.dataset.enlabel || b.textContent).trim() })) })).filter(p => p.tools.length);
       const bd = showPanel('Settings', `
         <h4>Language</h4><select class="st-lang">${Object.entries(I18N_NAMES).map(([v, n]) => `<option value="${v}">${n}</option>`).join('')}</select>
         <h4>Tools shown in the side panel</h4><p class="ai-meta">Uncheck what you never use: it disappears from the side panel (it stays in All tools).</p>
@@ -3017,7 +3018,7 @@
         <h4>AI</h4><p class="ai-meta">${localAi.ready ? 'The built-in AI is ready. It runs on this computer: no account, no internet, nothing sent anywhere.' : 'The built-in AI isn\'t downloaded yet (one time, about 1.3 GB).'}</p>
         ${localAi.ready ? '' : '<button class="lb-btn st-ai-dl">Download the built-in AI</button>'}
         <details class="st-adv"><summary>Advanced: use an online AI instead</summary>
-        <p class="ai-meta">For very long files, an online AI can be smarter. Each needs its own key from its website. Google Gemini's key is free; the paid ones bill your account with that company for each question, and MyPDFKit only uses them when you press Ask. The AI you save last is the one used; choose Built-in in the AI window to go back.</p>
+        <p class="ai-meta">For very long files, an online AI can be smarter. Each needs its own key from its website. Google Gemini's key is free; the paid ones bill your account with that company for each question, and Toast Docs only uses them when you press Ask. The AI you save last is the one used; choose Built-in in the AI window to go back.</p>
         ${ONLINE.map(p => { const k = aiKey(p); return `<div class="st-key" data-p="${p}"><span class="st-key-name">${AI[p].name}${p === 'gemini' ? ' (free)' : ' (paid)'}</span><input type="password" class="st-key-in" placeholder="${k ? '••••••••••' : AI[p].hint}" spellcheck="false"><button class="lb-btn st-key-save">Save key</button>${k ? '<button class="lb-btn st-key-del">Remove my key</button>' : `<button class="lb-btn st-key-get">Get a key</button>`}</div>`; }).join('')}
         </details>
         <h4>Keyboard shortcuts</h4><input class="st-key-find" placeholder="Search shortcuts" spellcheck="false">
@@ -4601,7 +4602,7 @@
       renderQueueUI(); backgroundProcessQueue(); processAndLoad(d.path);
       document.getElementById('toast-message').classList.remove('show');
       await askDialog(`Saved ${d.path.split(/[\\/]/).pop()}`, d.report.map(line => ({ key: Math.random().toString(36), label: '✓ ' + line, type: 'hidden' }))
-        .concat(v.protect === 'auto' ? [{ key: 'k', label: 'MyPDFKit keeps the unlock password for you. To change it later: All tools > Unlock a file I locked.', type: 'hidden' }] : [])
+        .concat(v.protect === 'auto' ? [{ key: 'k', label: 'Toast Docs keeps the unlock password for you. To change it later: All tools > Unlock a file I locked.', type: 'hidden' }] : [])
         .concat(v.protect === 'password' ? [{ key: 'n', label: 'Note: Adobe Reader, Edge and Chrome respect the lock; a determined person with special tools can get around a password lock, so for anything sensitive also certify it or turn pages into pictures.', type: 'hidden' }] : []), 'OK');
     }
     async function unlockMine() {
@@ -5079,7 +5080,7 @@
       pushHistory();
       const d = await api('add_fields', { filepath: currentTempPdf, fields });
       pendingFields = {}; drawPrepMarks(); areaDone = null; switchTool('btn-pointer', 'pointer');
-      await takeNewFile(d, `Added ${fields.length} ${fields.length === 1 ? 'field' : 'fields'}. Save, then send the PDF: it can be filled in MyPDFKit, Acrobat or a browser`);
+      await takeNewFile(d, `Added ${fields.length} ${fields.length === 1 ? 'field' : 'fields'}. Save, then send the PDF: it can be filled in Toast Docs, Acrobat or a browser`);
     });
     document.getElementById('btn-prepare').addEventListener('click', startPrepare);
 
@@ -6211,14 +6212,14 @@
     // MyPDFKit never makes itself the PDF app; this opens Windows' own Default apps page where people choose
     function makeDefaultPdfApp() {
       require('electron').shell.openExternal('ms-settings:defaultapps?registeredAppMachine=MyPDFKit');
-      showToast('In the window that opens, click .pdf and choose MyPDFKit');
+      showToast('In the window that opens, click .pdf and choose Toast Docs');
     }
     // something went wrong: a text file on the desktop (version, PC, recent errors) to send to whoever helps
     async function sendProblemReport() {
       const v = await askDialog('Send a problem report', [{ key: 'what', label: 'What happened? (optional)', hint: 'e.g. the Excel file never opened' }], 'Make the report');
       if (!v) return;
       const out = await ipcRenderer.invoke('problem-report', v.what);
-      showToast('Saved "MyPDFKit problem report.txt" on your desktop. Send it to whoever helps you');
+      showToast('Saved "Toast Docs problem report.txt" on your desktop. Send it to whoever helps you');
     }
     window.addEventListener('error', e => console.error('Page error:', e.message, e.filename + ':' + e.lineno));
     window.addEventListener('unhandledrejection', e => console.error('Page error:', e.reason && (e.reason.stack || e.reason)));
@@ -6229,11 +6230,11 @@
       try { localStorage.setItem('welcome-seen', '1'); } catch (e) {}
       const bd = document.createElement('div'); bd.className = 'backdrop';
       bd.innerHTML = `<div class="dialog welcome"><div class="drop-orb"><svg class="ico"><use href="#i-docup"/></svg></div>
-        <h2>Welcome to MyPDFKit</h2>
+        <h2>Welcome to Toast Docs</h2>
         <p>Drop any file on the window, or choose files. Everything opens as a PDF you can edit, sign, print and share.</p>
         <div class="kinds"><span>PDF</span><span>Word</span><span>Excel</span><span>PowerPoint</span><span>Pictures</span><span>Web pages</span><span>E-books</span><span>Text</span><span>CAD and design</span><span>Email</span></div>
         <button class="btn primary">Get started</button>
-        <div><button class="welcome-default">Open PDFs with MyPDFKit when I double-click them</button></div></div>`;
+        <div><button class="welcome-default">Open PDFs with Toast Docs when I double-click them</button></div></div>`;
       const close = () => bd.remove();
       bd.querySelector('.btn.primary').addEventListener('click', close);
       bd.querySelector('.welcome-default').addEventListener('click', () => { close(); makeDefaultPdfApp(); });
@@ -7430,6 +7431,7 @@
     document.querySelectorAll('.tool-card').forEach(c => c.addEventListener('click', () => {
       goTab(['edit', 'sign'].includes(c.dataset.tool) ? c.dataset.tool : 'edit');
       setToolsView(false);
+      if (featureOff(c.dataset.tool)) return;
       toolActions[c.dataset.tool]();
     }));
     document.getElementById('tool-search').addEventListener('input', e => {
@@ -7540,6 +7542,42 @@
       const v = await askDialog('Go to page', [{ key: 'n', label: `Page (1 to ${currentPdfDoc.numPages})`, type: 'number', min: 1, max: currentPdfDoc.numPages, value: shownPage() }], 'Go');
       if (v && +v.n) goToPage(+v.n);
     }
+
+    // ---------- tools the owner can switch off for everyone ----------
+    // Everyone's copy reads features.json from the public releases page at start ({"off": ["boxlabels", ...]}) and
+    // hides those tools; it remembers the last list for when there's no internet. The work-only packing-list tool is off
+    // until that file says otherwise. The owner (Ctrl+Shift+D, then the owner code) always sees every tool.
+    const FEATURES_URL = 'https://raw.githubusercontent.com/usernam8/MyPDFKit-releases/main/features.json';
+    const OWNER_HASH = '41c2d0f8cf7341aa5939fb26b913fb268678c23bba4a60798c23944d4eadbde9';
+    const FEATURE_EXTRA = { boxlabels: ['#btn-boxlabels'] };
+    let featuresOff = new Set(store('features-off', ['boxlabels']));
+    const isOwner = () => store('owner-mode', false) === true;
+    const featureOff = k => featuresOff.has(k) && !isOwner();
+    function applyFeatures() {
+      document.querySelectorAll('.feat-off').forEach(el => el.classList.remove('feat-off'));
+      if (isOwner()) return;
+      featuresOff.forEach(k => [`.tool-card[data-tool="${k}"]`, `#btn-${k}`].concat(FEATURE_EXTRA[k] || [])
+        .forEach(s => { try { document.querySelectorAll(s).forEach(el => el.classList.add('feat-off')); } catch (e) {} }));
+    }
+    async function loadFeatures() {
+      try {
+        const r = await fetch(FEATURES_URL + '?t=' + Date.now(), { cache: 'no-store' });
+        if (!r.ok) return;
+        const j = await r.json();
+        if (Array.isArray(j.off)) { featuresOff = new Set(j.off.map(String)); keep('features-off', [...featuresOff]); applyFeatures(); }
+      } catch (e) {}
+    }
+    document.addEventListener('keydown', async e => {
+      if (!(e.ctrlKey && e.shiftKey && !e.altKey && e.code === 'KeyD')) return;
+      e.preventDefault(); e.stopPropagation();
+      if (isOwner()) { keep('owner-mode', false); applyFeatures(); return showToast('Owner mode off: you see what everyone sees'); }
+      const v = await askDialog('Owner mode', [{ key: 'c', label: 'Owner code', type: 'password' }], 'Unlock');
+      if (!v || !v.c) return;
+      const h = require('crypto').createHash('sha256').update('toastdocs:' + String(v.c).trim().toUpperCase()).digest('hex');
+      if (h !== OWNER_HASH) return showToast('That code is not right', true);
+      keep('owner-mode', true); applyFeatures(); showToast('Owner mode on: you see every tool. Ctrl+Shift+D turns it off');
+    }, true);
+    applyFeatures(); loadFeatures();
 
     renderTabs();   // start with an empty New tab, like a browser
   </script>

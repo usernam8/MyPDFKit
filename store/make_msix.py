@@ -14,7 +14,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 out_dir = os.path.join(ROOT, sys.argv[1] if len(sys.argv) > 1 else 'release-store')
 app = os.path.join(out_dir, 'win-unpacked')
 version = json.load(open(os.path.join(ROOT, 'package.json'), encoding='utf-8'))['version']
-ident = {'identityName': 'MyPDFKit.Test', 'publisher': 'CN=MyPDFKitTest', 'publisherDisplayName': 'MyPDFKit'}
+ident = {'identityName': 'MyPDFKit.Test', 'publisher': 'CN=MyPDFKitTest', 'publisherDisplayName': 'MyPDFKit', 'displayName': 'MyPDFKit'}
 try: ident.update(json.load(open(os.path.join(ROOT, 'store-identity.json'), encoding='utf-8')))
 except FileNotFoundError: print('store-identity.json not found: using test names (fine for a test, not for the Store)')
 
@@ -43,7 +43,7 @@ manifest = f'''<?xml version="1.0" encoding="utf-8"?>
          IgnorableNamespaces="uap uap3 desktop rescap">
   <Identity Name="{ident['identityName']}" Publisher="{ident['publisher']}" Version="{v4}" ProcessorArchitecture="x64"/>
   <Properties>
-    <DisplayName>MyPDFKit</DisplayName>
+    <DisplayName>{ident['displayName']}</DisplayName>
     <PublisherDisplayName>{ident['publisherDisplayName']}</PublisherDisplayName>
     <Logo>assets\\StoreLogo.png</Logo>
   </Properties>
@@ -52,7 +52,7 @@ manifest = f'''<?xml version="1.0" encoding="utf-8"?>
   <Capabilities><rescap:Capability Name="runFullTrust"/><Capability Name="internetClient"/></Capabilities>
   <Applications>
     <Application Id="MyPDFKit" Executable="app\\MyPDFKit.exe" EntryPoint="Windows.FullTrustApplication">
-      <uap:VisualElements DisplayName="MyPDFKit" Description="Edit, sign, convert, print and summarize PDFs"
+      <uap:VisualElements DisplayName="{ident['displayName']}" Description="Edit, sign, convert, print and summarize PDFs"
           BackgroundColor="transparent" Square150x150Logo="assets\\Square150x150Logo.png" Square44x44Logo="assets\\Square44x44Logo.png">
         <uap:DefaultTile Wide310x150Logo="assets\\Wide310x150Logo.png"/>
       </uap:VisualElements>

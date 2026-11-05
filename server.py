@@ -2666,17 +2666,17 @@ def batch_start():
                                                   [it.get('pdf') for it in items], True), daemon=True).start()
         return jsonify({"id": jid, "total": len(items), "out_dir": None})
     first = (d.get('files') or [''])[0]
-    out_dir = d.get('out_dir') or os.path.join(first if os.path.isdir(first) else os.path.dirname(first), 'MyPDFKit output')
+    out_dir = d.get('out_dir') or os.path.join(first if os.path.isdir(first) else os.path.dirname(first), 'Toast Docs output')
     skip = os.path.normcase(os.path.abspath(out_dir))
     files = []
     for f in d.get('files', []):
         if os.path.isdir(f):
             for root, _, names in os.walk(f):
                 if d.get('subfolders') is False and root != f: continue
-                if os.path.normcase(os.path.abspath(root)).startswith(skip) or 'MyPDFKit output' in root: continue
+                if os.path.normcase(os.path.abspath(root)).startswith(skip) or ('MyPDFKit output' in root or 'Toast Docs output' in root): continue
                 files += [os.path.join(root, n) for n in sorted(names) if os.path.splitext(n)[1].lower() in OPENABLE_EXT]
         elif os.path.isfile(f): files.append(f)
-    if not files: return jsonify({"error": "There are no files there that MyPDFKit can open"}), 400
+    if not files: return jsonify({"error": "There are no files there that Toast Docs can open"}), 400
     os.makedirs(out_dir, exist_ok=True)
     jid = uuid.uuid4().hex
     BATCH[jid] = job = {"total": len(files), "done": 0, "current": '', "errors": [], "outputs": [], "results": [None] * len(files), "finished": False, "cancel": False, "out_dir": out_dir}
@@ -3067,7 +3067,7 @@ def unlock_mine():
         doc = fitz.open(fp)
         if not (doc.metadata or {}).get('encryption'): return jsonify({"error": "This file isn't locked"}), 400
         if not doc.authenticate(d.get('password') or '') & 4:   # 4: the owner's password, the one that allows changes
-            return jsonify({"error": "This file wasn't locked with MyPDFKit on this computer"}), 400
+            return jsonify({"error": "This file wasn't locked with Toast Docs on this computer"}), 400
         base = os.path.splitext(os.path.basename(orig))[0].replace(' - final', '')
         out = get_unique_filename(os.path.join(os.path.dirname(orig), base + ' (unlocked).pdf'))
         doc.save(out, encryption=fitz.PDF_ENCRYPT_NONE, garbage=3, deflate=True)
@@ -3261,7 +3261,7 @@ def save_pdfa():
         pdf_date = now.strftime("D:%Y%m%d%H%M%S") + (now.strftime('%z')[:3] + "'" + now.strftime('%z')[3:] + "'")
         iso = now.isoformat(timespec='seconds')
         doc.set_metadata({'title': title, 'author': meta.get('author', ''), 'subject': meta.get('subject', ''), 'keywords': meta.get('keywords', ''),
-                          'creator': 'MyPDFKit', 'producer': 'MyPDFKit', 'creationDate': pdf_date, 'modDate': pdf_date})
+                          'creator': 'Toast Docs', 'producer': 'Toast Docs', 'creationDate': pdf_date, 'modDate': pdf_date})
         from xml.sax.saxutils import escape as esc
         xmp = f"""<?xpacket begin="\ufeff" id="W5M0MpCehiHzreSzNTczkc9d"?>
 <x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
@@ -3272,7 +3272,7 @@ def save_pdfa():
 {f'<dc:creator><rdf:Seq><rdf:li>{esc(meta["author"])}</rdf:li></rdf:Seq></dc:creator>' if meta.get('author') else ''}
 {f'<dc:description><rdf:Alt><rdf:li xml:lang="x-default">{esc(meta["subject"])}</rdf:li></rdf:Alt></dc:description>' if meta.get('subject') else ''}
 {f'<pdf:Keywords>{esc(meta["keywords"])}</pdf:Keywords>' if meta.get('keywords') else ''}
-<xmp:CreatorTool>MyPDFKit</xmp:CreatorTool><pdf:Producer>MyPDFKit</pdf:Producer>
+<xmp:CreatorTool>Toast Docs</xmp:CreatorTool><pdf:Producer>Toast Docs</pdf:Producer>
 <xmp:CreateDate>{iso}</xmp:CreateDate><xmp:ModifyDate>{iso}</xmp:ModifyDate><xmp:MetadataDate>{iso}</xmp:MetadataDate>
 </rdf:Description></rdf:RDF></x:xmpmeta>
 <?xpacket end="w"?>"""
@@ -3795,7 +3795,7 @@ def _gemini_error(e):
     if code == 400: return f"Gemini couldn't read this file: {msg[:200]}", 400
     return f'Gemini had a problem ({code}). Try again later', 502
 
-AI_SYSTEM = ("You help someone with a PDF they have open in MyPDFKit. Answer in plain, friendly language. "
+AI_SYSTEM = ("You help someone with a PDF they have open in Toast Docs. Answer in plain, friendly language. "
              "Be concise; use short lists when they help. When you mention something from the document, say which page it's on.")
 DENSE_SUMMARY = ("Write a dense summary of this document. No filler, no repetition, no generic statements: every line must carry a fact.\n"
                  "1. One or two sentences: what this document is, who it's from and for, and its date if it has one.\n"

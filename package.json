@@ -1,6 +1,6 @@
 {
   "name": "my-pdf-kit",
-  "version": "1.9.1",
+  "version": "1.9.2",
   "description": "Modern PDF Editor",
   "author": "usernam8",
   "main": "main.js",
@@ -45,6 +45,8 @@
       "include": "build/installer.nsh",
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
+      "shortcutName": "Toast Docs",
+      "uninstallDisplayName": "Toast Docs",
       "artifactName": "MyPDFKit-Lite-Setup-${version}.${ext}"
     },
     "extraResources": [

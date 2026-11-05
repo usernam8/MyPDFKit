@@ -91,18 +91,18 @@ function backendError(reason) {
   const exe = path.join(process.resourcesPath, 'server', 'server.exe');
   if (app.isPackaged && !fs.existsSync(exe)) {
     // the usual reason: Windows Security mistook it for a threat and moved it away
-    dialog.showErrorBox('Windows Security blocked part of MyPDFKit',
-      'Windows Security removed a part of MyPDFKit it didn\'t recognize (it happens with apps from small makers). To bring it back:\n\n' +
+    dialog.showErrorBox('Windows Security blocked part of Toast Docs',
+      'Windows Security removed a part of Toast Docs it didn\'t recognize (it happens with apps from small makers). To bring it back:\n\n' +
       '1. Open the Start menu and type Windows Security, then open it.\n' +
       '2. Click Virus & threat protection, then Protection history.\n' +
-      '3. Click the item that mentions MyPDFKit or server.exe, then Actions, then Restore.\n' +
-      '4. Open MyPDFKit again.\n\nIf there\'s nothing to restore, install MyPDFKit again from the same download page.');
+      '3. Click the item that mentions Toast Docs or server.exe, then Actions, then Restore.\n' +
+      '4. Open Toast Docs again.\n\nIf there\'s nothing to restore, install Toast Docs again from the same download page.');
     return;
   }
   const tail = serverLog.trim().split(/\r?\n/).slice(-12).join('\n');
-  dialog.showErrorBox('MyPDFKit could not start its converter',
-    'Opening and converting files won\'t work until it starts. Try closing MyPDFKit and opening it again. ' +
-    'If it keeps happening, reinstall MyPDFKit, or use All tools, then Send a problem report, and send that file to whoever helps you.\n\n' +
+  dialog.showErrorBox('Toast Docs could not start its converter',
+    'Opening and converting files won\'t work until it starts. Try closing Toast Docs and opening it again. ' +
+    'If it keeps happening, reinstall Toast Docs, or use All tools, then Send a problem report, and send that file to whoever helps you.\n\n' +
     reason + (tail ? '\n\nDetails:\n' + tail : ''));
 }
 
@@ -149,7 +149,7 @@ function rememberWindow() {
 function createWindow() {
   const place = windowBounds();
   win = new BrowserWindow({
-    ...place.bounds, minWidth: 900, minHeight: 600, title: 'MyPDFKit',
+    ...place.bounds, minWidth: 900, minHeight: 600, title: 'Toast Docs',
     backgroundColor: '#25262a',
     show: false,
     autoHideMenuBar: true,
@@ -277,11 +277,11 @@ ipcMain.handle('problem-report', async (_e, extra) => {
   const os = require('os');
   let log = '';
   try { log = fs.readFileSync(logFile || path.join(app.getPath('userData'), 'logs', 'mypdfkit.log'), 'utf8').split('\n').slice(-400).join('\n'); } catch (e) { log = '(no problems logged)'; }
-  const text = [`MyPDFKit ${app.getVersion()} problem report, ${new Date().toString()}`,
+  const text = [`Toast Docs ${app.getVersion()} problem report, ${new Date().toString()}`,
     `Windows ${os.release()} ${os.arch()}, ${Math.round(os.totalmem() / 1073741824)} GB memory`,
     `Installed in: ${path.dirname(process.execPath)}`, `Converter: ${serverReady ? 'running' : 'not running'}${serverExit ? ' (' + serverExit + ')' : ''}`,
     extra ? `What the person wrote: ${extra}` : '', '', '--- Recent problems ---', log].join('\r\n');
-  const out = path.join(app.getPath('desktop'), 'MyPDFKit problem report.txt');
+  const out = path.join(app.getPath('desktop'), 'Toast Docs problem report.txt');
   fs.writeFileSync(out, text);
   shell.showItemInFolder(out);
   return out;
@@ -314,7 +314,7 @@ ipcMain.handle('print-pages', async (_e, pages, opt = {}) => {
   const sw = pages[0].w, sh = pages[0].h;
   const landscape = sw > sh;
   const [nw, nh] = [Math.min(sw, sh), Math.max(sw, sh)];   // the paper, narrow side first
-  const html = `<!doctype html><meta charset="utf-8"><title>MyPDFKit</title><style>
+  const html = `<!doctype html><meta charset="utf-8"><title>Toast Docs</title><style>
     @page { size: ${sw}pt ${sh}pt; margin: 0; }
     html, body { margin: 0; background: #fff; }
     .pg { width: ${sw}pt; height: ${sh}pt; page-break-after: always; break-after: page; overflow: hidden; }

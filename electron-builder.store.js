@@ -14,7 +14,7 @@ module.exports = {
   appx: {
     ...id,
     applicationId: 'MyPDFKit',
-    displayName: 'MyPDFKit',
+    displayName: 'Toast Docs',
     backgroundColor: '#1c1d20',
     languages: ['en-US', 'es-ES', 'de-DE', 'fr-FR', 'pt-BR', 'zh-CN', 'ja-JP', 'ko-KR'],
     artifactName: 'MyPDFKit-Store-${version}.${ext}',

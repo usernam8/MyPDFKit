@@ -16,3 +16,4 @@ vendor/
 store-identity.json
 release-store*/
 owner-code.txt
+release-*/

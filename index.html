@@ -1586,7 +1586,7 @@
     }
     const moveGrip = () => textUi('move-grip', '<svg viewBox="0 0 10 16"><circle cx="3" cy="3" r="1.3"/><circle cx="7" cy="3" r="1.3"/><circle cx="3" cy="8" r="1.3"/><circle cx="7" cy="8" r="1.3"/><circle cx="3" cy="13" r="1.3"/><circle cx="7" cy="13" r="1.3"/></svg>', dragEditing);
     function showEditChip(div) {
-        if (div === editingText || !['pointer', 'edit'].includes(currentTool)) return;
+        if (div === editingText || currentTool !== 'edit') return;   // only with Edit text on: just looking never changes anything
         clearTimeout(chipTimer); chipFor = div;
         const c = editChip();
         c.style.left = (div.offsetLeft + div.offsetWidth - 4) + 'px';
@@ -1722,7 +1722,10 @@
         if (div.classList.contains('native-text')) {
             div.addEventListener('mouseenter', () => showEditChip(div));
             div.addEventListener('mouseleave', () => hideEditChip());
-            div.addEventListener('dblclick', () => { if (['pointer', 'edit'].includes(currentTool)) startTextEdit(div); });
+            div.addEventListener('dblclick', () => {
+                if (currentTool === 'edit') return startTextEdit(div);
+                if (currentTool === 'pointer' && !store('edit-hint-shown', false)) { keep('edit-hint-shown', true); showToast('To change the words, turn on Edit text (the I button on the left)'); }
+            });
             div.addEventListener('mousedown', e => { if (div === editingText) e.stopPropagation(); });   // place the caret, never drag
             div.addEventListener('input', () => { div.classList.add('edited', 'saved'); hasUnsavedEdits = true; });
             return;
@@ -2019,6 +2022,19 @@
       handleFilesAdded(Array.from(e.dataTransfer.files));
     });
 
+    // The file on screen was changed and saved in another app (Excel, Word...): coming back to Toast Docs shows
+    // the new version. Not when there are changes made here that would be lost.
+    function refreshIfChangedOnDisk() {
+      const f = fileQueue.find(x => x.originalPath === currentActiveFile);
+      if (!f || f.status !== 'ready' || !f.srcMtime || f.keepEdits || (f.history && f.history.length) || hasUnsavedEdits || currentTempPdf !== f.pdfPath) return;
+      let now; try { now = fs.statSync(f.originalPath).mtimeMs; } catch (e) { return; }
+      if (now === f.srcMtime) return;
+      f.srcMtime = now; f.status = 'pending'; f.pdfPath = null; currentTempPdf = null;
+      showToast(`${f.name} was changed: showing the new version`);
+      backgroundProcessQueue();
+    }
+    window.addEventListener('focus', () => setTimeout(refreshIfChangedOnDisk, 250));
+
     let isQueueRunning = false;
     async function backgroundProcessQueue() {
         if (isQueueRunning) return;
@@ -2053,6 +2069,7 @@
                     } else {
                         fileObj.pdfPath = data.pdf_path;
                         fileObj.status = 'ready';
+                        try { fileObj.srcMtime = fs.statSync(fileObj.originalPath).mtimeMs; } catch (e) {}
                         if (/\.pdf$/i.test(fileObj.originalPath)) { const f = fileObj; setTimeout(() => offerOcr(f), 1500); }
                         
                         if (fileQueue.includes(fileObj) && currentActiveFile === fileObj.originalPath && currentTempPdf === null) {

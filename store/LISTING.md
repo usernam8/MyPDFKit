@@ -1,38 +1,40 @@
 # Toast Docs: Microsoft Store listing text
 
 ## Description
-Toast Docs is the PDF app I wished my friends had: open it, and your papers just work.
+I made Toast Docs because my friends kept asking me how to sign a PDF, print a shipping label, or turn a Word file into a PDF without paying for a subscription.
 
-Read, edit, sign, fill in, print and convert PDFs, plus Word, Excel, PowerPoint and pictures, even without Microsoft Office. Print shipping labels that fill a 4x6 label printer perfectly. Lock a file so nobody can change it. Ask the built-in AI to summarize a long document or answer a question about it: it runs right on your computer, so there's no account, no internet needed, and nothing is sent anywhere.
+So here it is. You can open PDFs, Word, Excel, PowerPoint files and pictures, even if you don't have Office. Fill in forms and sign them. Fix a typo in a PDF. Put pages together or pull them apart. Print labels on a 4x6 label printer and have them come out the right size.
 
-No ads. No sign-up. No subscription. Free.
+There's also an AI helper that can summarize a long document or answer questions about it. It runs on your own computer, so your files don't go anywhere and it works without internet.
+
+It's free, there are no ads, and you don't need an account. If something doesn't work, open an issue on the GitHub page and I'll take a look.
 
 ## What's new in this version
-First release in the Microsoft Store.
+First version in the Microsoft Store.
 
 ## Product features (one per line)
-Edit text in a PDF and keep the same look
-Fill and sign forms, add your signature and initials
-Print labels sized for 4x6 label printers
-Convert Word, Excel, PowerPoint and pictures to PDF, and back
-Built-in AI summaries and answers, offline and private
-Combine, split, compress, rotate and reorder pages
-Recognize text in scans (OCR)
-Lock, protect and redact files
-Works in English, Spanish, German, French, Portuguese, Chinese, Japanese and Korean
+Fill in and sign PDF forms
+Fix text in a PDF
+Print labels on 4x6 label printers
+Turn Word, Excel, PowerPoint and pictures into PDFs and back
+Summaries and answers from an AI that runs on your PC
+Combine, split, shrink and rotate pages
+Read the text in scanned pages
+Password-protect files and black out private info
+English, Spanish, German, French, Portuguese, Chinese, Japanese and Korean
 
 ## Short description
-Edit, sign, print and summarize PDFs. Private, offline AI. No account, no ads.
+A free PDF app for signing, fixing, printing and converting your files.
 
 ## Search terms
-PDF, PDF editor, sign PDF, print labels, PDF converter
+PDF, PDF editor, sign PDF, label printer, PDF converter
 
 ## Screenshots
 store/screenshots/1-document.png, store/screenshots/2-all-tools.png (1920x1080)
 
 ## Notes for certification
-Desktop app (Electron). The built-in AI runs locally (llama.cpp with a bundled model), so no sign-in is needed to test anything.
-Online AI is optional and needs the user's own key.
+Desktop app built with Electron. The AI runs locally with llama.cpp and a bundled model, so testers don't need to sign in to anything.
+The online AI options are optional and need the user's own key.
 
 ## runFullTrust justification
-It's a desktop app that opens and saves the user's own files and runs its own PDF engine next to the window.
+Toast Docs is a desktop app. It opens and saves the user's own files and runs its own PDF engine next to the window.

@@ -3073,7 +3073,7 @@
         <div class="st-shortcuts"></div><div class="st-sc-msg ai-meta"></div><button class="lb-btn st-sc-reset">Reset to defaults</button></div>
         <div data-feat="defaultapp"><h4>PDF app</h4><button class="lb-btn st-default">Make it my PDF app</button></div>
         <h4>Help</h4><button class="lb-btn st-report" data-feat="report">Send a problem report</button> <button class="lb-btn op-open st-owner">What others see</button><p class="ai-meta">Version ${esc(window.appVersion || '')}. Free software under the GNU AGPL 3.0: <a href="#" class="st-source">source code and license</a></p>`, []);
-        applyFeatures(); bd.querySelector('.st-owner').onclick = () => { bd.remove(); openOwnerPanel(); };
+        applyFeatures(); bd.querySelector('.st-owner').onclick = () => { bd.remove(); openOwnerPanelChecked(); };
         bd.querySelector('.st-source').onclick = e => { e.preventDefault(); require('electron').shell.openExternal('https://github.com/usernam8/MyPDFKit'); };
       const lang = bd.querySelector('.st-lang'); lang.value = store('ui-lang', 'en');
       lang.onchange = () => { keep('ui-lang', lang.value); setUiLanguage(lang.value); };
@@ -7651,7 +7651,8 @@
     let featuresOff = new Set(store('features-off', ['boxlabels']));
     let ownerPreview = false;   // the owner looking at the app the way everyone else sees it
     let previewOff = null;      // while previewing: the list being edited, even before it's published
-    const isOwner = () => store('owner-mode', false) === true;
+    let ownerThisTime = false;   // unlocked without keeping it: until the app closes
+    const isOwner = () => ownerThisTime || store('owner-mode', false) === true;
     const featureOff = k => (ownerPreview && previewOff ? previewOff : featuresOff).has(k) && (!isOwner() || ownerPreview);
     function applyFeatures() {
       document.querySelectorAll('.feat-off').forEach(el => el.classList.remove('feat-off'));
@@ -7732,7 +7733,7 @@
       const prev = $('.op-preview');
       prev.classList.toggle('on', ownerPreview);
       prev.onclick = () => { ownerPreview = !ownerPreview; previewOff = draft; prev.classList.toggle('on', ownerPreview); applyFeatures(); showToast(ownerPreview ? 'Showing the app the way everyone else sees it' : 'Showing everything again'); };
-      $('.op-exit').onclick = () => { ownerPreview = false; keep('owner-mode', false); applyFeatures(); bd.remove(); showToast('Owner mode off: you see what everyone sees. Ctrl+Shift+D to come back'); };
+      $('.op-exit').onclick = () => { ownerPreview = false; ownerThisTime = false; keep('owner-mode', false); applyFeatures(); bd.remove(); showToast('Owner mode off: you see what everyone sees. Ctrl+Shift+D to come back'); };
       pub.onclick = async () => {
         if (!await ipcRenderer.invoke('owner-key', 'has') && !await askOwnerKey()) return;
         pub.disabled = true; status.textContent = 'Publishing…';
@@ -7770,17 +7771,31 @@
       await ipcRenderer.invoke('owner-key', 'set', String(v.t).trim());
       return true;
     }
+    // Owner mode is either kept on this PC (the owner's own PCs: no code after the first time) or only until
+    // Toast Docs is closed (showing it on someone else's PC: nothing is left behind for them to change)
+    async function unlockOwner() {
+      const v = await askDialog('Owner mode', [{ key: 'c', label: 'Owner code', type: 'password' },
+        { key: 'keep', label: "Keep owner mode on this PC (untick on someone else's PC: it ends when Toast Docs closes)", type: 'checkbox', value: true }], 'Unlock');
+      if (!v || !v.c) return false;
+      const h = require('crypto').createHash('sha256').update('toastdocs:' + String(v.c).trim().toUpperCase()).digest('hex');
+      if (h !== OWNER_HASH) { showToast('That code is not right', true); return false; }
+      ownerThisTime = true; ownerPreview = false;
+      keep('owner-mode', !!v.keep);
+      applyFeatures();
+      showToast(v.keep ? 'Owner mode on, and kept on this PC' : 'Owner mode on until Toast Docs is closed');
+      return true;
+    }
+    async function openOwnerPanelChecked() {
+      if (!isOwner() && !await unlockOwner()) return;
+      openOwnerPanel();
+    }
     document.addEventListener('keydown', async e => {
       if (!(e.ctrlKey && e.shiftKey && !e.altKey && e.code === 'KeyD')) return;
       e.preventDefault(); e.stopPropagation();
-      if (isOwner()) { const op = document.getElementById('owner-panel'); return op ? op.closeOwner() : openOwnerPanel(); }
-      const v = await askDialog('Owner mode', [{ key: 'c', label: 'Owner code', type: 'password' }], 'Unlock');
-      if (!v || !v.c) return;
-      const h = require('crypto').createHash('sha256').update('toastdocs:' + String(v.c).trim().toUpperCase()).digest('hex');
-      if (h !== OWNER_HASH) return showToast('That code is not right', true);
-      keep('owner-mode', true); ownerPreview = false; applyFeatures();
-      showToast('Owner mode on: you see every tool. Ctrl+Shift+D opens What others see');
-      openOwnerPanel();
+      const op = document.getElementById('owner-panel');
+      if (op) return op.closeOwner();
+      if (document.querySelector('.backdrop')) return;   // the code box (or another window) is already open
+      openOwnerPanelChecked();
     }, true);
     applyFeatures(); loadFeatures();
 

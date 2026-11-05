@@ -8,7 +8,7 @@ loading; downloading the result comes on top of that.
 |---|---:|---:|---:|
 | PDF to Word, 4-page report with tables | **2.2 s** | 16.2 s | 4.4 s |
 | Word file to PDF | **0.23 s** | 0.23 s | 6.9 s |
-| Combine PDFs (20 files here, 10 on iLovePDF) | **0.03 s** | 0.03 s | 6.9 s |
+| Combine the same 10 PDFs | **0.09 s** | 0.09 s | 6.9 s |
 | PDF to Word, 159-page book | **10.4 s** | 15.2 s | not tested (the book isn't public) |
 
 Adobe Acrobat isn't installed on this PC, so it couldn't be timed. Microsoft Word's own PDF import hangs on a

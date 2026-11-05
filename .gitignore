@@ -13,3 +13,4 @@ tests/samples/private/
 # real customer PDFs (names, addresses): never commit or upload
 tests/pdfs/
 vendor/
+store-identity.json

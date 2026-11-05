@@ -4069,29 +4069,43 @@ def _local_messages(context, pages, partial, ask):
 def _local_context_for(path, question, dense):
     return _local_context(path, None if dense else question, LOCAL_BUDGET_SUMMARY if dense else LOCAL_BUDGET_QUESTION)
 
-def _local_run(job, path, question, dense, language):
-    import urllib.request
+# Qwen's own advice for answers without thinking (temperature 0.7, top_p 0.8, top_k 20) plus a penalty on saying
+# the same thing again: small models otherwise loop on long books
+LOCAL_SAMPLING = {'temperature': 0.7, 'top_p': 0.8, 'top_k': 20, 'min_p': 0, 'presence_penalty': 1.5, 'repeat_penalty': 1.05}
+LOCAL_OVERVIEW = ("Write an overview of the document, like a good teacher would.\n"
+                  "First one sentence: what it is (its title, and the author or translator if given).\n"
+                  "Then the line \"Here are the main ideas:\" and 5 to 7 bullets. Each bullet: a **short bold name** for the idea, "
+                  "then one or two sentences explaining it in plain words, then its pages in parentheses like (pp. 12-30).\n"
+                  "Explain the ideas; don't list quotes or page numbers on their own. Never repeat a point.")
+_BUSINESS = re.compile(r'invoice|packing\s*list|purchase\s*order|\bP\.?O\.?\s*#?\d|\bqty\b|quantity|total\s+due|subtotal|amount\s+due|'
+                       r'contract|agreement|bill\s+to|ship\s+to|receipt|statement|tax', re.I)
+
+def _norm_line(t):
+    return re.sub(r'[^a-z ]+', '', re.sub(r'\(p+\.?[^)]*\)', '', t.lower())).strip()
+
+def _stream_chat(port, messages, max_tokens, job=None, show=True):
+    """Ask the model and read its answer as it's written. Lines that repeat an earlier one (or nearly) are
+    dropped, and if it starts going round in circles it's stopped there, so the answer always ends cleanly."""
+    import urllib.request, difflib
+    body = dict(LOCAL_SAMPLING, messages=messages, max_tokens=max_tokens, stream=True, cache_prompt=True,
+                chat_template_kwargs={'enable_thinking': False})
+    req = urllib.request.Request(f'http://127.0.0.1:{port}/v1/chat/completions', data=json.dumps(body).encode(),
+                                 headers={'Content-Type': 'application/json'})
+    resp = urllib.request.urlopen(req, timeout=1800)
+    kept, cur, seen, dups, stop = [], '', [], 0, False
+    def line_done(line):
+        nonlocal dups, stop
+        n = _norm_line(line)
+        if len(n) > 12 and any(n == o or difflib.SequenceMatcher(None, n, o).ratio() > 0.85 for o in seen[-40:]):
+            dups += 1
+            if dups >= 3: stop = True   # going round in circles: finish here
+            return
+        dups = 0
+        if n: seen.append(n)
+        kept.append(line)
     try:
-        job['stage'] = 'Starting the built-in AI…'
-        ctx = {}
-        reader = threading.Thread(target=lambda: ctx.update(r=_local_context_for(path, question, dense)))
-        reader.start()   # picks what to read while the model starts
-        port = _local_ai_up()
-        LOCAL_AI['busy'] = True
-        job['stage'] = 'Reading the document…'
-        reader.join()
-        context, pages, partial = ctx['r']
-        ask = LOCAL_DENSE if dense else question
-        if language and language != 'English': ask += f"\nWrite the answer in {language}."
-        body = {'messages': _local_messages(context, pages, partial, ask),
-                'max_tokens': 900 if dense else 700, 'temperature': 0.2, 'top_p': 0.9, 'stream': True, 'cache_prompt': True,
-                'chat_template_kwargs': {'enable_thinking': False}}
-        req = urllib.request.Request(f'http://127.0.0.1:{port}/v1/chat/completions', data=json.dumps(body).encode(),
-                                     headers={'Content-Type': 'application/json'})
-        resp = urllib.request.urlopen(req, timeout=1800)
-        job['stage'] = 'Writing…'
         for raw in resp:
-            if job['cancel']: resp.close(); break
+            if (job and job['cancel']) or stop: break
             line = raw.decode('utf-8', 'replace').strip()
             if not line.startswith('data:'): continue
             data = line[5:].strip()
@@ -4100,14 +4114,102 @@ def _local_run(job, path, question, dense, language):
             except ValueError: continue
             ch = (d.get('choices') or [{}])[0]
             piece = (ch.get('delta') or {}).get('content') or ''
-            if piece: job['text'] += piece; job['stage'] = 'Writing…'
-            elif (ch.get('delta') or {}).get('reasoning_content'): job['stage'] = 'Thinking…'
-            if ch.get('finish_reason') == 'length': job['text'] += '\n\n(The answer was cut short.)'
-        job['text'] = re.sub(r'(?s)<think>.*?</think>\s*', '', job['text']).strip()
-        if not job['text'] and not job['cancel']: job['error'] = "The built-in AI didn't write anything. Try asking another way."
+            if piece:
+                cur += piece
+                while '\n' in cur:
+                    ln, cur = cur.split('\n', 1); line_done(ln)
+                if job is not None and show: job['text'] = '\n'.join(kept + [cur]); job['stage'] = 'Writing…'
+    finally:
+        resp.close()
+    if cur and not stop: line_done(cur)
+    text = re.sub(r'(?s)<think>.*?</think>\s*', '', '\n'.join(kept)).strip()
+    text = re.sub(r'\n{3,}', '\n\n', text)
+    if stop:   # drop a last half-finished bullet
+        text = text.rstrip()
+    return text
+
+def _doc_title(path):
+    try:
+        doc = fitz.open(path); m = doc.metadata or {}
+        first = [l.strip() for l in doc[0].get_text().splitlines() if l.strip()][:6]
+        doc.close()
+    except Exception: return ''
+    bits = [f"Title: {m['title']}" if m.get('title') else '', f"Author: {m['author']}" if m.get('author') else '']
+    return ' · '.join(b for b in bits if b) + ('\nFirst lines: ' + ' / '.join(first) if first else '')
+
+def _parts(ps, n_parts, per_part):
+    """The document cut into n_parts stretches in page order, each with its most telling pieces (up to per_part)."""
+    import math
+    words = lambda t: [w.lower() for w in re.findall(r"[A-Za-z][A-Za-z'\-]{2,}", t) if w.lower() not in _STOP]
+    df = {}
+    for _, t in ps:
+        for w in set(words(t)): df[w] = df.get(w, 0) + 1
+    N = len(ps)
+    def score(t):
+        ws = words(t)
+        return sum(math.log(1 + N / df[w]) for w in set(ws)) / (len(ws) ** 0.5) if ws else 0
+    out = []
+    for k in range(n_parts):
+        chunk = list(range(k * N // n_parts, (k + 1) * N // n_parts))
+        if not chunk: continue
+        pick, used = set(), 0
+        for i in sorted(chunk, key=lambda i: -score(ps[i][1])):
+            L = len(ps[i][1]) + 12
+            if used + L > per_part: continue
+            pick.add(i); used += L
+        out.append((ps[chunk[0]][0], ps[chunk[-1]][0], '\n'.join(f'[p.{ps[i][0]}] {ps[i][1]}' for i in sorted(pick))))
+    return out
+
+def _local_run(job, path, question, dense, language):
+    try:
+        job['stage'] = 'Starting the built-in AI…'
+        ctx = {}
+        def read():
+            doc = fitz.open(path)
+            ctx['ps'] = _passages(doc); ctx['pages'] = doc.page_count
+            ctx['start'] = ' '.join(doc[i].get_text() for i in range(min(3, doc.page_count)))
+            doc.close()
+            if not dense: ctx['r'] = _local_context(path, question, LOCAL_BUDGET_QUESTION)
+        reader = threading.Thread(target=read); reader.start()   # reads the file while the model starts
+        port = _local_ai_up()
+        LOCAL_AI['busy'] = True
+        job['stage'] = 'Reading the document…'
+        reader.join()
+        pages, lang = ctx['pages'], (f"\nWrite the answer in {language}." if language and language != 'English' else '')
+        if pages > 40 and dense:
+            job['hint'] = 'For a long file, Google Gemini (free, in Settings > AI > Advanced) can read the whole thing at once for a fuller summary.'
+        if not dense:
+            context, pages, partial = ctx['r']
+            job['text'] = _stream_chat(port, _local_messages(context, pages, partial, question + lang), 700, job)
+            return
+        business = pages <= 5 or len(_BUSINESS.findall(ctx['start'])) >= 2
+        ask = (LOCAL_DENSE if business else LOCAL_OVERVIEW) + lang
+        whole = sum(len(t) + 12 for _, t in ctx['ps'])
+        if whole <= LOCAL_BUDGET_SUMMARY:   # it fits: read it all at once
+            context, pages, partial = _local_context(path, None, LOCAL_BUDGET_SUMMARY)
+            job['text'] = _stream_chat(port, _local_messages(context, pages, partial, ask), 800, job)
+            return
+        # a long file: in parts (each a stretch of pages, its key passages), notes on each, then one answer from the notes
+        n = max(2, min(8, round(whole / 30000) + 1))
+        parts = _parts(ctx['ps'], n, 6000)
+        notes = []
+        for i, (a, b, text) in enumerate(parts, 1):
+            if job['cancel']: return
+            job['stage'] = f'Reading part {i} of {len(parts)} (pages {a}-{b})…'
+            note = _stream_chat(port, [{'role': 'system', 'content': LOCAL_SYSTEM},
+                                       {'role': 'user', 'content': f'Pages {a} to {b} of a {pages}-page document (its key passages):\n\n{text}\n\n---\n\n'
+                                        'Write 3 to 5 short bullets with the main ideas of these pages, in plain words, each with its pages like (p. 12). No quotes.'}],
+                                180, job, show=False)
+            notes.append(f'Pages {a}-{b}:\n{note}')
+        job['stage'] = 'Putting it together…'
+        head = _doc_title(path)
+        msg = (f'A {pages}-page document. ' + (head + '\n\n' if head else '') + 'Notes on it, part by part:\n\n' + '\n\n'.join(notes)
+               + '\n\n---\n\n' + ask + ('' if business else ' Base it on the notes above, covering the whole document.'))
+        job['text'] = _stream_chat(port, [{'role': 'system', 'content': LOCAL_SYSTEM}, {'role': 'user', 'content': msg}], 800, job)
     except Exception as e:
         job['error'] = str(e) if isinstance(e, RuntimeError) else f'The built-in AI had a problem ({str(e)[:160]})'
     finally:
+        if not job['text'] and not job['error'] and not job['cancel']: job['error'] = "The built-in AI didn't write anything. Try asking another way."
         LOCAL_AI['busy'] = False; LOCAL_AI['last'] = _time.time()
         job['finished'] = True
 
@@ -4144,7 +4246,7 @@ def ai_warm():
 def ai_start():
     d = request.json
     jid = uuid.uuid4().hex
-    AI_JOBS[jid] = job = {'text': '', 'stage': 'Starting…', 'finished': False, 'cancel': False, 'error': None}
+    AI_JOBS[jid] = job = {'text': '', 'stage': 'Starting…', 'finished': False, 'cancel': False, 'error': None, 'hint': None}
     threading.Thread(target=_local_run, args=(job, d['filepath'], d.get('question') or '', bool(d.get('dense')) or not d.get('question'),
                                               d.get('language')), daemon=True).start()
     return jsonify({'id': jid})
@@ -5128,7 +5230,7 @@ def rotate_page():
     try:
         doc = fitz.open(filepath)
         page = doc[page_index]
-        page.set_rotation((page.rotation + 90) % 360)
+        page.set_rotation((page.rotation + int(data.get('angle') or 90)) % 360)
         hasher = hashlib.md5((filepath + str(os.path.getmtime(filepath))).encode()).hexdigest()
         new_path = os.path.join(TEMP_DIR, f"mod_{hasher}.pdf")
         doc.save(new_path)
@@ -5550,6 +5652,8 @@ def print_prepare():
             with open(path + '.json', encoding='utf-8') as f: return jsonify(json.load(f))
         out, plan, skipped = _sheets(d)
         if not out.page_count: return jsonify({'error': 'Nothing to print on the pages chosen', 'skipped': skipped}), 400
+        if d.get('flip'):   # upside down on the paper: half a turn (not a mirror); the preview shows it the same way
+            for pg in out: pg.set_rotation((pg.rotation + 180) % 360)
         out.save(path, garbage=1, deflate=True)
         sizes = [[round(p.rect.width, 2), round(p.rect.height, 2)] for p in out]
         info = {'path': path, 'sheets': [{'page': n, 'rect': list(r) if r else None} for n, r in plan], 'skipped': skipped, 'sizes': sizes,
@@ -5792,7 +5896,7 @@ def save_modified():
     try:
         original_folder = os.path.dirname(original_path)
         base_name = os.path.splitext(os.path.basename(original_path))[0]
-        out_path = get_unique_filename(os.path.join(original_folder, f"{base_name}_Modified.pdf"))
+        out_path = data.get('out') or get_unique_filename(os.path.join(original_folder, f"{base_name}_Modified.pdf"))   # Save as: where the person chose
         _safe_copy(current_temp_pdf, out_path)
         return jsonify({"success": True, "message": f"Saved {os.path.basename(out_path)}"})
     except Exception as e: return jsonify({"error": str(e)}), 500

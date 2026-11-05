@@ -153,9 +153,10 @@ function createWindow() {
     backgroundColor: '#25262a',
     show: false,
     autoHideMenuBar: true,
-    // The app's own top bar acts as the title bar; Windows draws the min/max/close buttons over it.
+    // The app's own top bar acts as the title bar, with its own minimize / maximize / close buttons. (Windows'
+    // overlay buttons misread clicks on a monitor above the main one, where the window's top is below zero,
+    // so Restore did nothing there.) Dragging, double-clicking the bar and Windows snapping still work.
     titleBarStyle: 'hidden',
-    titleBarOverlay: { color: '#1c1d20', symbolColor: '#e6e5e1', height: 44 },
     webPreferences: {
       // index.html uses require('fs') / require('electron') directly.
       // Safe here because the page now loads only local files (pdf.js is bundled).
@@ -210,7 +211,7 @@ if (gotLock) app.whenReady().then(async () => {
 // downloads a newer version in the background, then offers a restart. If the user ignores it, the
 // update is installed the next time the app closes.
 function setupAutoUpdate() {
-  if (!app.isPackaged) return;
+  if (!app.isPackaged || process.windowsStore) return;   // the Microsoft Store updates its own copy
   let autoUpdater;
   try { ({ autoUpdater } = require('electron-updater')); } catch (e) { console.error('[update] unavailable', e); return; }
   autoUpdater.autoDownload = true;
@@ -225,6 +226,13 @@ function setupAutoUpdate() {
   ipcMain.on('install-update', () => { closing = true; closeBackend().then(() => autoUpdater.quitAndInstall(true, true)); });
 }
 ipcMain.handle('app-version', () => app.getVersion());
+ipcMain.on('win-ctl', (e, what) => {
+  const w = BrowserWindow.fromWebContents(e.sender); if (!w) return;
+  if (what === 'min') w.minimize();
+  else if (what === 'max') w.isMaximized() ? w.unmaximize() : w.maximize();
+  else if (what === 'close') w.close();
+});
+ipcMain.handle('win-is-max', e => { const w = BrowserWindow.fromWebContents(e.sender); return !!(w && w.isMaximized()); });
 // the built-in AI for the Lite version: downloaded once, checked by its fingerprint, then it works offline
 const AI_MODEL = { file: 'Qwen3.5-2B-Q4_K_M.gguf', size: 1280835840, sha256: 'aaf42c8b7c3cab2bf3d69c355048d4a0ee9973d48f16c731c0520ee914699223',
   urls: ['https://github.com/usernam8/MyPDFKit-releases/releases/download/ai-model-1/Qwen3.5-2B-Q4_K_M.gguf',

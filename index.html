@@ -27,8 +27,14 @@
     .ico-lg { width:36px; height:36px; stroke-width:1.3; }
 
     /* ---- tab strip (doubles as the window title bar) and the menu bar under it, laid out like Acrobat ---- */
-    #top-bar { height:44px; flex:none; background:#151619; display:flex; align-items:flex-end; gap:2px; padding:0 150px 0 8px; box-sizing:border-box; -webkit-app-region:drag; user-select:none; z-index:100; }
+    #top-bar { height:44px; flex:none; background:#151619; display:flex; align-items:flex-end; gap:2px; padding:0 0 0 8px; box-sizing:border-box; -webkit-app-region:drag; user-select:none; z-index:100; }
     #top-bar button, #top-bar .doc-tab { -webkit-app-region:no-drag; }
+    /* our own window buttons, drawn like Windows 11's */
+    #win-ctl { margin-left:auto; align-self:stretch; display:flex; flex:none; padding-left:40px; }
+    #win-ctl button { width:46px; height:100%; border:0; background:transparent; color:var(--text); display:flex; align-items:center; justify-content:center; cursor:default; }
+    #win-ctl button:hover { background:rgba(255,255,255,.08); } #win-ctl button:active { background:rgba(255,255,255,.05); }
+    #win-ctl .wc-close:hover { background:#c42b1c; color:#fff; } #win-ctl .wc-close:active { background:#c83c31; }
+    #win-ctl svg { width:10px; height:10px; fill:none; stroke:currentColor; stroke-width:1; shape-rendering:crispEdges; }
     .strip-btn { display:flex; align-items:center; justify-content:center; gap:7px; height:34px; min-width:38px; padding:0 10px; margin-bottom:0; border:0; border-radius:8px 8px 0 0; background:transparent; color:var(--dim); font-size:12.5px; cursor:pointer; flex:none; }
     .strip-btn:hover { background:#202126; color:var(--text); }
     .strip-btn.active { background:var(--chrome); color:var(--text); }
@@ -500,8 +506,10 @@
     #print-progress { position:fixed; left:50%; bottom:22px; transform:translateX(-50%); z-index:3100; display:flex; align-items:center; gap:10px; padding:8px 8px 8px 16px; border-radius:14px; background:var(--raised); border:1px solid var(--line); box-shadow:0 10px 30px rgba(0,0,0,.45); font-size:13px; color:var(--text); }
     #print-progress .pp-p-bar { width:160px; height:6px; border-radius:3px; background:var(--line); overflow:hidden; } #print-progress .pp-p-bar div { height:100%; width:0; background:var(--accent); }
     #print-progress .lb-btn { height:30px; padding:0 12px; border-radius:8px; border:1px solid var(--line); background:transparent; color:var(--text); cursor:pointer; }
-    .ai-dlg { width:min(640px, 92vw); max-height:84vh; display:flex; flex-direction:column; }
-    .ai-dlg .ai-body { overflow:auto; font-size:13.5px; line-height:1.55; color:var(--text); }
+    .ai-dlg { width:min(640px, 92vw); max-height:84vh; display:flex; flex-direction:column; box-sizing:border-box; }
+    .ai-dlg .ai-body { flex:1 1 auto; min-height:0; overflow:auto; font-size:13.5px; line-height:1.55; color:var(--text); padding-right:4px; }
+    .ai-dlg .dialog-actions { flex:none; }
+    .ai-dlg .ai-hint { font-size:12px; color:var(--dim); margin-top:8px; padding:8px 10px; border-radius:8px; background:var(--accent-soft); }
     .ai-dlg h4 { margin:12px 0 4px; font-size:12px; text-transform:uppercase; letter-spacing:.4px; color:var(--dim); }
     .ai-dlg ul { margin:0; padding-left:18px; } .ai-dlg li { margin:3px 0; }
     .ai-dlg .ai-meta { font-size:12px; color:var(--dim); margin:4px 0; } .ai-dlg .ai-meta a { color:var(--accent); }
@@ -512,6 +520,10 @@
     .ai-dlg .ai-answer { margin-top:10px; line-height:1.5; } .ai-dlg .ai-answer p { margin:0 0 6px; } .ai-dlg .ai-answer ul, .ai-dlg .ai-answer ol { margin:2px 0 8px; padding-left:20px; }
     .ai-dlg .ai-answer li { margin:2px 0; } .ai-dlg .ai-answer h5 { margin:10px 0 4px; font-size:13px; }
     .ai-dlg .ai-prov { display:flex; align-items:center; gap:8px; margin-bottom:6px; } .ai-dlg .ai-prov select { background:var(--raised); color:var(--text); border:1px solid var(--line); border-radius:8px; padding:5px; font:inherit; }
+    .st-shortcuts { display:grid; grid-template-columns:1fr 1fr; gap:2px 16px; max-height:220px; overflow:auto; margin:6px 0; }
+    .st-sc { display:flex; align-items:center; justify-content:space-between; gap:8px; font-size:12.5px; padding:2px 0; }
+    .st-sc .lb-btn { min-width:90px; font-family:inherit; }
+    .ai-dlg input.st-key-find { margin-top:2px; }
     .st-adv summary { cursor:pointer; color:var(--dim); font-size:12.5px; margin:8px 0 4px; } .st-adv[open] summary { color:var(--text); }
     .ai-dl .pp-bar { height:6px; background:var(--line); border-radius:3px; overflow:hidden; margin-top:8px; } .ai-dl .pp-fill { height:100%; width:0; background:var(--accent); transition:width .2s; }
     .st-key { margin-bottom:6px; align-items:center; } .st-key-name { width:150px; flex:none; font-size:12.5px; } .ai-dlg .ai-answer.busy { color:var(--dim); }
@@ -523,6 +535,9 @@
     .ai-dlg .st-group input[type=checkbox] { width:auto; flex:none; margin:2px 0 0; padding:0; }
     .st-key { display:flex; gap:6px; } .st-key input { flex:1; }
     .ai-dlg select.st-lang { background:var(--raised); color:var(--text); border:1px solid var(--line); border-radius:8px; padding:6px; font:inherit; }
+    .pp-sheets { color:var(--dim); font-size:12.5px; margin:-6px 0 10px; min-height:16px; }
+    .pp-more { margin:6px 0 4px; } .pp-more > summary { cursor:pointer; color:var(--dim); font-size:12.5px; padding:6px 0; user-select:none; }
+    .pp-more > summary:hover, .pp-more[open] > summary { color:var(--text); }
     .welcome { max-width:430px; text-align:center; padding:30px 30px 24px; }
     .welcome .drop-orb { width:64px; height:64px; margin:0 auto 14px; border-radius:50%; display:grid; place-items:center; background:var(--accent-soft); color:var(--accent); }
     .welcome .drop-orb .ico { width:28px; height:28px; }
@@ -938,7 +953,7 @@
   <div id="top-bar">
     <button id="strip-tools" class="strip-btn" title="Settings"><svg class="ico"><use href="#i-gear"/></svg>Settings</button>
     <div id="doc-tabs" role="tablist"></div>
-  </div>
+  <div id="win-ctl"><button class="wc-min" title="Minimize"><svg viewBox="0 0 10 10"><path d="M0 5.5h10"/></svg></button><button class="wc-max" title="Maximize"><svg viewBox="0 0 10 10"><rect class="wc-one" x=".5" y=".5" width="9" height="9"/><path class="wc-two" style="display:none" d="M2.5 2.5V.5h7v7h-2M.5 2.5h7v7h-7z"/></svg></button><button class="wc-close" title="Close"><svg viewBox="0 0 10 10"><path d="M.5.5l9 9M9.5.5l-9 9"/></svg></button></div></div>
 
   <div id="menu-bar">
     <button id="btn-toggle-left" class="icon-tool" title="Show or hide the left panel"><svg class="ico"><use href="#i-pleft"/></svg></button>
@@ -1948,17 +1963,6 @@
       tabs.splice(i, 1);
       enterTab(tabs[i] || tabs[i - 1] || makeTab());
     }
-    document.addEventListener('keydown', e => {
-      if (!e.ctrlKey) return;
-      const k = e.key.toLowerCase();
-      if (k === 't') { e.preventDefault(); newBlankTab(); return; }
-      if (k === 'w' && activeTab) { e.preventDefault(); closeTab(activeTab); }
-      else if (k === 'tab' && tabs.length > 1) {
-        e.preventDefault();
-        const i = tabs.indexOf(activeTab), n = tabs.length;
-        switchToTab(tabs[(i + (e.shiftKey ? -1 : 1) + n) % n]);
-      }
-    });
 
     document.getElementById('btn-add-files').addEventListener('click', () => {
       const input = document.createElement('input');
@@ -2947,8 +2951,11 @@
             await new Promise(r => setTimeout(r, 400));
             const d = await api('ai_status', { id: st.id }).catch(e => ({ error: String(e), finished: true }));
             if (!bd.isConnected) break;
+            const body = bd.querySelector('.ai-body'), atEnd = body.scrollHeight - body.scrollTop - body.clientHeight < 40;
             if (d.text) { out.classList.remove('busy'); out.innerHTML = mdHtml(d.text); out.dataset.text = d.text; }
             else out.textContent = `${d.stage || 'Working…'} ${Math.round((Date.now() - t0) / 1000)} s`;
+            if (d.hint && !bd.querySelector('.ai-hint')) { const h = document.createElement('div'); h.className = 'ai-hint'; h.textContent = d.hint; out.after(h); }
+            if (atEnd) body.scrollTop = body.scrollHeight;
             if (d.finished) { if (d.error) { out.classList.remove('busy'); out.textContent = d.error; } break; }
           }
           job = null; out.classList.remove('busy');
@@ -3013,6 +3020,8 @@
         <p class="ai-meta">For very long files, an online AI can be smarter. Each needs its own key from its website. Google Gemini's key is free; the paid ones bill your account with that company for each question, and MyPDFKit only uses them when you press Ask. The AI you save last is the one used; choose Built-in in the AI window to go back.</p>
         ${ONLINE.map(p => { const k = aiKey(p); return `<div class="st-key" data-p="${p}"><span class="st-key-name">${AI[p].name}${p === 'gemini' ? ' (free)' : ' (paid)'}</span><input type="password" class="st-key-in" placeholder="${k ? '••••••••••' : AI[p].hint}" spellcheck="false"><button class="lb-btn st-key-save">Save key</button>${k ? '<button class="lb-btn st-key-del">Remove my key</button>' : `<button class="lb-btn st-key-get">Get a key</button>`}</div>`; }).join('')}
         </details>
+        <h4>Keyboard shortcuts</h4><input class="st-key-find" placeholder="Search shortcuts" spellcheck="false">
+        <div class="st-shortcuts"></div><div class="st-sc-msg ai-meta"></div><button class="lb-btn st-sc-reset">Reset to defaults</button>
         <h4>PDF app</h4><button class="lb-btn st-default">Make it my PDF app</button>
         <h4>Help</h4><button class="lb-btn st-report">Send a problem report</button><p class="ai-meta">Version ${esc(window.appVersion || '')}</p>`, []);
       const lang = bd.querySelector('.st-lang'); lang.value = store('ui-lang', 'en');
@@ -3029,10 +3038,138 @@
         if ($r('.st-key-get')) $r('.st-key-get').onclick = () => require('electron').shell.openExternal(AI[p].get);
       });
       bd.querySelector('.st-default').onclick = () => makeDefaultPdfApp();
+      // shortcuts: click one, press the new keys; a key already in use offers to swap
+      const scList = bd.querySelector('.st-shortcuts'), scMsg = bd.querySelector('.st-sc-msg');
+      const drawShortcuts = () => {
+        const q = bd.querySelector('.st-key-find').value.trim().toLowerCase();
+        scList.innerHTML = SHORTCUTS.filter(x => !q || x[1].toLowerCase().includes(q) || keysOf(x[0]).join(' ').toLowerCase().includes(q))
+          .map(([id, name]) => `<div class="st-sc"><span>${esc(name)}</span><button class="lb-btn st-sc-key" data-id="${id}">${keysOf(id).map(k => esc(keyText(k))).join(' or ') || 'Add'}</button></div>`).join('');
+        scList.querySelectorAll('.st-sc-key').forEach(b => b.onclick = () => {
+          b.textContent = 'Press keys…'; document.body.classList.add('capturing-keys'); scMsg.textContent = 'Press the new keys (Esc to cancel, Backspace to remove).';
+          const take = e => {
+            e.preventDefault(); e.stopImmediatePropagation();
+            const combo = comboOf(e); if (!combo) return;
+            window.removeEventListener('keydown', take, true); document.body.classList.remove('capturing-keys');
+            const own = store('shortcuts', {}), id = b.dataset.id;
+            if (combo === 'Escape') { scMsg.textContent = ''; return drawShortcuts(); }
+            if (combo === 'Backspace' || combo === 'Delete') { own[id] = []; keep('shortcuts', own); scMsg.textContent = ''; showShortcutTips(); return drawShortcuts(); }
+            const other = SHORTCUTS.find(x => x[0] !== id && keysOf(x[0]).includes(combo));
+            const set = () => {
+              if (other) { own[other[0]] = keysOf(other[0]).filter(k => k !== combo).concat(keysOf(id).slice(0, 1)); }
+              own[id] = [combo]; keep('shortcuts', own); scMsg.textContent = ''; showShortcutTips(); drawShortcuts();
+            };
+            if (!other) return set();
+            scMsg.innerHTML = `${esc(keyText(combo))} is already ${esc(other[1])}. <a href="#" class="sc-swap">Swap</a> · <a href="#" class="sc-no">Cancel</a>`;
+            scMsg.querySelector('.sc-swap').onclick = ev => { ev.preventDefault(); set(); };
+            scMsg.querySelector('.sc-no').onclick = ev => { ev.preventDefault(); scMsg.textContent = ''; drawShortcuts(); };
+          };
+          window.addEventListener('keydown', take, true);
+        });
+      };
+      bd.querySelector('.st-key-find').oninput = drawShortcuts;
+      bd.querySelector('.st-sc-reset').onclick = () => { keep('shortcuts', {}); showShortcutTips(); drawShortcuts(); scMsg.textContent = 'Back to the standard shortcuts.'; };
+      drawShortcuts();
       bd.querySelector('.st-report').onclick = () => { bd.remove(); sendProblemReport(); };
     }
+
+    // ---------- keyboard shortcuts: the ones people know from Chrome, Edge, Adobe and Windows ----------
+    // One list for all of them, so each can be changed in Settings > Keyboard shortcuts (and set back).
+    function saveAs() {
+      if (!currentTempPdf) return;
+      (async () => {
+        await syncEditsToPython();
+        if (!await hiddenTextGuard()) return;
+        const out = await ipcRenderer.invoke('save-dialog', currentActiveFile.replace(/\.[^.\\/]+$/, '') + '.pdf'); if (!out) return;
+        const d = await api('save_modified', { filepath: currentTempPdf, original_path: currentActiveFile, out });
+        showToast(d.error || d.message, !!d.error);
+      })();
+    }
+    async function rotateBy(angle) {
+      if (!currentTempPdf) return;
+      await syncEditsToPython(); pushHistory();
+      const d = await api('rotate_page', { filepath: currentTempPdf, page: pageNum - 1, angle });
+      if (d.success) { fileQueue.find(f => f.originalPath === currentActiveFile).pdfPath = d.new_file; currentTempPdf = d.new_file; loadPDF(d.new_file, pageNum); }
+    }
+    const nextTab = dir => { if (tabs.length < 2) return; const i = tabs.indexOf(activeTab), n = tabs.length; switchToTab(tabs[(i + dir + n) % n]); };
+    const click = id => () => document.getElementById(id)?.click();
+    // [id, what it does, standard keys, run it, also while typing in a box?, button whose tooltip shows it]
+    const SHORTCUTS = [
+      ['print', 'Print', ['Ctrl+P'], () => doPrint(), true, 'btn-print'],
+      ['open', 'Open files', ['Ctrl+O'], click('btn-add-files'), true],
+      ['save', 'Save (a new PDF next to the original)', ['Ctrl+S'], click('btn-save-modified'), true, 'btn-save-modified'],
+      ['saveas', 'Save as…', ['Ctrl+Shift+S'], saveAs, true],
+      ['find', 'Find', ['Ctrl+F'], () => { findBox.focus(); findBox.select(); }, true, 'find-box'],
+      ['replace', 'Find and replace', ['Ctrl+H'], () => doReplace(), true],
+      ['undo', 'Undo', ['Ctrl+Z'], () => undoLast(), false, 'btn-top-undo'],
+      ['redo', 'Redo', ['Ctrl+Y', 'Ctrl+Shift+Z'], () => { if (redoStack.length) document.getElementById('btn-redo').click(); }, false],
+      ['newtab', 'New tab', ['Ctrl+T'], () => newBlankTab(), true],
+      ['closetab', 'Close tab', ['Ctrl+W'], () => activeTab && closeTab(activeTab), true],
+      ['nexttab', 'Next tab', ['Ctrl+Tab'], () => nextTab(1), true],
+      ['prevtab', 'Previous tab', ['Ctrl+Shift+Tab'], () => nextTab(-1), true],
+      ['zoomin', 'Zoom in', ['Ctrl+Plus'], () => zoomStep(1), true, 'btn-zoom-in'],
+      ['zoomout', 'Zoom out', ['Ctrl+Minus'], () => zoomStep(-1), true, 'btn-zoom-out'],
+      ['zoomfit', 'Fit page', ['Ctrl+0'], () => setZoom(1), true, 'btn-fit'],
+      ['first', 'First page', ['Home'], () => currentPdfDoc && goToPage(1), false],
+      ['last', 'Last page', ['End'], () => currentPdfDoc && goToPage(currentPdfDoc.numPages), false],
+      ['goto', 'Go to page', ['Ctrl+Shift+N', 'Ctrl+G'], () => askGoToPage(), true],
+      ['rotcw', 'Rotate page clockwise', ['Ctrl+Shift+Plus'], () => rotateBy(90), true, 'btn-rotate'],
+      ['rotccw', 'Rotate page counterclockwise', ['Ctrl+Shift+Minus'], () => rotateBy(-90), true],
+      ['reading', 'Reading view (full screen)', ['F11'], () => reader ? closeReader() : openReader(), true, 'btn-read'],
+      ['bookmark', 'Bookmark this page', ['Ctrl+B'], () => toggleMark(), false],
+      ['tools', 'Find any tool', ['Ctrl+K'], () => { goTab('tools'); const t = document.getElementById('tool-search'); t.focus(); t.select(); }, true],
+      ['ai', 'Summarize or ask AI', [], () => aiButton(), true, 'btn-ai'],
+      ['settings', 'Settings', ['Ctrl+Comma'], () => openSettings(), true],
+    ];
+    const keysOf = id => { const own = store('shortcuts', {}); const d = SHORTCUTS.find(x => x[0] === id); return own[id] || (d ? d[2] : []); };
+    // a key press as text: "Ctrl+Shift+S", "Ctrl+Plus", "F11"
+    function comboOf(e) {
+      const c = e.code || '';
+      let k = c.startsWith('Key') ? c.slice(3) : c.startsWith('Digit') ? c.slice(5) : c.startsWith('Numpad') && /\d$/.test(c) ? c.slice(-1)
+        : ({ Equal: 'Plus', NumpadAdd: 'Plus', Minus: 'Minus', NumpadSubtract: 'Minus', Comma: 'Comma', Period: 'Period', Slash: 'Slash', Backquote: 'Backquote',
+             BracketLeft: '[', BracketRight: ']', Semicolon: ';', Quote: 'Quote', Backslash: 'Backslash' })[c] || e.key;
+      if (['Control', 'Shift', 'Alt', 'Meta'].includes(k)) return '';
+      if (k && k.length === 1) k = k.toUpperCase();
+      return (e.ctrlKey || e.metaKey ? 'Ctrl+' : '') + (e.shiftKey ? 'Shift+' : '') + (e.altKey ? 'Alt+' : '') + k;
+    }
+    const keyText = k => k.replace('Plus', '+').replace(/Minus$/, '-').replace('Comma', ',').replace('Ctrl++', 'Ctrl+Plus').replace('Shift++', 'Shift+Plus');
+    function showShortcutTips() {
+      for (const [id, , , , , el] of SHORTCUTS) {
+        const b = el && document.getElementById(el); if (!b) continue;
+        const attr = b.tagName === 'INPUT' ? 'placeholder' : 'title';
+        b.dataset.tipBase = b.dataset.tipBase || (b.getAttribute(attr) || '').replace(/\s*\((Ctrl|F\d)[^)]*\)\s*$/, '');
+        const k = keysOf(id)[0];
+        if (attr === 'title') b.title = b.dataset.tipBase + (k ? ` (${keyText(k)})` : '');
+      }
+    }
+    window.addEventListener('keydown', e => {
+      const combo = comboOf(e); if (!combo) return;
+      const t = e.target, typing = t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));
+      if (document.querySelector('.backdrop, #custom-popup[style*="block"]') || document.body.classList.contains('capturing-keys')) return;   // a window is open: its own keys
+      if (!typing && !e.ctrlKey && !e.altKey && !e.metaKey && !/^F\d+$/.test(e.key) && !['Home', 'End'].includes(e.key)) return;
+      const hit = SHORTCUTS.find(([id]) => keysOf(id).includes(combo));
+      if (!hit || (typing && !hit[4])) return;
+      if (reader && hit[0] !== 'reading' && hit[0] !== 'bookmark') return;   // reading view has its own keys
+      e.preventDefault(); e.stopImmediatePropagation();
+      hit[3]();
+    }, true);
+    showShortcutTips();
     applyHiddenTools();
     document.getElementById('btn-ai').addEventListener('click', () => aiButton());
+    // the window buttons; the maximize one turns into Restore while the window is maximized
+    {
+      const wc = document.getElementById('win-ctl'), maxBtn = wc.querySelector('.wc-max');
+      wc.querySelector('.wc-min').onclick = () => ipcRenderer.send('win-ctl', 'min');
+      maxBtn.onclick = () => ipcRenderer.send('win-ctl', 'max');
+      wc.querySelector('.wc-close').onclick = () => ipcRenderer.send('win-ctl', 'close');
+      const showMax = async () => {
+        const on = await ipcRenderer.invoke('win-is-max').catch(() => false);
+        maxBtn.title = on ? 'Restore' : 'Maximize';
+        maxBtn.querySelector('.wc-one').style.display = on ? 'none' : '';
+        maxBtn.querySelector('.wc-two').style.display = on ? '' : 'none';
+      };
+      window.addEventListener('resize', () => { clearTimeout(showMax.t); showMax.t = setTimeout(showMax, 60); });
+      showMax();
+    }
     let aiWarmed = 0;
     document.getElementById('btn-ai').addEventListener('mouseenter', async () => {
       if (!currentTempPdf || Date.now() - aiWarmed < 60000) return;
@@ -3041,7 +3178,6 @@
       if (localAi.ready && aiProvider() === 'local') api('ai_warm', { filepath: currentTempPdf }).catch(() => {});
     });
     // Ctrl+K: find any tool by typing
-    document.addEventListener('keydown', e => { if (e.ctrlKey && !e.shiftKey && e.key.toLowerCase() === 'k') { e.preventDefault(); goTab('tools'); const t = document.getElementById('tool-search'); t.focus(); t.select(); } });
     try { const l = JSON.parse(localStorage.getItem('ui-lang')); if (l && l !== 'en') setUiLanguage(l); } catch (e) {}
     async function doPrint(opts = {}) {
       if (!await needDoc()) return;
@@ -3081,12 +3217,30 @@
           <div class="field"><label>Color</label><select data-k="color"><option value="color">Color</option><option value="bw">Black and white</option><option value="toner">Toner saver (lighter)</option></select></div>
           <div class="field"><label>Two-sided</label><select data-k="duplex"><option value="simplex">Off</option><option value="longEdge">Flip on long edge</option><option value="shortEdge">Flip on short edge</option><option value="manual">By hand: fronts, then backs</option></select></div>
           <label class="pp-check"><input type="checkbox" data-k="skip"> Skip blank pages</label>
+          <label class="pp-check" title="Turns what prints half a turn on the paper (not a mirror). For printers that put it out the other way up."><input type="checkbox" data-k="flip"> Flip upside down</label>
           <label class="pp-check"><input type="checkbox" data-k="comments" checked> Print comments and markup</label>
           <div class="pp-label-tools"><button class="btn quiet pp-adjust-btn" title="Drag the corners to choose exactly what prints">Adjust area...</button><button class="btn quiet pp-save-labels" title="Each label as its own page, sharp, in a new PDF next to this file">Save as PDF</button></div>
           <div class="dialog-actions"><button class="btn quiet pp-system" title="Open Windows' print dialog for printer-specific options">More options...</button><span class="spacer"></span><button class="btn quiet pp-cancel">Cancel</button><button class="btn primary pp-print">Print</button></div>
         </div></div>`;
       document.body.append(bd);
       const $ = k => bd.querySelector(`[data-k="${k}"]`);
+      {
+        const right = bd.querySelector('.pp-right'), row = k => $(k).closest('.field, .pp-check');
+        const lab = (k, t) => { row(k).querySelector('label').textContent = t; };
+        lab('orient', 'Layout'); lab('layout', 'Pages per sheet'); lab('paper', 'Paper size');
+        const count = document.createElement('div'); count.className = 'pp-sheets'; right.querySelector('h3').after(count);
+        const more = document.createElement('details'); more.className = 'pp-more';
+        more.innerHTML = '<summary>More settings</summary>';
+        let at = count;
+        for (const k of ['printer', 'range', 'copies', 'orient']) { const r = row(k); at.after(r); at = r; }
+        at.after(more);
+        for (const k of ['paper', 'mode', 'layout']) more.append(row(k));
+        bd.querySelectorAll('.pp-opt').forEach(el => more.append(el));
+        for (const k of ['scale', 'duplex', 'color', 'skip', 'flip', 'comments']) more.append(row(k));
+        more.append(bd.querySelector('.pp-label-tools'));
+        more.open = !!store('print-more-open', false);
+        more.addEventListener('toggle', () => keep('print-more-open', more.open));
+      }
       const sel = $('printer');
       for (const p of printers) sel.add(new Option(p.displayName || p.name, p.name));
       sel.add(new Option('Test print: save as PDF (no printer)', '__test__'));
@@ -3131,6 +3285,7 @@
         const label = isLabelPaper(paperOf().paper);
         $('mode').value = opts.mode || mem.mode || (label ? 'label' : 'page');
         $('skip').checked = mem.skip !== undefined ? mem.skip : label;
+        $('flip').checked = !!mem.flip;
       };
       const settingsNow = () => {
         const list = chosen(); const { paper, printable, receipt } = paperOf();
@@ -3138,7 +3293,7 @@
         const s = { filepath: src, pages: list, paper, printable, mode: $('mode').value, orient: $('orient').value, scale: $('scale').value,
                  percent: +$('percent').value || 100, skip_blank: $('skip').checked, comments: $('comments').checked,
                  layout: lay.startsWith('nup') ? 'nup' : lay, nup: lay.startsWith('nup') ? +lay.slice(3) : undefined, cols: pc, rows: pr,
-                 sheet: $('sheet').value, start: +$('start').value || 1,
+                 sheet: $('sheet').value, start: +$('start').value || 1, flip: $('flip').checked,
                  regions: $('mode').value === 'label' && $('range').value !== 'tab' ? areaRegions(file, list || []) : null };
         if ($('range').value === 'tab') { s.files = tabFiles.map(f => f.originalPath === file ? src : f.pdfPath); delete s.pages; }
         return s;
@@ -3164,6 +3319,8 @@
         if (s.mode === 'label') { const n = d.count || d.sheets.length; notes.push(`${n} ${n === 1 ? 'label' : 'labels'}` + (n !== d.sheets.length ? ` on ${d.sheets.length} ${d.sheets.length === 1 ? 'sheet' : 'sheets'}` : '')); }
         if (d.skipped.length) notes.push(`${d.skipped.length} blank ${d.skipped.length === 1 ? 'page' : 'pages'} left out (${d.skipped.slice(0, 6).join(', ')}${d.skipped.length > 6 ? '…' : ''})`);
         bd.querySelector('.pp-note').textContent = notes.join(' · ');
+        const sheets = d.sheets.length * (+$('copies').value || 1);
+        bd.querySelector('.pp-sheets').textContent = `${sheets.toLocaleString()} ${sheets === 1 ? 'sheet' : 'sheets'} of paper`;
         draw();
       }
       let task = null;
@@ -3195,7 +3352,7 @@
         tint();
       }
       const remember = () => {
-        byPrinter[sel.value] = { paper: $('paper').value, mode: $('mode').value, skip: $('skip').checked }; keep('print-by-printer', byPrinter);
+        byPrinter[sel.value] = { paper: $('paper').value, mode: $('mode').value, skip: $('skip').checked, flip: $('flip').checked }; keep('print-by-printer', byPrinter);
         keep('print-settings', { printer: sel.value, orient: $('orient').value, scale: $('scale').value, color: $('color').value, duplex: $('duplex').value,
                                  sheet: $('sheet').value, poster: $('poster').value, percent: $('percent').value, comments: $('comments').checked });
       };
@@ -3339,7 +3496,6 @@
       return st;
     }
     document.getElementById('btn-print').addEventListener('click', () => doPrint());
-    document.addEventListener('keydown', e => { if (e.ctrlKey && !e.shiftKey && e.key.toLowerCase() === 'p') { e.preventDefault(); doPrint(); } });
 
     // ---------- OCR: make scanned pages searchable ----------
     async function doOcr() {
@@ -4206,7 +4362,6 @@
       await takeNewFile(d, d.success ? `Replaced ${d.count} ${d.count === 1 ? 'time' : 'times'} on ${d.pages} ${d.pages === 1 ? 'page' : 'pages'}. Ctrl+Z puts it back` : '');
     }
     document.getElementById('btn-replace').addEventListener('click', doReplace);
-    document.addEventListener('keydown', e => { if (e.ctrlKey && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'h') { e.preventDefault(); doReplace(); } });
 
     // ---------- Bates numbering ----------
     async function doBates() {
@@ -5165,7 +5320,6 @@
     }
     document.getElementById('rail-mark').addEventListener('click', () => toggleMark());
     document.getElementById('page-ribbon').addEventListener('mousedown', e => { e.stopPropagation(); e.preventDefault(); toggleMark(pageNum); });
-    document.addEventListener('keydown', e => { if (e.ctrlKey && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'b' && !(document.activeElement && document.activeElement.isContentEditable)) { e.preventDefault(); toggleMark(); } });
 
     // ---------- open tabs come back next time ----------
     // What's open is kept as you work; next start, every tab returns with its files and pages, including
@@ -6108,8 +6262,6 @@
         return;
       }
       if (dialogOpen) return;
-      if (e.ctrlKey && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'o') { e.preventDefault(); document.getElementById('btn-add-files').click(); return; }
-      if (e.ctrlKey && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 's') { e.preventDefault(); document.getElementById('btn-save-modified').click(); return; }
       if (typing || e.ctrlKey || e.altKey || e.metaKey) return;
       if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); document.getElementById('btn-prev').click(); }
       else if (e.key === 'ArrowRight' || e.key === 'PageDown') { e.preventDefault(); document.getElementById('btn-next').click(); }
@@ -6131,8 +6283,6 @@
     document.getElementById('btn-palette-undo').addEventListener('click', undoLast);
     document.addEventListener('keydown', e => {
       const t = e.target, typing = t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));
-      if (e.ctrlKey && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'z' && !typing) { e.preventDefault(); undoLast(); }
-      if (e.ctrlKey && !e.altKey && (e.key.toLowerCase() === 'y' || (e.shiftKey && e.key.toLowerCase() === 'z')) && !typing && redoStack.length) { e.preventDefault(); document.getElementById('btn-redo').click(); }
     });
   
     // collapsible side panels (state is remembered); switchTool rewrites body.className, so use <html>
@@ -6814,7 +6964,6 @@
     }
     document.getElementById('btn-read').addEventListener('click', openReader);
     document.addEventListener('keydown', e => {
-      if (e.key === 'F11') { e.preventDefault(); return reader ? closeReader() : openReader(); }
       if (!reader) return;
       if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeReader(); }
       else if ((e.key === '+' || e.key === '=') && !e.ctrlKey) zoomReader(1.15);
@@ -7385,14 +7534,12 @@
     document.getElementById('find-prev').onclick = () => stepFind(true);
     document.getElementById('find-next').onclick = () => stepFind(false);
     document.getElementById('find-close').onclick = () => { findBox.value = ''; clearFind(); };
-    // Ctrl+G: go to a page
-    document.addEventListener('keydown', async e => {
-      if (!e.ctrlKey || e.shiftKey || e.altKey || e.key.toLowerCase() !== 'g' || !currentPdfDoc) return;
-      e.preventDefault();
+    // go to a page (Ctrl+Shift+N, like Adobe; Ctrl+G too)
+    async function askGoToPage() {
+      if (!currentPdfDoc) return;
       const v = await askDialog('Go to page', [{ key: 'n', label: `Page (1 to ${currentPdfDoc.numPages})`, type: 'number', min: 1, max: currentPdfDoc.numPages, value: shownPage() }], 'Go');
       if (v && +v.n) goToPage(+v.n);
-    });
-    document.addEventListener('keydown', e => { if (e.ctrlKey && !e.shiftKey && e.key.toLowerCase() === 'f') { e.preventDefault(); findBox.focus(); findBox.select(); } });
+    }
 
     renderTabs();   // start with an empty New tab, like a browser
   </script>

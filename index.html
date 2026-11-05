@@ -3024,7 +3024,8 @@
         <h4>Keyboard shortcuts</h4><input class="st-key-find" placeholder="Search shortcuts" spellcheck="false">
         <div class="st-shortcuts"></div><div class="st-sc-msg ai-meta"></div><button class="lb-btn st-sc-reset">Reset to defaults</button>
         <h4>PDF app</h4><button class="lb-btn st-default">Make it my PDF app</button>
-        <h4>Help</h4><button class="lb-btn st-report">Send a problem report</button><p class="ai-meta">Version ${esc(window.appVersion || '')}</p>`, []);
+        <h4>Help</h4><button class="lb-btn st-report">Send a problem report</button><p class="ai-meta">Version ${esc(window.appVersion || '')}. Free software under the GNU AGPL 3.0: <a href="#" class="st-source">source code and license</a></p>`, []);
+        bd.querySelector('.st-source').onclick = e => { e.preventDefault(); require('electron').shell.openExternal('https://github.com/usernam8/MyPDFKit'); };
       const lang = bd.querySelector('.st-lang'); lang.value = store('ui-lang', 'en');
       lang.onchange = () => { keep('ui-lang', lang.value); setUiLanguage(lang.value); };
       bd.querySelectorAll('.st-tools input').forEach(c => c.onchange = () => {

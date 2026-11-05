@@ -29,6 +29,8 @@
       "index.html",
       "i18n.js",
       "i18n-langs.js",
+      "LICENSE",
+      "README.md",
       "package.json",
       "node_modules/pdfjs-dist/build/pdf.min.js",
       "node_modules/pdfjs-dist/build/pdf.worker.min.js",

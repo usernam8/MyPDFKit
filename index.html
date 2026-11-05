@@ -5818,7 +5818,19 @@
     }
 
     // flipping pages quickly: only the last page asked for gets drawn, and a page still drawing is dropped
-    let renderTicket = 0, mainRenderTask = null;
+    let renderTicket = 0, mainRenderTask = null, lastFitBox = '';
+    // the page is sized to the space it has: when the window or a side panel changes that space, draw it again
+    // (shortly after the change stops, and after saving any edits in progress, like zooming does)
+    let refitTimer = null;
+    new ResizeObserver(() => {
+      clearTimeout(refitTimer);
+      refitTimer = setTimeout(async () => {
+        const wc = document.getElementById('workspace-center');
+        if (!currentPdfDoc || !wc.clientWidth || wc.clientWidth + 'x' + wc.clientHeight === lastFitBox) return;
+        try { await syncEditsToPython(); } catch (e) {}
+        renderPage(pageNum);
+      }, 120);
+    }).observe(document.getElementById('workspace-center'));
     function renderPage(num) {
       const ticket = ++renderTicket;
       drawnStrokes = []; 
@@ -5829,9 +5841,12 @@
         const workspaceCenter = document.getElementById('workspace-center');
         const unscaled = page.getViewport({ scale: 1.0 });
 
-        const scaleX = (workspaceCenter.clientWidth - 120) / unscaled.width;
-        const scaleY = (workspaceCenter.clientHeight - 48) / unscaled.height;
-        currentRenderScale = Math.min(scaleX, scaleY) * zoomLevel;   // zoomLevel 1 = whole page fits
+        // zoomLevel 1 = the whole page in view with room around it: clear of the tool strip at the side and the bar
+        // at the bottom, and a wide page (a label, a slide) no wider than 85% of the space, so it doesn't feel crammed
+        const scaleX = (workspaceCenter.clientWidth - 160) * (unscaled.width > unscaled.height ? 0.85 : 1) / unscaled.width;
+        const scaleY = (workspaceCenter.clientHeight - 110) / unscaled.height;
+        currentRenderScale = Math.max(0.1, Math.min(scaleX, scaleY)) * zoomLevel;
+        lastFitBox = workspaceCenter.clientWidth + 'x' + workspaceCenter.clientHeight;
         
         const viewport = page.getViewport({ scale: currentRenderScale });
         const pdfCanvas = document.getElementById('pdf-canvas');

@@ -45,6 +45,12 @@ function paint() {
 const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 const status = (t, kind = '') => { const el = $('status'); el.textContent = t; el.className = kind; };
 addEventListener('resize', paint);
+let noteTimer = null;
+ipcRenderer.on('widget-note', (_e, t) => {
+  if (busy) return;
+  status(t); clearTimeout(noteTimer);
+  noteTimer = setTimeout(() => { if (!busy && $('status').textContent === t) status(''); }, 2000);
+});
 
 // ---------- moving and resizing (the window has no frame) ----------
 $('box').addEventListener('mousedown', async e => {

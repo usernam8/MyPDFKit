@@ -271,9 +271,13 @@ function widgetBounds(s) {
   const { screen } = require('electron');
   const w = Math.round(s.w * 96), h = Math.round(s.h * 96);
   // the spot it was on, on a screen that's still there (screens at negative coordinates too); else bottom right
+  const all = screen.getAllDisplays();
+  const fits = (d, p) => d && p && p.x >= d.bounds.x - w / 2 && p.y >= d.bounds.y - h / 2 && p.x < d.bounds.x + d.bounds.width && p.y < d.bounds.y + d.bounds.height;
+  // the last spot first (screen ids can change after a restart, so any screen that holds it will do), then each screen's own spot
+  if (s.last && all.some(d => fits(d, s.last))) return { x: s.last.x, y: s.last.y, width: w, height: h };
   for (const [id, p] of Object.entries(s.pos || {})) {
-    const d = screen.getAllDisplays().find(x => String(x.id) === id);
-    if (d && p.x >= d.bounds.x - w / 2 && p.y >= d.bounds.y - h / 2 && p.x < d.bounds.x + d.bounds.width && p.y < d.bounds.y + d.bounds.height) return { x: p.x, y: p.y, width: w, height: h };
+    const d = all.find(x => String(x.id) === id);
+    if (fits(d, p)) return { x: p.x, y: p.y, width: w, height: h };
   }
   const a = screen.getPrimaryDisplay().workArea;
   return { x: a.x + a.width - w - 24, y: a.y + a.height - h - 24, width: w, height: h };
@@ -288,14 +292,41 @@ function createWidget() {
   });
   widgetWin.loadFile('widget.html');
   widgetWin.once('ready-to-show', () => widgetWin.showInactive());   // never takes the focus away
-  const remember = () => {
-    if (!widgetWin || widgetWin.isDestroyed()) return;
-    const { screen } = require('electron'), b = widgetWin.getBounds(), d = screen.getDisplayMatching(b), cur = widgetSettings();
-    cur.pos = { ...(cur.pos || {}), [String(d.id)]: { x: b.x, y: b.y } }; saveWidgetSettings(cur);
-  };
-  widgetWin.on('moved', remember);
-  widgetWin.on('closed', () => { widgetWin = null; if (!win) quitCleanly(); });
+  widgetWin.on('moved', rememberWidgetPos);
+  widgetWin.on('closed', () => { widgetWin = null; widgetHotkey(false); if (!win) quitCleanly(); });
+  widgetHotkey(true);
+  // started with Windows, a second screen can come up a moment after the widget: put it back on its spot then
+  widgetMovedByUser = false;
+  if (!widgetScreenWatch) {
+    widgetScreenWatch = true;
+    const { screen } = require('electron');
+    const replace = () => { if (widgetWin && !widgetWin.isDestroyed() && !widgetMovedByUser) widgetWin.setBounds(widgetBounds(widgetSettings())); };
+    screen.on('display-added', replace); screen.on('display-metrics-changed', replace);
+  }
   return widgetWin;
+}
+let widgetMovedByUser = false, widgetScreenWatch = false, widgetSaveTimer = null;
+function rememberWidgetPos() {
+  if (!widgetWin || widgetWin.isDestroyed()) return;
+  const { screen } = require('electron'), b = widgetWin.getBounds(), d = screen.getDisplayMatching(b), cur = widgetSettings();
+  cur.pos = { ...(cur.pos || {}), [String(d.id)]: { x: b.x, y: b.y } }; cur.last = { x: b.x, y: b.y }; saveWidgetSettings(cur);
+}
+// Ctrl+Alt+W, anywhere in Windows: always on top on/off (and brings the widget up front to drop files on it)
+const WIDGET_HOTKEY = 'Control+Alt+W';
+function widgetHotkey(on) {
+  const { globalShortcut } = require('electron');
+  try {
+    if (!on) { globalShortcut.unregister(WIDGET_HOTKEY); return; }
+    if (globalShortcut.isRegistered(WIDGET_HOTKEY)) return;
+    globalShortcut.register(WIDGET_HOTKEY, () => {
+      if (!widgetWin || widgetWin.isDestroyed()) return;
+      const s = widgetSettings(), onTop = !s.onTop;
+      applyWidgetSettings({ ...s, onTop });
+      widgetWin.showInactive(); widgetWin.moveTop();
+      widgetWin.webContents.send('widget-note', onTop ? 'Always on top: on' : 'Always on top: off');
+      if (win && !win.isDestroyed()) win.webContents.send('widget-ontop', onTop);   // Settings shows it
+    });
+  } catch (e) {}
 }
 function applyWidgetSettings(s) {
   saveWidgetSettings(s);
@@ -337,7 +368,12 @@ ipcMain.on('engine-done', () => scheduleEngineIdle());
 ipcMain.on('widget-open', (_e, files) => openMainWindow(files || []));
 ipcMain.on('widget-show-folder', (_e, file) => shell.showItemInFolder(file));
 ipcMain.handle('widget-bounds', () => widgetWin && !widgetWin.isDestroyed() ? widgetWin.getBounds() : null);
-ipcMain.on('widget-move', (_e, x, y) => { if (widgetWin && !widgetWin.isDestroyed()) widgetWin.setPosition(Math.round(x), Math.round(y)); });
+ipcMain.on('widget-move', (_e, x, y) => {
+  if (!widgetWin || widgetWin.isDestroyed()) return;
+  widgetWin.setPosition(Math.round(x), Math.round(y));
+  // moved by code, so Windows sends no 'moved': save the spot once the dragging stops
+  widgetMovedByUser = true; clearTimeout(widgetSaveTimer); widgetSaveTimer = setTimeout(rememberWidgetPos, 300);
+});
 ipcMain.on('widget-resize', (_e, w, h) => {
   if (!widgetWin || widgetWin.isDestroyed()) return;
   const W = Math.max(120, Math.min(800, Math.round(w))), H = Math.max(120, Math.min(800, Math.round(h)));
@@ -361,7 +397,7 @@ ipcMain.on('widget-menu', async e => {
     act('convert', 'Convert to PDF'), act('merge', 'Merge into one PDF'), act('split', 'Split into pages'), act('print', 'Print'), act('open', 'Open in Toast Docs'),
     { type: 'separator' },
     { label: 'Printer', submenu: printers.length ? printers.map(p => ({ label: p.displayName || p.name, type: 'radio', checked: (s.printer || '') === p.name, click: () => set({ printer: p.name }) })) : [{ label: 'No printers', enabled: false }] },
-    { label: 'Always on top', type: 'checkbox', checked: !!s.onTop, click: () => set({ onTop: !s.onTop }) },
+    { label: 'Always on top', accelerator: WIDGET_HOTKEY, type: 'checkbox', checked: !!s.onTop, click: () => set({ onTop: !s.onTop }) },
     { type: 'separator' },
     { label: 'Open Toast Docs', click: () => openMainWindow() },
     { label: 'Widget settings', click: () => { openMainWindow(); setTimeout(() => win && win.webContents.send('open-widget-settings'), 800); } },

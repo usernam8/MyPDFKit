@@ -27,6 +27,7 @@ run('Text editing keeps the look', [os.path.join(T, 'edit_fidelity.py'), os.path
     r'^(\d+) runs, \1 at 90%\+', {'ALL': '1'})
 run('Pages sorted right for export', [os.path.join(T, 'kind_test.py'), SAMPLES], r'^(\d+) of \1 pages right')
 run("PDF test library: open, show, fill, crop, dry-run print, against Chrome's engine", [os.path.join(T, 'print_library.py')], r'^(\d+) of \1 checks passed')
+run('Forms: empty fields, centered text, signing every copy (MAGIC SHOW)', [os.path.join(T, 'forms_test.py')], r'^(\d+) of \1 checks passed|skipped')
 run('QA: OCR accuracy, load speed, summaries, startup time and memory', [os.path.join(T, 'qa_tests.py')], r'^(\d+) of \1 checks passed')
 
 exe = os.path.join(ROOT, 'release', 'win-unpacked', 'resources', 'server', 'server.exe')

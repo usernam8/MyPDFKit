@@ -1659,8 +1659,10 @@ def fill_form():
                         w.field_value = w.on_state() if radios[w.xref][1] else 'Off'; w.update(); continue
                     if w.field_name not in names or w.field_type == fitz.PDF_WIDGET_TYPE_RADIOBUTTON: continue
                     kind, value = names[w.field_name]
+                    if kind != 'checkbox': _set_field_value(doc, w.xref, str(value))
                     w.field_value = (w.on_state() if value else 'Off') if kind == 'checkbox' else str(value)
                     _draw_widget(w, doc)
+                    if kind != 'checkbox' and not str(value): _blank_widget(doc, w.xref)
                 except Exception as e: print('field skipped:', w.field_name, e, file=sys.stderr)
         if d.get('flatten'):   # turn the fields into plain page content
             try: doc.bake(annots=False, widgets=True)
@@ -1732,6 +1734,76 @@ def _changed_areas(pa, pb, skip):
         xs, ys = [g[0] for g in group], [g[1] for g in group]
         boxes.append(fitz.Rect(min(xs) * cell * k, min(ys) * cell * k, (max(xs) + 1) * cell * k, (max(ys) + 1) * cell * k))
     return boxes
+
+@app.route('/matching_spots', methods=['POST'])
+def matching_spots():
+    """Where else the same signature belongs: the other copies of the form box it was put in (same place inside
+    each box), else the same label on the other copies (like "SHIPPER'S SIGNATURE" on page 2), plus any empty
+    signature fields. Each spot comes back with the signature's size fitted to it."""
+    d = request.json
+    try:
+        doc = fitz.open(d['filepath']); pno = int(d['page']); r = fitz.Rect(d['rect'])
+        spots, label = [], ''
+        def add(page, rect, why):
+            rect = fitz.Rect(rect)
+            if page == pno and (rect & r).get_area() > 0.3 * r.get_area(): return       # that's the one already placed
+            if any(sp['page'] == page and (fitz.Rect(sp['rect']) & rect).get_area() > 0.3 * rect.get_area() for sp in spots): return
+            spots.append({'page': page, 'rect': [round(v, 2) for v in rect], 'why': why})
+        host = None
+        for w in doc[pno].widgets() or []:
+            if (fitz.Rect(w.rect) & r).get_area() >= 0.3 * r.get_area(): host = w; break
+        if host is not None:
+            hr = fitz.Rect(host.rect); label = (host.field_label or host.field_name or '').strip()
+            rel = ((r.x0 - hr.x0) / hr.width, (r.y0 - hr.y0) / hr.height, (r.x1 - hr.x0) / hr.width, (r.y1 - hr.y0) / hr.height)
+            for page in doc:
+                for w in page.widgets() or []:
+                    if w.field_name != host.field_name or (page.number == pno and w.xref == host.xref): continue
+                    wr = fitz.Rect(w.rect)
+                    add(page.number, (wr.x0 + rel[0] * wr.width, wr.y0 + rel[1] * wr.height, wr.x0 + rel[2] * wr.width, wr.y0 + rel[3] * wr.height), 'copy')
+        else:
+            # the label next to it: the closest short line of text within about an inch
+            def lines(page):
+                for b_ in page.get_text('dict')['blocks']:
+                    for l in b_.get('lines', []):
+                        t = ' '.join(''.join(s_['text'] for s_ in l['spans']).split())
+                        if 2 <= len(t) <= 60: yield fitz.Rect(l['bbox']), t
+            best = None
+            for lr, t in lines(doc[pno]):
+                dx = max(0, lr.x0 - r.x1, r.x0 - lr.x1); dy = max(0, lr.y0 - r.y1, r.y0 - lr.y1)
+                dist = (dx * dx + dy * dy) ** 0.5
+                if dist <= 72 and (best is None or dist < best[0]): best = (dist, lr, t)
+            if best:
+                _, ar, label = best; key = label.lower()
+                for page in doc:
+                    for lr, t in lines(page):
+                        if t.lower() != key or abs(lr.width - ar.width) > 0.15 * ar.width: continue
+                        if page.number == pno and (lr & ar).get_area() > 0.5 * ar.get_area(): continue
+                        sc = lr.height / ar.height if ar.height else 1
+                        add(page.number, (lr.x0 + (r.x0 - ar.x0) * sc, lr.y0 + (r.y0 - ar.y0) * sc, lr.x0 + (r.x1 - ar.x0) * sc, lr.y0 + (r.y1 - ar.y0) * sc), 'label')
+        # empty signature fields elsewhere: the signature fitted into the middle of the box
+        for page in doc:
+            for w in page.widgets() or []:
+                if w.field_type != fitz.PDF_WIDGET_TYPE_SIGNATURE or w.field_value: continue
+                wr = fitz.Rect(w.rect); f = min(wr.width / r.width, wr.height / r.height, 1) * 0.95
+                cx, cy = (wr.x0 + wr.x1) / 2, (wr.y0 + wr.y1) / 2
+                add(page.number, (cx - r.width * f / 2, cy - r.height * f / 2, cx + r.width * f / 2, cy + r.height * f / 2), 'field')
+        doc.close()
+        return jsonify({'spots': spots, 'label': label})
+    except Exception as e: return jsonify({'error': str(e)}), 500
+
+@app.route('/place_images', methods=['POST'])
+def place_images():
+    """One picture (a signature) put at several spots, in one go."""
+    d = request.json
+    try:
+        data = d['b64'].split(',', 1)[-1]; img = base64.b64decode(data)
+        doc = fitz.open(d['filepath'])
+        for sp in d.get('placements', []):
+            doc[int(sp['page'])].insert_image(fitz.Rect(sp['rect']), stream=img, keep_proportion=True, overlay=True)
+        out = os.path.join(TEMP_DIR, f"mod_{hashlib.md5((d['filepath'] + str(os.path.getmtime(d['filepath'])) + json.dumps(d.get('placements')) + str(len(data))).encode()).hexdigest()}.pdf")
+        doc.save(out, garbage=3, deflate=True); doc.close()
+        return jsonify({'success': True, 'new_file': out})
+    except Exception as e: return jsonify({'error': str(e)}), 500
 
 @app.route('/compare', methods=['POST'])
 def compare_pdfs():
@@ -5339,6 +5411,30 @@ def _flag(doc, xref, key='F'):
 
 def _pdf_str(t):
     return '(' + t.replace('\\', '\\\\').replace('(', '\\(').replace(')', '\\)') + ')'
+
+def _set_field_value(doc, xref, value):
+    """The value goes on the field itself and on every copy of it. Some forms (MAGIC SHOW.pdf) also keep a value
+    on each copy, which viewers read first: left alone, a copy keeps showing the old text (an emptied field
+    "comes back"). An empty value is saved like any other."""
+    pdf = fitz.get_pdf_str(value) if value else '()'
+    try:
+        t, ref = doc.xref_get_key(xref, 'Parent')
+        field = int(ref.split()[0]) if t == 'xref' else xref
+        doc.xref_set_key(field, 'V', pdf)
+        t, kids = doc.xref_get_key(field, 'Kids')
+        for k in re.findall(r'(\d+) 0 R', kids if t == 'array' else ''):
+            if doc.xref_get_key(int(k), 'V')[0] != 'null' or int(k) == xref: doc.xref_set_key(int(k), 'V', pdf)
+    except Exception as e: print('field value kept as is:', e, file=sys.stderr)
+
+def _blank_widget(doc, xref):
+    """An emptied field shows nothing: its picture keeps the box (border, fill) but loses the old text."""
+    try:
+        t, ref = doc.xref_get_key(xref, 'AP/N')
+        if t != 'xref': return
+        ap = int(ref.split()[0]); st = doc.xref_stream(ap).decode('latin-1')
+        st2 = re.sub(r'/Tx BMC.*?EMC', '/Tx BMC\nEMC', st, flags=re.S) if '/Tx BMC' in st else re.sub(r'BT.*?ET', '', st, flags=re.S)
+        if st2 != st: doc.update_stream(ap, st2.encode('latin-1'))
+    except Exception as e: print('field drawing kept as is:', e, file=sys.stderr)
 
 def _draw_widget(w, doc=None):
     """Make a field's picture of its value, the way Chrome shows it. PyMuPDF draws the box, but it always puts

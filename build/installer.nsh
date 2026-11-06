@@ -10,6 +10,9 @@
   WriteRegStr SHCTX "Software\MyPDFKit\Capabilities" "ApplicationDescription" "Edit, sign, convert and print PDFs"
   WriteRegStr SHCTX "Software\MyPDFKit\Capabilities\FileAssociations" ".pdf" "MyPDFKit.PDF"
   WriteRegStr SHCTX "Software\RegisteredApplications" "MyPDFKit" "Software\MyPDFKit\Capabilities"
+  ; right-click any file(s) > Send to > Toast Docs opens them (for the person installing)
+  SetShellVarContext current
+  CreateShortCut "$SENDTO\Toast Docs.lnk" "$INSTDIR\${APP_EXECUTABLE_FILENAME}" "" "$INSTDIR\${APP_EXECUTABLE_FILENAME}" 0
   System::Call 'shell32::SHChangeNotify(i 0x08000000, i 0, p 0, p 0)'
   ; The full version: the built-in AI moves out of the app folder into its own (C:\ProgramData\MyPDFKit\ai),
   ; so updates, which replace the app folder, keep it and stay small.
@@ -37,6 +40,9 @@
   DeleteRegKey SHCTX "Software\Classes\MyPDFKit.PDF"
   DeleteRegValue SHCTX "Software\RegisteredApplications" "MyPDFKit"
   DeleteRegKey SHCTX "Software\MyPDFKit\Capabilities"
+  SetShellVarContext current
+  Delete "$SENDTO\Toast Docs.lnk"
+  SetShellVarContext all
   ; Removing MyPDFKit (not updating it): the built-in AI goes too.
   ${ifNot} ${isUpdated}
     SetShellVarContext all

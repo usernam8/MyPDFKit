@@ -27,6 +27,7 @@
     "files": [
       "main.js",
       "index.html",
+      "widget.html",
       "i18n.js",
       "i18n-langs.js",
       "LICENSE",

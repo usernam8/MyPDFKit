@@ -1,0 +1,182 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Toast Docs widget</title>
+<style>
+  html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; font: 13px 'Segoe UI', system-ui, sans-serif; color: #e6e5e1; user-select: none; }
+  #box { position: absolute; inset: 4px; border-radius: 18px; background: rgba(28, 29, 32, .86); border: 1.5px dashed rgba(160, 159, 155, .45);
+         display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; text-align: center; padding: 10px; box-sizing: border-box;
+         transition: background .12s, border-color .12s; cursor: default; }
+  #box.over { background: rgba(110, 164, 238, .30); border-color: #6ea4ee; border-style: solid; }
+  #box.busy { border-style: solid; border-color: rgba(110, 164, 238, .6); }
+  .logo { width: 34%; max-width: 64px; aspect-ratio: 1; border-radius: 22%; background: #e8a33d; display: grid; place-items: center; color: #3a2408; font-weight: 800; font-size: 120%; box-shadow: inset 0 -4px 0 rgba(0,0,0,.12); }
+  .title { font-weight: 600; }
+  .acts { display: flex; gap: 4px; flex-wrap: wrap; justify-content: center; }
+  .acts span { font-size: 10.5px; padding: 1px 7px; border-radius: 99px; background: rgba(255,255,255,.08); color: #c9c8c4; }
+  #status { font-size: 12px; color: #a09f9b; min-height: 16px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+  #status.done { color: #8fd18f; cursor: pointer; text-decoration: underline; }
+  #status.err { color: #f0a0a0; }
+  #cancel { display: none; margin-top: 2px; padding: 3px 12px; border-radius: 99px; border: 0; background: #e05656; color: #fff; font: inherit; font-size: 12px; cursor: pointer; }
+  #grip { position: absolute; right: 6px; bottom: 6px; width: 14px; height: 14px; cursor: nwse-resize; opacity: .5;
+          background: linear-gradient(135deg, transparent 50%, #a09f9b 50%, transparent 62%, transparent 70%, #a09f9b 70%, transparent 82%); }
+  body.small .acts, body.small .title { display: none; }
+</style></head>
+<body>
+<div id="box">
+  <div class="logo">T</div>
+  <div class="title">Drop files here</div>
+  <div class="acts"></div>
+  <div id="status"></div>
+  <button id="cancel">Cancel</button>
+</div>
+<div id="grip" title="Drag to resize"></div>
+<script>
+const { ipcRenderer, webUtils } = require('electron');
+const fs = require('fs'), path = require('path');
+const $ = id => document.getElementById(id);
+let S = null, busy = false, lastOut = null;
+const NAMES = { convert: 'Convert', merge: 'Merge', split: 'Split', print: 'Print', open: 'Open' };
+
+async function load() { S = await ipcRenderer.invoke('widget-settings-get'); paint(); }
+ipcRenderer.on('widget-settings', (_e, s) => { S = s; paint(); });
+function paint() {
+  const on = Object.keys(NAMES).filter(k => S.actions[k]);
+  document.querySelector('.acts').innerHTML = on.map(k => `<span>${NAMES[k]}${k === 'print' && S.printer ? ': ' + esc(S.printer.split('\\').pop()) : ''}</span>`).join('') || '<span>Nothing picked: right-click</span>';
+  document.body.classList.toggle('small', innerWidth < 170);
+}
+const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+const status = (t, kind = '') => { const el = $('status'); el.textContent = t; el.className = kind; };
+addEventListener('resize', paint);
+
+// ---------- moving and resizing (the window has no frame) ----------
+$('box').addEventListener('mousedown', async e => {
+  if (e.button !== 0 || e.target.closest('#status.done, #cancel')) return;
+  const b = await ipcRenderer.invoke('widget-bounds'); if (!b) return;
+  const x0 = e.screenX, y0 = e.screenY;
+  const move = ev => ipcRenderer.send('widget-move', b.x + ev.screenX - x0, b.y + ev.screenY - y0);
+  const up = () => { removeEventListener('mousemove', move); removeEventListener('mouseup', up); };
+  addEventListener('mousemove', move); addEventListener('mouseup', up);
+});
+$('grip').addEventListener('mousedown', async e => {
+  e.stopPropagation();
+  const b = await ipcRenderer.invoke('widget-bounds'); if (!b) return;
+  const x0 = e.screenX, y0 = e.screenY;
+  const move = ev => ipcRenderer.send('widget-resize', b.width + ev.screenX - x0, b.height + ev.screenY - y0);
+  const up = () => { removeEventListener('mousemove', move); removeEventListener('mouseup', up); };
+  addEventListener('mousemove', move); addEventListener('mouseup', up);
+});
+addEventListener('contextmenu', e => { e.preventDefault(); ipcRenderer.send('widget-menu'); });
+$('status').addEventListener('click', () => { if ($('status').classList.contains('done') && lastOut) ipcRenderer.send('widget-show-folder', lastOut); });
+
+// ---------- dropping ----------
+const box = $('box');
+['dragenter', 'dragover'].forEach(t => addEventListener(t, e => { e.preventDefault(); if (!busy) box.classList.add('over'); }));
+addEventListener('dragleave', e => { if (e.target === document.documentElement || !e.relatedTarget) box.classList.remove('over'); });
+addEventListener('drop', e => {
+  e.preventDefault(); box.classList.remove('over');
+  if (busy) return status('Still working on the last files', 'err');
+  const files = [...e.dataTransfer.files].map(f => webUtils.getPathForFile(f)).filter(Boolean);
+  if (files.length) run(files);
+});
+
+const OPENABLE = /\.(pdf|docx?|docm|dotx?|dotm|rtf|odt|wps|wpd|txt|md|csv|tsv|xlsx?|xlsm|xlsb|xltx?|ods|pptx?|pptm|ppsx?|odp|key|pages|numbers|png|jpe?g|jfif|gif|bmp|tiff?|webp|heic|heif|avif|svg|svgz|ico|psd|psb|tga|dds|pcx|icns|jp2|j2k|emf|wmf|ppm|pgm|pbm|xbm|xps|oxps|epub|mobi|fb2|cbz|html?|mht|mhtml|dxf|dwg|eml|msg|xml|json|log|ini)$/i;
+let port = 0;
+async function api(route, body) {
+  const r = await fetch(`http://127.0.0.1:${port}/${route}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  return r.json();
+}
+function unique(p) {
+  if (!fs.existsSync(p)) return p;
+  const ext = path.extname(p), base = p.slice(0, -ext.length);
+  for (let i = 2; ; i++) { const q = `${base} (${i})${ext}`; if (!fs.existsSync(q)) return q; }
+}
+const outDir = src => S.saveTo === 'folder' && S.folder && fs.existsSync(S.folder) ? S.folder : path.dirname(src);
+
+async function run(files) {
+  busy = true; box.classList.add('busy');
+  const A = S.actions, errors = [], saved = [];
+  const skipped = files.filter(f => !OPENABLE.test(f) || !fs.existsSync(f));
+  files = files.filter(f => !skipped.includes(f));
+  if (skipped.length) errors.push(`${skipped.length} ${skipped.length === 1 ? 'file' : 'files'} it can't open (${path.basename(skipped[0])}${skipped.length > 1 ? '…' : ''})`);
+  try {
+    if (!files.length) throw new Error(errors[0] || 'Nothing to do');
+    status('Starting…'); port = await ipcRenderer.invoke('engine-port');
+    // 1. make PDFs of everything (kept only when Convert is on; Merge, Split and Print need PDFs anyway)
+    let pdfs = [];
+    const needPdf = A.convert || A.merge || A.split || A.print;
+    for (let i = 0; i < files.length && needPdf; i++) {
+      const f = files[i];
+      status(`Converting ${i + 1} of ${files.length}…`);
+      if (/\.pdf$/i.test(f)) { pdfs.push({ src: f, pdf: f }); continue; }
+      const d = await api('process_file', { filepath: f });
+      if (d.error || !d.pdf_path) { errors.push(`${path.basename(f)}: ${d.error || "couldn't convert"}`); continue; }
+      let pdf = d.pdf_path;
+      if (A.convert) { pdf = unique(path.join(outDir(f), path.basename(f, path.extname(f)) + '.pdf')); fs.copyFileSync(d.pdf_path, pdf); saved.push(pdf); }
+      pdfs.push({ src: f, pdf });
+    }
+    let results = pdfs.map(p => p.pdf);
+    // 2. merge or split (never both)
+    if (A.merge && pdfs.length > 1) {
+      status(`Merging ${pdfs.length} files…`);
+      const first = pdfs[0].src, name = path.basename(first, path.extname(first)) + ' (merged).pdf';
+      const d = await api('merge_queue', { files: pdfs.map(p => p.pdf), names: pdfs.map(p => path.basename(p.src)), first_original_path: path.join(outDir(first), path.basename(first)), name });
+      if (d.error) errors.push('Merging: ' + d.error); else { results = [d.path]; saved.push(d.path); }
+    } else if (A.split) {
+      const parts = [];
+      for (let i = 0; i < pdfs.length; i++) {
+        status(`Splitting ${i + 1} of ${pdfs.length}…`);
+        const d = await api('split_pdf', { filepath: pdfs[i].pdf, original_path: path.join(outDir(pdfs[i].src), path.basename(pdfs[i].src)), plain_names: true });
+        if (d.error) errors.push(`${path.basename(pdfs[i].src)}: ${d.error}`); else { parts.push(...(d.paths || [])); saved.push(...(d.paths || [])); }
+      }
+      results = parts;
+    }
+    // 3. print, after 5 seconds to change your mind
+    if (A.print && results.length) {
+      const printer = S.printer || (await ipcRenderer.invoke('widget-printers')).find(p => p.isDefault)?.name;
+      if (!printer) errors.push('Printing: pick a printer (right-click the widget)');
+      else if (await countdown(results.length, printer)) {
+        for (let i = 0; i < results.length; i++) {
+          status(`Printing ${i + 1} of ${results.length} on ${printer.split('\\').pop()}…`);
+          const e = await printOne(results[i], printer); if (e) errors.push(`${path.basename(results[i])}: ${e}`);
+        }
+      } else errors.push('Printing cancelled');
+    }
+    // 4. open in Toast Docs
+    if (A.open) ipcRenderer.send('widget-open', results.length ? results : files);
+    lastOut = saved[saved.length - 1] || null;
+    const msg = saved.length ? `Done - ${saved.length} ${saved.length === 1 ? 'PDF' : 'PDFs'} saved` : 'Done';
+    if (errors.length) status(`${msg}. ${errors[0]}${errors.length > 1 ? ` (+${errors.length - 1} more)` : ''}`, saved.length ? 'done' : 'err');
+    else status(msg, saved.length ? 'done' : '');
+    $('status').title = errors.join('\n') || (lastOut ? 'Click to open the folder' : '');
+  } catch (err) { status(String(err.message || err), 'err'); }
+  busy = false; box.classList.remove('busy'); ipcRenderer.send('engine-done');
+}
+
+function countdown(n, printer) {
+  return new Promise(resolve => {
+    let left = 5; const btn = $('cancel'); btn.style.display = 'inline-block';
+    const tick = () => status(`Printing ${n} ${n === 1 ? 'file' : 'files'} on ${printer.split('\\').pop()} in ${left}…`);
+    tick();
+    const t = setInterval(() => { left--; if (left <= 0) { clearInterval(t); btn.style.display = 'none'; resolve(true); } else tick(); }, 1000);
+    btn.onclick = () => { clearInterval(t); btn.style.display = 'none'; resolve(false); };
+  });
+}
+
+// the same printing as the app's print window, with what was remembered for this printer there
+async function printOne(file, printer) {
+  let by = {}; try { by = JSON.parse(localStorage.getItem('print-by-printer')) || {}; } catch (e) {}
+  const mem = by[printer] || {};
+  const info = await api('printer_info', { name: printer }).catch(() => null);
+  const paper = info && !info.error ? info.paper : [612, 792], printable = info && !info.error ? info.printable : null;
+  const label = Math.min(...paper) <= 432 && Math.max(...paper) <= 648;
+  const d = await api('print_prepare', { filepath: file, paper, printable, mode: mem.mode || (label ? 'label' : 'page'), orient: 'auto', scale: 'fit',
+    skip_blank: mem.skip !== undefined ? mem.skip : label, comments: true, layout: 'single' });
+  if (d.error) return d.error;
+  const flip = d.turned ? (mem.flipTurned !== undefined ? mem.flipTurned : mem.flip) : mem.flip;
+  const fix = d.turned ? mem.fixTurned : mem.fix;
+  const r = await api('print_render', { path: d.path, dpi: info && info.dpi ? info.dpi : 300, flip: !!flip !== !!fix });
+  if (r.error) return r.error;
+  const res = await ipcRenderer.invoke('print-pages', r.pages, { deviceName: printer, copies: Math.max(1, S.copies || 1), color: true, duplex: 'simplex' });
+  return res && res.error ? res.error : null;
+}
+load();
+</script>
+</body></html>

@@ -19,6 +19,7 @@ function pickPort() {
 }
 let serverProc = null;
 let win = null;
+const WIDGET_ONLY = process.argv.includes('--widget');   // started with Windows for the desktop widget only
 
 // The app is called Toast Docs now, but its settings, recent files and owner mode stay in the folder it always used
 // (%APPDATA%\MyPDFKit), so nothing is lost when an older MyPDFKit updates itself. A test copy can still pass --user-data-dir.
@@ -175,7 +176,7 @@ function createWindow() {
   for (const ev of ['resize', 'move', 'maximize', 'unmaximize']) win.on(ev, remember);
   win.on('close', rememberWindow);
   // closing the main window ends the app, even if a hidden helper window (printing) is still open
-  win.on('closed', () => { win = null; quitCleanly(); });
+  win.on('closed', () => { win = null; if (!(widgetWin && !widgetWin.isDestroyed())) quitCleanly(); else scheduleEngineIdle(); });
   // Safety net: never leave the window hidden if the first paint is delayed or fails
   setTimeout(() => { if (win && !win.isDestroyed() && !win.isVisible()) win.show(); }, 2500);
 
@@ -194,7 +195,7 @@ function createWindow() {
 }
 
 app.on('second-instance', (_e, argv) => {
-  if (!win || win.isDestroyed()) return;
+  if (!win || win.isDestroyed()) { openMainWindow(filesFromArgv(argv)); return; }
   if (win.isMinimized()) win.restore();
   win.focus();
   const files = filesFromArgv(argv);
@@ -243,11 +244,129 @@ ipcMain.handle('owner-publish', async (e, data) => {
 
 if (gotLock) app.whenReady().then(async () => {
   await pickPort();
+  const ws = widgetSettings();
+  if (ws.show) createWidget();
+  if (WIDGET_ONLY && ws.show) { setupAutoUpdate(); return; }   // the engine starts when files are dropped
   startServer();
   createWindow();   // show the window immediately; the backend finishes starting in parallel
   try { await waitForServer(); serverReady = serverUp = true; flushOpenFiles(); }
   catch (e) { backendError(e.message); }
   setupAutoUpdate();
+});
+
+// ---------- desktop widget ----------
+// A small drop box on the desktop that does what was picked in Settings with the files dropped on it. It runs in
+// this same app: started with Windows it opens alone (no main window) and starts the engine only when files come,
+// closing it again after a while idle if the main window isn't open.
+let widgetWin = null;
+const WIDGET_DEFAULTS = { show: false, w: 2, h: 2, actions: { convert: true, merge: false, split: false, print: false, open: false },
+  printer: '', copies: 1, saveTo: 'next', folder: '', startWithWindows: false, onTop: false, pos: {} };
+const widgetFile = () => path.join(app.getPath('userData'), 'widget.json');
+function widgetSettings() {
+  try { const s = JSON.parse(fs.readFileSync(widgetFile(), 'utf8')); return { ...WIDGET_DEFAULTS, ...s, actions: { ...WIDGET_DEFAULTS.actions, ...(s.actions || {}) } }; }
+  catch (e) { return JSON.parse(JSON.stringify(WIDGET_DEFAULTS)); }
+}
+function saveWidgetSettings(s) { try { fs.writeFileSync(widgetFile(), JSON.stringify(s, null, 1)); } catch (e) {} }
+function widgetBounds(s) {
+  const { screen } = require('electron');
+  const w = Math.round(s.w * 96), h = Math.round(s.h * 96);
+  // the spot it was on, on a screen that's still there (screens at negative coordinates too); else bottom right
+  for (const [id, p] of Object.entries(s.pos || {})) {
+    const d = screen.getAllDisplays().find(x => String(x.id) === id);
+    if (d && p.x >= d.bounds.x - w / 2 && p.y >= d.bounds.y - h / 2 && p.x < d.bounds.x + d.bounds.width && p.y < d.bounds.y + d.bounds.height) return { x: p.x, y: p.y, width: w, height: h };
+  }
+  const a = screen.getPrimaryDisplay().workArea;
+  return { x: a.x + a.width - w - 24, y: a.y + a.height - h - 24, width: w, height: h };
+}
+function createWidget() {
+  if (widgetWin && !widgetWin.isDestroyed()) return widgetWin;
+  const s = widgetSettings();
+  widgetWin = new BrowserWindow({
+    ...widgetBounds(s), frame: false, transparent: true, resizable: false, skipTaskbar: true, show: false,
+    alwaysOnTop: !!s.onTop, maximizable: false, minimizable: false, fullscreenable: false, hasShadow: false,
+    webPreferences: { nodeIntegration: true, contextIsolation: false },
+  });
+  widgetWin.loadFile('widget.html');
+  widgetWin.once('ready-to-show', () => widgetWin.showInactive());   // never takes the focus away
+  const remember = () => {
+    if (!widgetWin || widgetWin.isDestroyed()) return;
+    const { screen } = require('electron'), b = widgetWin.getBounds(), d = screen.getDisplayMatching(b), cur = widgetSettings();
+    cur.pos = { ...(cur.pos || {}), [String(d.id)]: { x: b.x, y: b.y } }; saveWidgetSettings(cur);
+  };
+  widgetWin.on('moved', remember);
+  widgetWin.on('closed', () => { widgetWin = null; if (!win) quitCleanly(); });
+  return widgetWin;
+}
+function applyWidgetSettings(s) {
+  saveWidgetSettings(s);
+  try { app.setLoginItemSettings({ openAtLogin: !!s.startWithWindows, args: ['--widget'] }); } catch (e) {}
+  if (!s.show) { if (widgetWin && !widgetWin.isDestroyed()) { const w0 = widgetWin; widgetWin = null; w0.destroy(); } return; }
+  const w = createWidget();
+  const b = w.getBounds(), W = Math.round(s.w * 96), H = Math.round(s.h * 96);
+  if (b.width !== W || b.height !== H) w.setBounds({ x: b.x, y: b.y, width: W, height: H });
+  w.setAlwaysOnTop(!!s.onTop);
+  w.webContents.send('widget-settings', s);
+}
+function openMainWindow(files = []) {
+  if (win && !win.isDestroyed()) {
+    if (win.isMinimized()) win.restore(); win.focus();
+    if (files.length) win.webContents.send('open-files', files);
+    return;
+  }
+  process.argv = [process.argv[0], ...(app.isPackaged ? [] : [process.argv[1]]), ...files];   // flushOpenFiles reads these
+  pageLoaded = false;
+  createWindow();
+  ensureEngine().then(() => { serverUp = true; flushOpenFiles(); }).catch(e => backendError(e.message));
+}
+// the engine, started on demand (the widget's first drop), and closed again when only the widget is left and idle
+let engineIdleTimer = null;
+async function ensureEngine() {
+  clearTimeout(engineIdleTimer);
+  if (!serverProc || serverProc.killed || serverExit) { serverExit = null; startServer(); }
+  await waitForServer(); serverReady = true;
+  return SERVER_PORT;
+}
+function scheduleEngineIdle() {
+  clearTimeout(engineIdleTimer);
+  engineIdleTimer = setTimeout(() => { if (!win && serverProc && !serverProc.killed) { closeBackend(); serverProc = null; serverReady = false; } }, 10 * 60 * 1000);
+}
+ipcMain.handle('widget-settings-get', () => widgetSettings());
+ipcMain.handle('widget-settings-set', (_e, s) => { applyWidgetSettings({ ...widgetSettings(), ...s }); return widgetSettings(); });
+ipcMain.handle('engine-port', async () => ensureEngine());
+ipcMain.on('engine-done', () => scheduleEngineIdle());
+ipcMain.on('widget-open', (_e, files) => openMainWindow(files || []));
+ipcMain.on('widget-show-folder', (_e, file) => shell.showItemInFolder(file));
+ipcMain.handle('widget-bounds', () => widgetWin && !widgetWin.isDestroyed() ? widgetWin.getBounds() : null);
+ipcMain.on('widget-move', (_e, x, y) => { if (widgetWin && !widgetWin.isDestroyed()) widgetWin.setPosition(Math.round(x), Math.round(y)); });
+ipcMain.on('widget-resize', (_e, w, h) => {
+  if (!widgetWin || widgetWin.isDestroyed()) return;
+  const W = Math.max(120, Math.min(800, Math.round(w))), H = Math.max(120, Math.min(800, Math.round(h)));
+  const b = widgetWin.getBounds(); widgetWin.setBounds({ x: b.x, y: b.y, width: W, height: H });
+  const s = widgetSettings(); s.w = Math.round(W / 96 * 100) / 100; s.h = Math.round(H / 96 * 100) / 100; saveWidgetSettings(s);
+  if (win && !win.isDestroyed()) win.webContents.send('widget-size', s.w, s.h);   // Settings shows the new size
+});
+ipcMain.handle('widget-printers', async () => {
+  const w = win && !win.isDestroyed() ? win : widgetWin;
+  return w ? w.webContents.getPrintersAsync() : [];
+});
+ipcMain.on('widget-menu', async e => {
+  const s = widgetSettings(), printers = await (widgetWin ? widgetWin.webContents.getPrintersAsync() : []);
+  const set = patch => { const n = { ...widgetSettings(), ...patch }; applyWidgetSettings(n); };
+  const act = (k, label) => ({ label, type: 'checkbox', checked: !!s.actions[k], click: () => {
+    const a = { ...s.actions, [k]: !s.actions[k] };
+    if (k === 'merge' && a.merge) a.split = false; if (k === 'split' && a.split) a.merge = false;   // opposites
+    set({ actions: a });
+  } });
+  Menu.buildFromTemplate([
+    act('convert', 'Convert to PDF'), act('merge', 'Merge into one PDF'), act('split', 'Split into pages'), act('print', 'Print'), act('open', 'Open in Toast Docs'),
+    { type: 'separator' },
+    { label: 'Printer', submenu: printers.length ? printers.map(p => ({ label: p.displayName || p.name, type: 'radio', checked: (s.printer || '') === p.name, click: () => set({ printer: p.name }) })) : [{ label: 'No printers', enabled: false }] },
+    { label: 'Always on top', type: 'checkbox', checked: !!s.onTop, click: () => set({ onTop: !s.onTop }) },
+    { type: 'separator' },
+    { label: 'Open Toast Docs', click: () => openMainWindow() },
+    { label: 'Widget settings', click: () => { openMainWindow(); setTimeout(() => win && win.webContents.send('open-widget-settings'), 800); } },
+    { label: 'Hide widget', click: () => set({ show: false }) },
+  ]).popup({ window: BrowserWindow.fromWebContents(e.sender) });
 });
 
 // ---------- updates ----------
@@ -367,7 +486,7 @@ ipcMain.handle('print-pages', async (_e, pages, opt = {}) => {
   </style>` + pages.map(p => `<div class="pg"><img src="${require('url').pathToFileURL(p.path).href}"></div>`).join('');
   const file = path.join(path.dirname(pages[0].path), 'print.html');
   fs.writeFileSync(file, html);
-  const pw = new BrowserWindow({ show: false, parent: win, webPreferences: { sandbox: true } });
+  const pw = new BrowserWindow({ show: false, ...(win && !win.isDestroyed() ? { parent: win } : {}), webPreferences: { sandbox: true } });
   try {
     await pw.loadFile(file);
     await pw.webContents.executeJavaScript('Promise.all([...document.images].map(i => i.decode().catch(() => {})))');
@@ -427,4 +546,4 @@ function quitCleanly() {
   Promise.all([waitWindows, closeBackend()]).then(() => app.exit(0));
 }
 app.on('before-quit', e => { if (!closing) { e.preventDefault(); quitCleanly(); } });
-app.on('window-all-closed', quitCleanly);
+app.on('window-all-closed', () => { if (!(widgetWin && !widgetWin.isDestroyed())) quitCleanly(); });

@@ -5971,15 +5971,17 @@ def split_pdf():
     base_name = os.path.splitext(os.path.basename(data.get('original_path')))[0]
     try:
         doc = fitz.open(filepath)
-        doc_pages = list(range(len(doc)))
+        doc_pages = list(range(len(doc))); paths = []
         for i in range(len(doc)):
             new_doc = fitz.open()
             new_doc.insert_pdf(doc, from_page=i, to_page=i)
-            out_path = get_unique_filename(os.path.join(original_folder, f"{base_name}_Page_{i+1}.pdf"))
-            new_doc.save(out_path)
+            # the desktop widget asks for plain names: "invoice - page 3.pdf"
+            name = f"{base_name} - page {i + 1}.pdf" if data.get('plain_names') else f"{base_name}_Page_{i+1}.pdf"
+            out_path = get_unique_filename(os.path.join(original_folder, name))
+            new_doc.save(out_path); paths.append(out_path)
             new_doc.close()
         doc.close()
-        return jsonify({"success": True, "message": f"Split into {len(doc_pages)} pages"})
+        return jsonify({"success": True, "paths": paths, "message": f"Split into {len(doc_pages)} pages"})
     except Exception as e: return jsonify({"error": str(e)}), 500
 
 @app.route('/merge_queue', methods=['POST'])

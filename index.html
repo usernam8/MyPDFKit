@@ -2779,6 +2779,9 @@
     // ---------- print ----------
     // Our own print window: the preview shows each sheet exactly as it will come out (paper, orientation,
     // scale, color), then main.js prints the same pictures with the same settings.
+    // Label printers whose driver puts a wide label (turned onto the tall paper) out half a turn from what it's sent:
+    // corrected by default, so the paper matches the preview with Flip off ("Paper doesn't match the preview?" changes it)
+    const knownTurner = name => /LP ?320/i.test(name || '');
     const PAPER = { Letter: [612, 792], Legal: [612, 1008], Tabloid: [792, 1224], A4: [595.28, 841.89], A3: [841.89, 1190.55], A5: [419.53, 595.28],
       '4 × 6 in (label)': [288, 432], '4 × 4 in (label)': [288, 288], '80 mm receipt roll': [226.77, 0], '58 mm receipt roll': [164.41, 0] };
     const isReceipt = name => /receipt roll/.test(name || '');
@@ -3431,7 +3434,7 @@
       // remembered per printer, and separately for wide labels turned onto the paper: some printers turn those the other way
       // Some printers (the LP320's driver) put the page out half a turn from what they're sent. Once told, the app
       // turns what it sends for that printer, so the paper always comes out exactly like the preview.
-      const printerTurns = () => { const m = byPrinter[sel.value] || {}; return !!(prepared && prepared.turned ? m.fixTurned : m.fix); };
+      const printerTurns = () => { const m = byPrinter[sel.value] || {}; return !!(prepared && prepared.turned ? (m.fixTurned !== undefined ? m.fixTurned : knownTurner(sel.value)) : m.fix); };
       const showFix = () => {
         const on = printerTurns(), el = bd.querySelector('.pp-fixed');
         if (el) el.innerHTML = on ? ' · Corrected for this printer <a href="#" class="pp-unfix">Undo</a>' : '';

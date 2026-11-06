@@ -171,7 +171,7 @@ async function printOne(file, printer) {
     skip_blank: mem.skip !== undefined ? mem.skip : label, comments: true, layout: 'single' });
   if (d.error) return d.error;
   const flip = d.turned ? (mem.flipTurned !== undefined ? mem.flipTurned : mem.flip) : mem.flip;
-  const fix = d.turned ? mem.fixTurned : mem.fix;
+  const fix = d.turned ? (mem.fixTurned !== undefined ? mem.fixTurned : /LP ?320/i.test(printer)) : mem.fix;   // same as the print window
   const r = await api('print_render', { path: d.path, dpi: info && info.dpi ? info.dpi : 300, flip: !!flip !== !!fix });
   if (r.error) return r.error;
   const res = await ipcRenderer.invoke('print-pages', r.pages, { deviceName: printer, copies: Math.max(1, S.copies || 1), color: true, duplex: 'simplex' });

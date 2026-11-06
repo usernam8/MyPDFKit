@@ -4621,6 +4621,8 @@ def _tw_add(tw, pos, text, font, size):
         if ch == '\x00': break
         cur = f; run += ch
 
+_STAND_INS = set()   # fonts this PDF doesn't carry and Windows doesn't have: a close built-in one was used
+
 def _font_for(doc, page, span_font, text, cache, prefer_embedded=True):
     """A fitz.Font that draws `text` like `span_font`: the PDF's own copy when it has every letter,
     else the installed font of that name, else the PDF's copy for the letters it has with the closest
@@ -4641,6 +4643,7 @@ def _font_for(doc, page, span_font, text, cache, prefer_embedded=True):
     low = span_font.lower()
     b, it = 'bold' in low or 'black' in low or 'heavy' in low, 'italic' in low or 'oblique' in low
     fam = 'co' if 'cour' in low or 'mono' in low else 'ti' if not low or 'times' in low or 'serif' in low and 'sans' not in low else 'he'
+    if not re.search(r'helvetica|times|courier|arial|symbol|zapf', low): _STAND_INS.add(span_font.split('+')[-1])   # told to the user once
     return fitz.Font({('co', 0, 0): 'cour', ('co', 1, 0): 'cobo', ('co', 0, 1): 'coit', ('co', 1, 1): 'cobi',
                       ('ti', 0, 0): 'tiro', ('ti', 1, 0): 'tibo', ('ti', 0, 1): 'tiit', ('ti', 1, 1): 'tibi',
                       ('he', 0, 0): 'helv', ('he', 1, 0): 'hebo', ('he', 0, 1): 'heit', ('he', 1, 1): 'hebi'}[(fam, int(b), int(it))])
@@ -5088,6 +5091,7 @@ def rewrite_paragraph():
 @app.route('/burn_edits', methods=['POST'])
 def burn_edits():
     data = request.json
+    _STAND_INS.clear()
     filepath = data.get('filepath')
     page_index = int(data.get('page', 0))
 
@@ -5213,7 +5217,7 @@ def burn_edits():
             except Exception as e: print('font subsetting skipped:', e, file=sys.stderr)
         doc.save(new_path, garbage=3, deflate=True)
         doc.close()
-        return jsonify({"success": True, "new_file": new_path})
+        return jsonify({"success": True, "new_file": new_path, "stand_in_fonts": sorted(_STAND_INS)})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

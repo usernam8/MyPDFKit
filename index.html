@@ -382,6 +382,9 @@
     body.tool-pointer .pdf-text.native-text:hover { outline: 1px dashed rgba(47,111,208,.55); outline-offset: 1px; }
     body.tool-edit .pdf-text.native-text { cursor: default; }
     .pdf-text.native-text.editing { cursor: text !important; outline: 1.5px solid var(--page-accent) !important; outline-offset: 1px; background: #fff !important; }
+    #edit-bar { position:absolute; top:10px; left:50%; transform:translateX(-50%); z-index:300; display:none; align-items:center; gap:12px; padding:6px 8px 6px 14px; background:var(--panel); border:1px solid var(--line); border-radius:999px; box-shadow:0 6px 20px rgba(0,0,0,.4); font-size:12.5px; color:var(--dim); }
+    #edit-bar.show { display:flex; } #edit-bar .btn { height:26px; padding:0 14px; }
+    body.tool-edit .native-text { outline:1px dashed rgba(47,111,208,.35); outline-offset:1px; }
     #edit-chip { position:absolute; z-index:120; display:none; align-items:center; gap:4px; height:20px; padding:0 7px 0 5px; border:0; border-radius:10px;
       background:var(--page-accent, #2f6fd0); color:#fff; font:600 11px/1 Segoe UI, sans-serif; cursor:pointer; box-shadow:0 1px 4px rgba(0,0,0,.25); pointer-events:auto; }
     #edit-chip .ico, #para-chip .ico { width:12px; height:12px; }
@@ -590,8 +593,12 @@
     #zoom-label { font-size:11px; color:var(--dim); font-variant-numeric:tabular-nums; }
 
     /* the page scrolls inside this when zoomed in */
-    #page-scroller { position:absolute; inset:0; overflow:auto; display:flex; justify-content:safe center; align-items:safe center; padding:24px 60px; box-sizing:border-box; }
+    #page-scroller { position:absolute; inset:0; overflow:auto; display:flex; flex-direction:column; justify-content:safe center; align-items:safe center; gap:18px; padding:24px 60px; box-sizing:border-box; }
     #page-scroller #canvas-wrapper { flex:none; }
+    .page-slot { flex:none; position:relative; background:#fff; box-shadow:0 1px 2px rgba(0,0,0,.5), 0 10px 30px rgba(0,0,0,.45); }
+    .page-slot > canvas.slot-img { display:block; width:100%; height:100%; }
+    .page-slot.live { background:none; box-shadow:none; }
+    .page-slot.live > canvas.slot-img { display:none; }
     html.thumbs-hidden #thumbnail-sidebar { display:none !important; }
     /* page thumbnails: no scrollbar (the wheel and dragging still scroll) */
     #thumbnail-sidebar { scrollbar-width:none; }
@@ -1101,7 +1108,7 @@
           <div id="tool-palette">
       <button id="palette-handle" class="palette-handle" title="Fold or unfold the toolbar"></button>
       <button id="btn-pointer" class="tool-btn active" title="Select and move items"><svg class="ico"><use href="#i-pointer"/></svg><span>Select</span></button>
-      <button id="btn-text" class="tool-btn" title="Edit the text already in the PDF"><svg class="ico"><use href="#i-ibeam"/></svg><span>Edit text</span></button>
+      <button id="btn-text" class="tool-btn" title="Edit the text already in the PDF (E)"><svg class="ico"><use href="#i-ibeam"/></svg><span>Edit text</span></button>
       <button id="btn-add-text" class="tool-btn" title="Click the page to add new text"><svg class="ico"><use href="#i-text"/></svg><span>Add text</span></button>
       <button id="btn-highlight" class="tool-btn" title="Highlight"><svg class="ico"><use href="#i-highlighter"/></svg><span>Highlight</span></button>
       <button id="btn-draw" class="tool-btn" title="Draw with the pen"><svg class="ico"><use href="#i-pen"/></svg><span>Draw</span></button>
@@ -1734,7 +1741,15 @@
             div.addEventListener('mouseleave', () => hideEditChip());
             div.addEventListener('dblclick', () => {
                 if (currentTool === 'edit') return startTextEdit(div);
-                if (currentTool === 'pointer' && !store('edit-hint-shown', false)) { keep('edit-hint-shown', true); showToast('To change the words, turn on Edit text (the I button on the left)'); }
+                if (currentTool !== 'pointer') return;
+                const go = () => { toggleEditText(true); startTextEdit(div); };
+                if (store('edit-dblclick', '') === 'always') return go();
+                if (store('edit-dblclick', '') === 'never') return;
+                askDialog('Edit this text?', [{ key: 'n', type: 'hidden', label: 'Editing text is a mode, so just reading never changes anything. Turn on Edit text (E, or the I button on the left) to change the words.' },
+                  { key: 'remember', label: "Don't ask again", type: 'checkbox', value: false }], 'Edit').then(v => {
+                  if (v && v.remember) keep('edit-dblclick', 'always');
+                  if (v) go();
+                });
             });
             div.addEventListener('mousedown', e => { if (div === editingText) e.stopPropagation(); });   // place the caret, never drag
             div.addEventListener('input', () => { div.classList.add('edited', 'saved'); hasUnsavedEdits = true; });
@@ -1919,7 +1934,7 @@
     let tabs = [], activeTab = null, tabCount = 0;
     function makeTab() { const t = { id: ++tabCount, files: [], open: null }; tabs.push(t); return t; }
     function showEmptyWorkspace() {
-      document.getElementById('canvas-wrapper').style.display = 'none';
+      document.getElementById('canvas-wrapper').style.display = 'none'; clearSlots();
       document.getElementById('page-nav').style.display = 'none';
       document.getElementById('thumbnail-sidebar').style.display = 'none';
       document.getElementById('drop-message').style.display = 'block';
@@ -2018,7 +2033,7 @@
 
     document.getElementById('btn-clear-queue').addEventListener('click', () => {
       fileQueue = []; currentActiveFile = null; currentTempPdf = null; currentPdfDoc = null;
-      document.getElementById('canvas-wrapper').style.display = 'none';
+      document.getElementById('canvas-wrapper').style.display = 'none'; clearSlots();
       document.getElementById('page-nav').style.display = 'none';
       document.getElementById('thumbnail-sidebar').style.display = 'none';
       document.getElementById('drop-message').style.display = 'block';
@@ -2125,7 +2140,7 @@
       currentTempPdf = null;
       addRecent(filePath);
       selectedPages.clear();
-      document.getElementById('canvas-wrapper').style.display = 'none';
+      document.getElementById('canvas-wrapper').style.display = 'none'; clearSlots();
       document.getElementById('page-nav').style.display = 'none';
       document.getElementById('thumbnail-sidebar').style.display = 'none';
       
@@ -2545,6 +2560,10 @@
       
       const data = await res.json();
       if (data.success) {
+        if ((data.stand_in_fonts || []).length && !store('font-note-shown', false)) {   // once: why an edit may look a little different
+          keep('font-note-shown', true);
+          showToast(`This PDF doesn't include the font ${data.stand_in_fonts[0]}, and Windows doesn't have it, so the closest match was used for your edit`);
+        }
         currentTempPdf = data.new_file;
         let activeObj = fileQueue.find(f => f.originalPath === currentActiveFile);
         if(activeObj) activeObj.pdfPath = currentTempPdf;
@@ -3177,6 +3196,7 @@
       ['rotccw', 'Rotate page counterclockwise', ['Ctrl+Shift+Minus'], () => rotateBy(-90), true],
       ['reading', 'Reading view (full screen)', ['F11'], () => reader ? closeReader() : openReader(), true, 'btn-read'],
       ['bookmark', 'Bookmark this page', ['Ctrl+B'], () => toggleMark(), false],
+      ['edittext', 'Edit text on or off', ['E'], () => toggleEditText(), false, 'btn-text'],
       ['tools', 'Find any tool', ['Ctrl+K'], () => { goTab('tools'); const t = document.getElementById('tool-search'); t.focus(); t.select(); }, true],
       ['ai', 'Summarize or ask AI', [], () => aiButton(), true, 'btn-ai'],
       ['settings', 'Settings', ['Ctrl+Comma'], () => openSettings(), true],
@@ -3206,7 +3226,7 @@
       const combo = comboOf(e); if (!combo) return;
       const t = e.target, typing = t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));
       if (document.querySelector('.backdrop, #custom-popup[style*="block"]') || document.body.classList.contains('capturing-keys')) return;   // a window is open: its own keys
-      if (!typing && !e.ctrlKey && !e.altKey && !e.metaKey && !/^F\d+$/.test(e.key) && !['Home', 'End'].includes(e.key)) return;
+      if (!typing && !e.ctrlKey && !e.altKey && !e.metaKey && !/^F\d+$/.test(e.key) && !['Home', 'End'].includes(e.key) && !SHORTCUTS.some(([id]) => keysOf(id).includes(combo))) return;
       const hit = SHORTCUTS.find(([id]) => keysOf(id).includes(combo));
       if (!hit || (typing && !hit[4])) return;
       if (featureOff(SHORTCUT_FEATURE[hit[0]] || hit[0]) || (hit[5] && document.getElementById(hit[5])?.classList.contains('feat-off'))) return;
@@ -6015,6 +6035,83 @@
 
     // flipping pages quickly: only the last page asked for gets drawn, and a page still drawing is dropped
     let renderTicket = 0, mainRenderTask = null, lastFitBox = '';
+    // ---------- continuous scrolling ----------
+    // Every page has a slot in one scrolling column. The page in the middle of the screen is the live one (its
+    // slot holds #canvas-wrapper with editing, forms and drawing); the others show a picture, drawn only when
+    // they come near the screen. Scrolling past the middle makes the next page the live one.
+    let slotsKey = '', slotsBase = '', slotIO = null, slotScale = 0, liveSlot = 0, slotBusy = false;
+    const scroller = () => document.getElementById('page-scroller');
+    function clearSlots() {   // no file on screen: no pages in the column either
+      const sc = scroller(), wrapper = document.getElementById('canvas-wrapper');
+      if (slotIO) slotIO.disconnect();
+      sc.querySelectorAll('.page-slot').forEach(el => { if (el.contains(wrapper)) sc.append(wrapper); el.remove(); });
+      slotsKey = ''; slotsBase = ''; liveSlot = 0;
+    }
+    function buildSlots(viewport) {
+      const sc = scroller(), n = currentPdfDoc.numPages, key = currentTempPdf + '|' + n + '|' + currentRenderScale.toFixed(4);
+      if (key === slotsKey) return;
+      slotsKey = key;
+      const wrapper = document.getElementById('canvas-wrapper');
+      if (slotIO) slotIO.disconnect();
+      sc.querySelectorAll('.page-slot').forEach(el => { if (el.contains(wrapper)) sc.append(wrapper); el.remove(); });
+      for (let i = 1; i <= n; i++) {
+        const slot = document.createElement('div'); slot.className = 'page-slot'; slot.dataset.n = i;
+        Object.assign(slot.style, { width: viewport.width + 'px', height: viewport.height + 'px' });   // same as this page until drawn
+        slot.innerHTML = '<canvas class="slot-img"></canvas>';
+        sc.insertBefore(slot, wrapper);
+      }
+      sc.append(wrapper);   // until it's placed in its slot
+      slotIO = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) drawSlot(+e.target.dataset.n); }), { root: sc, rootMargin: '1200px 0px' });
+      sc.querySelectorAll('.page-slot').forEach(el => slotIO.observe(el));
+    }
+    async function drawSlot(n) {
+      const slot = scroller().querySelector(`.page-slot[data-n="${n}"]`);
+      if (!slot || n === liveSlot || slot.dataset.done === slotsKey) return;
+      const key = slotsKey, doc = currentPdfDoc; slot.dataset.done = key;
+      try {
+        const page = await doc.getPage(n), vp = page.getViewport({ scale: slotScale });
+        Object.assign(slot.style, { width: vp.width + 'px', height: vp.height + 'px' });
+        const cv = slot.querySelector('canvas.slot-img'), r = window.devicePixelRatio || 1;
+        cv.width = Math.ceil(vp.width * r); cv.height = Math.ceil(vp.height * r);
+        const ctx = cv.getContext('2d'); ctx.setTransform(r, 0, 0, r, 0, 0);
+        await page.render({ canvasContext: ctx, viewport: vp, annotationMode: pdfjsLib.AnnotationMode.ENABLE_FORMS }).promise;
+      } catch (e) { slot.dataset.done = ''; }
+      if (key !== slotsKey) slot.dataset.done = '';
+    }
+    function placeLivePage(num, viewport) {
+      buildSlots(viewport);
+      const sc = scroller(), slot = sc.querySelector(`.page-slot[data-n="${num}"]`), wrapper = document.getElementById('canvas-wrapper');
+      if (!slot) return;
+      const prev = sc.querySelector('.page-slot.live');
+      if (prev && prev !== slot) { prev.classList.remove('live'); prev.dataset.done = ''; liveSlot = 0; drawSlot(+prev.dataset.n); }
+      liveSlot = num; slot.classList.add('live');
+      Object.assign(slot.style, { width: viewport.width + 'px', height: viewport.height + 'px' });
+      if (wrapper.parentElement !== slot) slot.append(wrapper);
+      // a page turned with the buttons, a thumbnail or Go to page: bring it into view (scrolling to it doesn't jump)
+      const sr = sc.getBoundingClientRect(), r = slot.getBoundingClientRect();
+      const mid = sr.top + sr.height / 2;
+      if (!(r.top <= mid && r.bottom >= mid) && !(r.top >= sr.top && r.bottom <= sr.bottom)) {
+        slotBusy = true;
+        sc.scrollTop += r.top - sr.top - Math.max(0, (sr.height - r.height) / 2);
+        setTimeout(() => { slotBusy = false; }, 120);
+      }
+    }
+    // which page is in the middle of the screen: that one becomes live (after saving edits on the one before)
+    let slotScrollTimer = null;
+    document.getElementById('page-scroller').addEventListener('scroll', () => {
+      if (slotBusy || !currentPdfDoc) return;
+      clearTimeout(slotScrollTimer);
+      const sc = scroller(), sr = sc.getBoundingClientRect(), mid = sr.top + sr.height / 2;
+      let at = 0;
+      for (const el of sc.querySelectorAll('.page-slot')) { const r = el.getBoundingClientRect(); if (r.top <= mid && r.bottom >= mid - 18) { at = +el.dataset.n; break; } }
+      if (!at || at === pageNum) return;
+      document.getElementById('page-input').value = at;   // the number follows right away
+      slotScrollTimer = setTimeout(async () => {
+        if (at === pageNum || !currentPdfDoc) return;
+        await syncEditsToPython(); pageNum = at; renderPage(at);
+      }, 140);
+    });
+
     // the page is sized to the space it has: when the window or a side panel changes that space, draw it again
     // (shortly after the change stops, and after saving any edits in progress, like zooming does)
     let refitTimer = null;
@@ -6042,9 +6139,14 @@
         const scaleX = (workspaceCenter.clientWidth - 160) * (unscaled.width > unscaled.height ? 0.85 : 1) / unscaled.width;
         const scaleY = (workspaceCenter.clientHeight - 110) / unscaled.height;
         currentRenderScale = Math.max(0.1, Math.min(scaleX, scaleY)) * zoomLevel;
+        // one size for the whole scrolling column (set by the page shown when it's built), so a file with pages
+        // of different sizes doesn't jump around when the next page becomes the live one
+        const colKey = currentTempPdf + '|' + currentPdfDoc.numPages + '|' + zoomLevel + '|' + workspaceCenter.clientWidth + 'x' + workspaceCenter.clientHeight;
+        if (colKey === slotsBase && slotScale) currentRenderScale = slotScale; else { slotsBase = colKey; slotScale = currentRenderScale; }
         lastFitBox = workspaceCenter.clientWidth + 'x' + workspaceCenter.clientHeight;
         
         const viewport = page.getViewport({ scale: currentRenderScale });
+        placeLivePage(num, viewport);
         const pdfCanvas = document.getElementById('pdf-canvas');
         const hlCanvas = document.getElementById('hl-canvas');
         const penCanvas = document.getElementById('pen-canvas');
@@ -6199,13 +6301,11 @@
     document.getElementById('workspace-center').addEventListener('wheel', (e) => {
       if (!currentPdfDoc) return;
       if (e.ctrlKey) { e.preventDefault(); zoomStep(-e.deltaY); return; }
-      // zoomed in: the wheel scrolls the page; at its top or bottom edge it turns the page
+      // the pages scroll as one column; only at the very end of the last page does the wheel go on to the next file
       const sc = document.getElementById('page-scroller');
-      if (sc.scrollHeight > sc.clientHeight + 2) {
-        const atEdge = e.deltaY > 0 ? sc.scrollTop + sc.clientHeight >= sc.scrollHeight - 2 : sc.scrollTop <= 0;
-        if (!atEdge) return;
-      }
-
+      const atEnd = e.deltaY > 0 ? sc.scrollTop + sc.clientHeight >= sc.scrollHeight - 2 && pageNum === currentPdfDoc.numPages
+                                 : sc.scrollTop <= 0 && pageNum === 1;
+      if (!atEnd) return;
       e.preventDefault();
 
       if (isScrolling) return;
@@ -6231,6 +6331,26 @@
     const panelDraw = document.getElementById('panel-draw');
     const panelText = document.getElementById('panel-text');
 
+    // Edit text is a mode: a slim bar says it's on, E or Esc or Done turns it off
+    function toggleEditText(on) {
+      on = on === undefined ? currentTool !== 'edit' : on;
+      if (on && currentTool !== 'edit') switchTool('btn-text', 'edit');
+      else if (!on && currentTool === 'edit') { finishTextEdit(); switchTool('btn-pointer', 'pointer'); }
+    }
+    function showEditBar() {
+      let bar = document.getElementById('edit-bar');
+      if (!bar) {
+        bar = document.createElement('div'); bar.id = 'edit-bar';
+        bar.innerHTML = '<span>Editing text · click a line or paragraph to change it</span><button class="btn primary">Done</button>';
+        bar.querySelector('button').onclick = () => toggleEditText(false);
+        document.getElementById('workspace-center').append(bar);
+      }
+      bar.classList.toggle('show', currentTool === 'edit' && !!currentPdfDoc);
+    }
+    document.addEventListener('keydown', e => {
+      if (e.key !== 'Escape' || currentTool !== 'edit' || editingText || document.querySelector('.backdrop')) return;
+      toggleEditText(false);
+    });
     function switchTool(toolId, toolName) {
       document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active'));
       if(document.getElementById(toolId)) document.getElementById(toolId).classList.add('active');
@@ -6240,7 +6360,7 @@
         areaDone = null;
         if (currentTool === 'redact') { pendingRedactions = {}; document.querySelectorAll('.redact-mark').forEach(m => m.remove()); }
       }
-      currentTool = toolName;
+      currentTool = toolName; setTimeout(showEditBar);
       
       document.body.className = 'tool-' + toolName + (toolName === 'draw' && pen.eraser ? ' erasing' : '') + (toolName === 'draw' && pen.lasso ? ' lassoing' : '');
       if (toolName !== 'draw') clearInkSel();

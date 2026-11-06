@@ -179,6 +179,40 @@ rr = c.post('/print_render', json={'path': r['path'], 'dpi': 100, 'toner': True,
 im = Image.open(rr['pages'][0]['path']).convert('L')
 check('toner saver prints black as gray; sheets in the order asked', min(im.getdata()) > 80 and rr['pages'][0]['path'].endswith('3.png'), f'darkest {min(im.getdata())}')
 
+print('\nPreview vs paper (Flip upside down, printer correction)')
+# What's sent to the printer must look exactly like the preview: the preview shows the sheet turned half a turn
+# when Flip is on, and print_render must send exactly that. A printer correction (for drivers that turn the
+# page themselves) adds one more half turn on top, on purpose.
+from PIL import Image, ImageChops
+def wide_box_label(path, n=3):
+    d = pymupdf.open()
+    for i in range(n):
+        p = d.new_page(width=432, height=288)   # 6x4 in, like BoxLabel_PO01085973
+        p.draw_rect(pymupdf.Rect(300, 10, 422, 70), color=(0, 0, 0), fill=(0, 0, 0))
+        p.insert_text((310, 50), "WOMEN'S", fontsize=18, color=(1, 1, 1))
+        p.insert_text((14, 40), 'PO01085973  Custom Cut', fontsize=16)
+        for k, t in enumerate(('STYLE: DR5372', 'COLOR: BROWN/COMBO', 'SIZE: ' + ('XS', 'S', 'M')[i % 3])):
+            p.insert_text((40, 110 + k * 34), t, fontsize=24)
+        for x in range(40, 200, 6): p.draw_rect(pymupdf.Rect(x, 215, x + (3 if x % 4 else 2), 270), color=(0, 0, 0), fill=(0, 0, 0))
+        p.draw_rect(pymupdf.Rect(300, 190, 422, 280), color=(0, 0, 0), width=3); p.insert_text((340, 255), str(16 - i), fontsize=40)
+    d.save(path)
+wide = os.path.join(work, 'BoxLabel_wide.pdf'); wide_box_label(wide)
+shutil.copyfile(wide, os.path.join(T, 'pdfs', 'BoxLabel_wide_test.pdf')) if os.path.isdir(os.path.join(T, 'pdfs')) else None
+tall = os.path.join(work, 'tall_label.pdf'); d = pymupdf.open(); p = d.new_page(width=288, height=432)
+p.insert_text((20, 40), 'SHIP TO', fontsize=20); p.draw_rect(pymupdf.Rect(20, 300, 268, 410), color=(0, 0, 0), fill=(0, 0, 0)); d.save(tall)
+def same(a, b): return ImageChops.difference(a.convert('L'), b.convert('L')).getbbox() is None
+for name, f in (('wide 6x4 box labels', wide), ('tall 4x6 label', tall)):
+    r = c.post('/print_prepare', json={'filepath': f, 'paper': [288, 432], 'mode': 'page', 'orient': 'auto', 'scale': 'fit', 'layout': 'single'}).get_json()
+    sheet = pymupdf.open(r['path'])
+    px = sheet[0].get_pixmap(dpi=150, colorspace=pymupdf.csGRAY); pv = Image.frombytes('L', (px.width, px.height), px.samples)
+    check(f'{name}: sheets are tall 4x6 paper with the label already turned onto them', all(abs(pg.rect.width - 288) < 1 and abs(pg.rect.height - 432) < 1 for pg in sheet), f"turned={r.get('turned')}")
+    for flip, fix in ((False, False), (True, False), (False, True), (True, True)):
+        out = c.post('/print_render', json={'path': r['path'], 'dpi': 150, 'flip': flip != fix, 'indices': [0]}).get_json()['pages'][0]
+        sent = Image.open(out['path'])
+        want = pv.rotate(180) if flip else pv          # what the preview shows
+        if fix: want = want.rotate(180)                  # the printer turns it back by itself
+        check(f'{name}: Flip {"on" if flip else "off"}{", printer correction on" if fix else ""}: what is sent matches the preview', same(sent, want))
+
 shutil.rmtree(work, ignore_errors=True)
 print(f'\n{sum(results)} of {len(results)} checks passed')
 sys.exit(0 if all(results) else 1)

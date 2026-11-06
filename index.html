@@ -493,6 +493,7 @@
     .pp-safe { position:absolute; border:1px dashed rgba(47,111,208,.55); pointer-events:none; box-sizing:border-box; }
     .pp-note { text-align:center; font-size:12px; color:var(--dim); min-height:16px; margin:2px 0 0; }
     .pp-check { display:flex; align-items:center; gap:8px; font-size:13px; margin:6px 0 4px; cursor:pointer; }
+    .pp-fixline { font-size:12px; margin:0 0 6px 26px; color:var(--dim); } .pp-fixline a { color:var(--accent); text-decoration:none; } .pp-fixline a:hover { text-decoration:underline; }
     .pp-label-tools { display:flex; gap:8px; margin:4px 0; }
     .pp-adjust { position:relative; display:flex; flex-direction:column; align-items:center; gap:10px; }
     .pp-adjust canvas { display:block; background:#fff; }
@@ -3270,6 +3271,7 @@
           <div class="field"><label>Two-sided</label><select data-k="duplex"><option value="simplex">Off</option><option value="longEdge">Flip on long edge</option><option value="shortEdge">Flip on short edge</option><option value="manual">By hand: fronts, then backs</option></select></div>
           <label class="pp-check"><input type="checkbox" data-k="skip"> Skip blank pages</label>
           <label class="pp-check" title="Turns the label half a turn on the paper, for when the printer sits the other way round. The preview turns with it, so it always shows how the paper comes out. Remembered for this printer (wide labels turned onto the paper separately)."><input type="checkbox" data-k="flip"> Flip upside down</label>
+          <div class="pp-fixline"><a href="#" class="pp-fix">Paper doesn't match the preview?</a><span class="pp-fixed"></span></div>
           <label class="pp-check"><input type="checkbox" data-k="comments" checked> Print comments and markup</label>
           <div class="pp-label-tools"><button class="btn quiet pp-adjust-btn" title="Drag the corners to choose exactly what prints">Adjust area...</button><button class="btn quiet pp-save-labels" title="Each label as its own page, sharp, in a new PDF next to this file">Save as PDF</button></div>
           <div class="dialog-actions"><button class="btn quiet pp-system" title="Open Windows' print dialog for printer-specific options">More options...</button><span class="spacer"></span><button class="btn quiet pp-cancel">Cancel</button><button class="btn primary pp-print">Print</button></div>
@@ -3289,6 +3291,7 @@
         for (const k of ['paper', 'mode', 'layout']) more.append(row(k));
         bd.querySelectorAll('.pp-opt').forEach(el => more.append(el));
         for (const k of ['scale', 'duplex', 'color', 'skip', 'flip', 'comments']) more.append(row(k));
+        row('flip').after(bd.querySelector('.pp-fixline'));   // the printer correction sits right under Flip
         more.append(bd.querySelector('.pp-label-tools'));
         more.open = !!store('print-more-open', false);
         more.addEventListener('toggle', () => keep('print-more-open', more.open));
@@ -3340,6 +3343,20 @@
         $('flip').checked = flipFor(mem, prepared && prepared.turned);
       };
       // remembered per printer, and separately for wide labels turned onto the paper: some printers turn those the other way
+      // Some printers (the LP320's driver) put the page out half a turn from what they're sent. Once told, the app
+      // turns what it sends for that printer, so the paper always comes out exactly like the preview.
+      const printerTurns = () => { const m = byPrinter[sel.value] || {}; return !!(prepared && prepared.turned ? m.fixTurned : m.fix); };
+      const showFix = () => {
+        const on = printerTurns(), el = bd.querySelector('.pp-fixed');
+        if (el) el.innerHTML = on ? ' · Corrected for this printer <a href="#" class="pp-unfix">Undo</a>' : '';
+        const u = bd.querySelector('.pp-unfix'); if (u) u.onclick = e => { e.preventDefault(); setFix(false); };
+      };
+      const setFix = on => {
+        const m = byPrinter[sel.value] = byPrinter[sel.value] || {};
+        if (prepared && prepared.turned) m.fixTurned = on; else m.fix = on;
+        keep('print-by-printer', byPrinter); showFix();
+        showToast(on ? `Fixed: ${sel.value} will now print exactly like the preview` : 'Correction removed for this printer');
+      };
       const flipFor = (mem, turned) => !!(turned ? (mem.flipTurned !== undefined ? mem.flipTurned : mem.flip) : mem.flip);
       const settingsNow = () => {
         const list = chosen(); const { paper, printable, receipt } = paperOf();
@@ -3368,6 +3385,7 @@
         if (d.error) { prepared = null; printBtn.disabled = true; bd.querySelector('.pp-count').textContent = d.error; bd.querySelector('.pp-sheet canvas').style.display = 'none'; return; }
         const wasTurned = prepared && prepared.turned;
         prepared = d; printBtn.disabled = false;
+        showFix();
         if (!!d.turned !== !!wasTurned) $('flip').checked = flipFor(byPrinter[sel.value] || {}, d.turned);
         sheetsDoc = await pdfjsLib.getDocument({ data: new Uint8Array(fs.readFileSync(d.path)) }).promise;
         sheet = Math.min(sheet, sheetsDoc.numPages - 1);
@@ -3416,11 +3434,23 @@
         const was = byPrinter[sel.value] || {};
         byPrinter[sel.value] = { paper: $('paper').value, mode: $('mode').value, skip: $('skip').checked,
           flip: prepared && prepared.turned ? !!was.flip : $('flip').checked,
-          flipTurned: prepared && prepared.turned ? $('flip').checked : (was.flipTurned !== undefined ? was.flipTurned : !!was.flip) }; keep('print-by-printer', byPrinter);
+          flipTurned: prepared && prepared.turned ? $('flip').checked : (was.flipTurned !== undefined ? was.flipTurned : !!was.flip),
+          fix: !!was.fix, fixTurned: !!was.fixTurned }; keep('print-by-printer', byPrinter);
         keep('print-settings', { printer: sel.value, orient: $('orient').value, scale: $('scale').value, color: $('color').value, duplex: $('duplex').value,
                                  sheet: $('sheet').value, poster: $('poster').value, percent: $('percent').value, comments: $('comments').checked });
       };
-      sel.addEventListener('change', async () => { await onPrinter(); prepare(); });
+      sel.addEventListener('change', async () => { await onPrinter(); prepare(); showFix(); });
+      bd.querySelector('.pp-fix').onclick = async e => {
+        e.preventDefault();
+        const kind = prepared && prepared.turned ? 'wide labels turned onto the paper' : 'pages like this one';
+        const v = await askDialog('Does the paper match the preview?', [
+          { key: 'n', label: `Print one page with these settings (or use one you just printed) and hold it next to the preview on the left. This is remembered for ${sel.value}, for ${kind}.`, type: 'hidden' },
+          { key: 'how', label: 'The paper came out', type: 'select', value: printerTurns() ? 'turned' : 'same',
+            options: [['same', 'Exactly like the preview'], ['turned', 'Turned around (upside down) compared with the preview']] }], 'Save');
+        if (!v) return;
+        const want = v.how === 'turned' ? !printerTurns() : printerTurns();
+        if (want !== printerTurns()) setFix(want);
+      };
       bd.querySelectorAll('select:not([data-k=printer]), input').forEach(el => el.addEventListener('input', () => {
         if (el === $('range')) { $('custom').style.display = el.value === 'custom' ? '' : 'none'; if (el.value === 'custom') $('custom').focus(); sheet = 0; }
         if (el === $('paper') && !opts.mode && !isReceipt(el.value)) { const label = isLabelPaper(paperOf().paper); $('mode').value = label ? 'label' : 'page'; $('skip').checked = label; }
@@ -3513,7 +3543,7 @@
           // in parts: a small first one so the printer starts at once, and each next part made while this one prints
           const parts = [];
           for (let k = 0; k < order.length; ) { const n = testing || system ? order.length : parts.length ? CH : 5; parts.push([k, order.slice(k, k + n)]); k += n; }
-          const render = part => api('print_render', { path: prepared.path, dpi, bw: $('color').value === 'bw', toner: $('color').value === 'toner', flip: $('flip').checked, indices: part[1] });
+          const render = part => api('print_render', { path: prepared.path, dpi, bw: $('color').value === 'bw', toner: $('color').value === 'toner', flip: $('flip').checked !== printerTurns(), indices: part[1] });
           let next = parts.length ? render(parts[0]) : null;
           for (let pi = 0; pi < parts.length && !bar.cancelled; pi++) {
             const k = parts[pi][0];

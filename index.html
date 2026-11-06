@@ -631,6 +631,9 @@
     .pp-stage { flex:1; display:flex; align-items:center; justify-content:center; min-height:0; }
     .pp-sheet { background:#fff; box-shadow:0 4px 18px rgba(0,0,0,.45); display:flex; align-items:center; justify-content:center; overflow:hidden; }
     .pp-sheet img { flex:none; }
+    .print-dlg .pp-stage { position:relative; }
+    .pp-scroll { position:absolute; inset:0; overflow-y:auto; display:flex; flex-direction:column; align-items:center; gap:18px; padding:20px 0; box-sizing:border-box; outline:none; }
+    .pp-scroll .pp-sheet { flex:none; position:relative; }
     .pp-nav { display:flex; align-items:center; justify-content:center; gap:12px; padding:0 0 14px; color:var(--dim); font-size:12px; }
     .pp-nav .mini-btn { font-size:18px; width:28px; height:26px; }
     .pp-nav .mini-btn:disabled { opacity:.3; cursor:default; }
@@ -3246,7 +3249,7 @@
       const bd = document.createElement('div'); bd.className = 'backdrop print-bd';
       bd.innerHTML = `<div class="dialog print-dlg">
         <div class="pp-left">
-          <div class="pp-stage"><div class="pp-sheet"><canvas></canvas><div class="pp-safe" title="The part of the paper this printer can print on"></div></div>
+          <div class="pp-stage"><div class="pp-scroll" tabindex="-1"></div>
             <div class="pp-adjust" style="display:none"><canvas></canvas><div class="pp-box"><i data-c="nw"></i><i data-c="ne"></i><i data-c="sw"></i><i data-c="se"></i><span class="pp-box-size"></span></div>
               <div class="pp-adjust-bar"><span>Drag the corners</span><label><input type="checkbox" class="pp-all"> All pages</label><button class="btn quiet pp-adj-auto">Automatic</button><button class="btn quiet pp-adj-cancel">Cancel</button><button class="btn primary pp-adj-done">Use this area</button></div></div></div>
           <div class="pp-note"></div>
@@ -3382,7 +3385,7 @@
         bd.querySelector('.pp-count').textContent = 'Getting the preview ready…';
         const d = await api('print_prepare', s);
         if (token !== prepToken || !document.body.contains(bd)) return;
-        if (d.error) { prepared = null; printBtn.disabled = true; bd.querySelector('.pp-count').textContent = d.error; bd.querySelector('.pp-sheet canvas').style.display = 'none'; return; }
+        if (d.error) { prepared = null; printBtn.disabled = true; bd.querySelector('.pp-count').textContent = d.error; bd.querySelector('.pp-scroll').innerHTML = ''; builtFor = null; return; }
         const wasTurned = prepared && prepared.turned;
         prepared = d; printBtn.disabled = false;
         showFix();
@@ -3400,36 +3403,76 @@
       let task = null;
       // how black and white or toner saver will look, right away
       // and with Flip upside down ticked, turned half a turn: the same turn the paper gets
-      const tint = () => {
-        const cv = bd.querySelector('.pp-sheet canvas');
+      const applyTint = cv => {
         cv.style.filter = $('color').value === 'bw' ? 'grayscale(1)' : $('color').value === 'toner' ? 'grayscale(1) contrast(.55) brightness(1.25)' : '';
         cv.style.transform = $('flip').checked ? 'rotate(180deg)' : '';
       };
+      const tint = () => bd.querySelectorAll('.pp-scroll canvas').forEach(applyTint);
+      // every sheet in one scrolling column, like Chrome's preview: only the sheets near the screen are drawn,
+      // and "Sheet 3 of 23" follows the scrolling
+      let builtFor = null, sheetIO = null;
+      const scrollEl = () => bd.querySelector('.pp-scroll');
       async function draw() {
         if (!prepared || !sheetsDoc) return;
+        const sc = scrollEl(), stage = bd.querySelector('.pp-stage'), n = sheetsDoc.numPages;
         const { paper, printable: pa0 } = paperOf();
-        const [pw, ph] = (prepared.sizes || [])[sheet] || paper;
-        const printable = pa0 && Math.abs(pw - paper[0]) < 1 && Math.abs(ph - paper[1]) < 1 ? pa0 : [0, 0, pw, ph];
-        const stage = bd.querySelector('.pp-stage'), sh = bd.querySelector('.pp-sheet'), cv = sh.querySelector('canvas');
-        const k = Math.min((stage.clientWidth - 40) / pw, (stage.clientHeight - 40) / ph);
-        Object.assign(sh.style, { width: pw * k + 'px', height: ph * k + 'px' });
-        Object.assign(bd.querySelector('.pp-safe').style, { left: printable[0] * k + 'px', top: printable[1] * k + 'px',
-          width: (printable[2] - printable[0]) * k + 'px', height: (printable[3] - printable[1]) * k + 'px' });
+        const key = prepared.path + '|' + stage.clientWidth + 'x' + stage.clientHeight;
+        if (builtFor !== key) {
+          builtFor = key; if (sheetIO) sheetIO.disconnect();
+          sc.innerHTML = '';
+          for (let i = 0; i < n; i++) {
+            const [pw, ph] = (prepared.sizes || [])[i] || paper;
+            const k = Math.min((stage.clientWidth - 40) / pw, (stage.clientHeight - 40) / ph);
+            const printable = pa0 && Math.abs(pw - paper[0]) < 1 && Math.abs(ph - paper[1]) < 1 ? pa0 : [0, 0, pw, ph];
+            const sh = document.createElement('div'); sh.className = 'pp-sheet'; sh.dataset.i = i; sh.dataset.k = k;
+            Object.assign(sh.style, { width: pw * k + 'px', height: ph * k + 'px' });
+            sh.innerHTML = '<canvas></canvas><div class="pp-safe" title="The part of the paper this printer can print on"></div>';
+            Object.assign(sh.querySelector('.pp-safe').style, { left: printable[0] * k + 'px', top: printable[1] * k + 'px',
+              width: (printable[2] - printable[0]) * k + 'px', height: (printable[3] - printable[1]) * k + 'px' });
+            sc.append(sh);
+          }
+          sheetIO = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) renderSheet(+e.target.dataset.i); }), { root: sc, rootMargin: '800px 0px' });
+          sc.querySelectorAll('.pp-sheet').forEach(el => sheetIO.observe(el));
+          sheet = Math.max(0, Math.min(sheet, n - 1)); scrollToSheet(sheet, false);
+        }
+        updateCount(); tint();
+      }
+      async function renderSheet(i) {
+        const sh = scrollEl().querySelector(`.pp-sheet[data-i="${i}"]`);
+        if (!sh || sh.dataset.done === builtFor) return;
+        const doc = sheetsDoc, built = builtFor; sh.dataset.done = built;
+        const page = await doc.getPage(i + 1);
+        const vp = page.getViewport({ scale: +sh.dataset.k * devicePixelRatio });
+        const off = document.createElement('canvas'); off.width = Math.ceil(vp.width); off.height = Math.ceil(vp.height);
+        try { await page.render({ canvasContext: off.getContext('2d'), viewport: vp }).promise; } catch (e) { sh.dataset.done = ''; return; }
+        if (doc !== sheetsDoc || built !== builtFor) return;
+        const cv = sh.querySelector('canvas');
+        cv.width = off.width; cv.height = off.height; cv.getContext('2d').drawImage(off, 0, 0);
+        cv.style.width = sh.style.width; cv.style.height = sh.style.height; applyTint(cv);
+      }
+      function updateCount() {
+        const sc = scrollEl(); if (!prepared || !sheetsDoc) return;
+        const mid = sc.scrollTop + sc.clientHeight / 2; let best = 0, gap = Infinity;
+        sc.querySelectorAll('.pp-sheet').forEach(el => { const dd = Math.abs(el.offsetTop + el.offsetHeight / 2 - mid); if (dd < gap) { gap = dd; best = +el.dataset.i; } });
+        sheet = best;
         const n = sheetsDoc.numPages, at = prepared.sheets[sheet] || {};
         bd.querySelector('.pp-count').textContent = `Sheet ${sheet + 1} of ${n}` + (at.page ? ` (page ${at.page})` : '');
         bd.querySelector('.pp-prev').disabled = sheet === 0;
         bd.querySelector('.pp-next').disabled = sheet >= n - 1;
-        if (task) task.cancel();
-        const page = await sheetsDoc.getPage(sheet + 1);
-        const vp = page.getViewport({ scale: k * devicePixelRatio });
-        const off = document.createElement('canvas'); off.width = Math.ceil(vp.width); off.height = Math.ceil(vp.height);
-        task = page.render({ canvasContext: off.getContext('2d'), viewport: vp });
-        try { await task.promise; } catch (e) { return; }
-        task = null;
-        cv.width = off.width; cv.height = off.height; cv.style.display = ''; cv.getContext('2d').drawImage(off, 0, 0);
-        cv.style.width = pw * k + 'px'; cv.style.height = ph * k + 'px';
-        tint();
       }
+      function scrollToSheet(i, smooth = true) {
+        const sc = scrollEl(), el = sc.querySelector(`.pp-sheet[data-i="${i}"]`); if (!el) return;
+        sc.scrollTo({ top: el.offsetTop - Math.max(0, (sc.clientHeight - el.offsetHeight) / 2), behavior: smooth ? 'smooth' : 'auto' });
+        sheet = i; setTimeout(updateCount, smooth ? 350 : 0);
+      }
+      bd.querySelector('.pp-scroll').addEventListener('scroll', () => requestAnimationFrame(updateCount));
+      // Page Up / Page Down / Home / End move through the sheets (when not typing in a box)
+      bd.addEventListener('keydown', e => {
+        if (!sheetsDoc || /^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName)) return;
+        const n = sheetsDoc.numPages, to = { PageDown: sheet + 1, PageUp: sheet - 1, Home: 0, End: n - 1 }[e.key];
+        if (to === undefined) return;
+        e.preventDefault(); scrollToSheet(Math.max(0, Math.min(n - 1, to)));
+      });
       const remember = () => {
         const was = byPrinter[sel.value] || {};
         byPrinter[sel.value] = { paper: $('paper').value, mode: $('mode').value, skip: $('skip').checked,
@@ -3459,8 +3502,8 @@
         if (el === $('color') || el === $('flip')) { if (el === $('flip')) remember(); return tint(); }
         prepare();
       }));
-      bd.querySelector('.pp-prev').onclick = () => { sheet--; draw(); };
-      bd.querySelector('.pp-next').onclick = () => { sheet++; draw(); };
+      bd.querySelector('.pp-prev').onclick = () => scrollToSheet(Math.max(0, sheet - 1));
+      bd.querySelector('.pp-next').onclick = () => scrollToSheet(Math.min(sheetsDoc.numPages - 1, sheet + 1));
       const onResize = () => draw(); window.addEventListener('resize', onResize);
       const close = () => { bd.remove(); window.removeEventListener('resize', onResize); };
 
@@ -3481,7 +3524,7 @@
           box.querySelector('.pp-box-size').textContent = `${inches(r[2] - r[0])} × ${inches(r[3] - r[1])} in`;
         };
         show();
-        bd.querySelector('.pp-sheet').style.display = 'none'; adj.style.display = '';
+        bd.querySelector('.pp-scroll').style.display = 'none'; adj.style.display = '';
         box.querySelectorAll('i').forEach(h => h.onmousedown = e => {
           e.preventDefault(); const c = h.dataset.c, x0 = e.clientX, y0 = e.clientY, r0 = r.slice();
           const move = ev => {
@@ -3499,7 +3542,7 @@
           adj.querySelector('.pp-adj-auto').onclick = () => res('auto');
           adj.querySelector('.pp-adj-cancel').onclick = () => res(null);
         });
-        adj.style.display = 'none'; bd.querySelector('.pp-sheet').style.display = '';
+        adj.style.display = 'none'; bd.querySelector('.pp-scroll').style.display = '';
         if (choice === 'use') setArea(file, at.page, r.map(x => Math.round(x * 100) / 100), adj.querySelector('.pp-all').checked);
         if (choice === 'auto') setArea(file, 0, null);
         if (choice) prepare();

@@ -432,6 +432,15 @@
     .tool-card { display:flex; flex-direction:column; align-items:center; gap:12px; padding:24px 10px 20px; background:var(--panel); border:1px solid var(--line); border-radius:8px; color:var(--text); font-size:13px; cursor:pointer; }
     .tool-card:hover { background:var(--raised); border-color:#4a4b52; }
     .tc-ico .ico { width:30px; height:30px; stroke-width:1.4; color:var(--accent); }
+    .sbs { width:560px; }
+    .sbs h3 { margin:0 0 4px; font-size:17px; } .sbs-sub { color:var(--dim); margin:0 0 16px; }
+    .sbs-slots { display:flex; gap:12px; margin-bottom:14px; }
+    .sbs-slot { flex:1; min-width:0; height:170px; border:2px dashed var(--line); border-radius:12px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; cursor:pointer; text-align:center; padding:10px; box-sizing:border-box; transition:border-color .12s, background .12s; }
+    .sbs-slot .ico { width:30px; height:30px; color:var(--faint); }
+    .sbs-slot b { font-size:14px; } .sbs-name { color:var(--dim); font-size:12px; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .sbs-slot:hover, .sbs-slot.over { border-color:var(--accent); background:var(--accent-soft); }
+    .sbs-slot.full { border-style:solid; border-color:var(--accent); } .sbs-slot.full .ico { color:var(--accent); } .sbs-slot.full .sbs-name { color:var(--text); }
+    .sbs .dialog-actions a { color:var(--accent); font-size:12.5px; align-self:center; }
     .backdrop { position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:4000; display:flex; justify-content:center; align-items:flex-start; padding-top:20vh; }
     .export-dialog { width:380px; }
     .fmt-list { display:flex; flex-direction:column; gap:6px; margin-top:12px; }
@@ -1013,7 +1022,7 @@
     <span id="doc-name"></span>
     <span class="menu-spacer"></span>
     <label class="find"><svg class="ico"><use href="#i-search"/></svg><input id="find-box" placeholder="Find, or go to page #" spellcheck="false" title="Type words to find them, or a page number (like 240 or page 240) and Enter to go there. Ctrl+G goes to a page."><span id="find-count"></span><span class="find-nav"><button id="find-prev" title="Previous match (Shift+Enter)" disabled><svg class="ico"><use href="#i-up"/></svg></button><button id="find-next" title="Next match (Enter)" disabled><svg class="ico"><use href="#i-down"/></svg></button><button id="find-close" title="Clear (Esc)"><svg class="ico"><use href="#i-plus"/></svg></button></span></label>
-    <button id="btn-side" class="icon-tool" title="Show another file side by side"><svg class="ico"><use href="#i-columns"/></svg></button>
+    <button id="btn-side" class="icon-tool" title="Side by side: show two files next to each other"><svg class="ico"><use href="#i-columns"/></svg></button>
     <button id="btn-read" class="icon-tool" title="Reading view (F11)"><svg class="ico"><use href="#i-book"/></svg></button>
     <button id="btn-speak" class="icon-tool" title="Read aloud"><svg class="ico"><use href="#i-speaker"/></svg></button>
     <button id="btn-ai" class="icon-tool ai-btn" title="Summarize, or ask AI about this file"><svg class="ico"><use href="#i-book"/></svg><span>AI</span></button><button id="btn-print" class="icon-tool" title="Print (Ctrl+P)"><svg class="ico"><use href="#i-print"/></svg></button>
@@ -3134,7 +3143,7 @@
     const ST_PAGES = [   // [id, icon (Segoe Fluent Icons), name, what it's for]
       ['general', '', 'General', 'Language, and opening PDFs with Toast Docs.'],
       ['widget', '', 'Desktop widget', 'The little drop box on your desktop.'],
-      ['tools', '', 'Side panel', 'Choose which tools show in the side panel.'],
+      ['tools', '', 'Tools I use', 'Turn off the tools you never use, so Toast Docs stays simple.'],
       ['ai', '', 'AI helper', 'Summaries and answers about your files.'],
       ['keys', '', 'Keyboard shortcuts', 'Keys that do things quickly.'],
       ['help', '', 'Help', 'Report a problem, version and license.'],
@@ -3213,7 +3222,8 @@
       const css = d.createElement('style'); css.textContent = ST_CSS; d.head.appendChild(css);
       d.body.className = 'stw' + (document.body.classList.contains('owner-on') ? ' owner-on' : '');
       d.body.innerHTML = `<nav class="stw-nav"><div class="stw-brand">Settings</div>${ST_PAGES.map(([id, ico, name]) =>
-        `<button data-page="${id}"><span class="stw-ico">${ico}</span>${name}</button>`).join('')}</nav><main class="stw-main"></main>`;
+        `<button data-page="${id}" ${{ widget: 'data-feat="widget"', tools: 'data-feat="sidetools"', keys: 'data-feat="shortcuts"' }[id] || ''}><span class="stw-ico">${ico}</span>${name}</button>`).join('')}</nav><main class="stw-main"></main>`;
+      applyFeatures(d);
       d.querySelectorAll('.stw-nav button').forEach(b => b.onclick = () => showSettingsPage(b.dataset.page));
       settingsWin.addEventListener('keydown', e => { if (e.key === 'Escape') settingsWin.close(); });
       await showSettingsPage(page);
@@ -3257,11 +3267,11 @@
         ${stCard('Always on top', 'Keeps it above your other windows. Shortcut: Ctrl+Alt+W.', stSwitch('data-w="onTop"'))}
       </div>`;
       if (page === 'tools') {
-        const hidden = new Set(store('hidden-tools', []));
-        const panes = [...document.querySelectorAll('.pane[data-pane]')].map(p => ({ name: { edit: 'Edit', convert: 'Convert', sign: 'E-Sign' }[p.dataset.pane] || p.dataset.pane,
-          tools: [...p.querySelectorAll('.side-btn[id]:not(.feat-off)')].map(b => ({ id: b.id, label: (b.dataset.enlabel || b.textContent).trim() })) })).filter(p => p.tools.length);
-        return `<div data-feat="sidetools"><div class="stw-tip">Turn off the tools you never use. They leave the side panel, but you can still find them in <b>All tools</b>.</div>
-          <div class="st-tools">${panes.map(p => `<h3>${esc(p.name)}</h3>${p.tools.map(t => stCard(esc(t.label), '', stSwitch(`data-id="${t.id}" ${hidden.has(t.id) ? '' : 'checked'}`), 'compact')).join('')}`).join('')}</div>
+        // every tool (the ones hidden for everyone aren't listed, except for the owner); off = gone from everywhere, just for me
+        const owner = isOwner(), cat = ownerCatalog().filter(([g]) => g !== 'Settings')
+          .map(([g, items]) => [g === 'Top bar and AI' ? 'Top bar' : g, items.filter(([k]) => k !== 'onlineai' && (owner || !featuresOff.has(k)))]).filter(([, items]) => items.length);
+        return `<div data-feat="sidetools"><div class="stw-tip">Switch off what you never use: it disappears from the side panel, the top bar and All tools. It's saved right away, and you can switch it back on here any time.${owner ? ' This is only for you; <b>What others see</b> (in Help) is for everyone else.' : ''}</div>
+          <div class="st-tools">${cat.map(([g, items]) => `<h3>${esc(g)}</h3>${items.map(([k, n]) => stCard(esc(n), '', stSwitch(`data-k="${k}" ${myOff.has(k) ? '' : 'checked'}`), 'compact')).join('')}`).join('')}</div>
           <p><button class="stw-btn st-all">Turn them all back on</button></p></div>`;
       }
       if (page === 'ai') {
@@ -3296,9 +3306,17 @@
       if (page === 'widget') setupWidgetSettings(bd);
       if (page === 'tools') {
         bd.querySelectorAll('.st-tools input').forEach(c => c.onchange = () => {
-          const h = new Set(store('hidden-tools', [])); c.checked ? h.delete(c.dataset.id) : h.add(c.dataset.id); keep('hidden-tools', [...h]); applyHiddenTools();
+          const k = c.dataset.k;
+          if (c.checked) {
+            myOff.delete(k);
+            // also undo the older "hide from the side panel only" for it
+            const ids = (FEATURE_EL[k] || []).filter(s => s[0] === '#').map(s => s.slice(1)), h = store('hidden-tools', []);
+            if (h.some(id => ids.includes(id))) { keep('hidden-tools', h.filter(id => !ids.includes(id))); applyHiddenTools(); }
+          } else myOff.add(k);
+          keep('my-off', [...myOff]); applyFeatures();
+          toast(c.checked ? 'Turned on. Saved' : 'Turned off. Saved');
         });
-        $('.st-all').onclick = () => { keep('hidden-tools', []); bd.querySelectorAll('.st-tools input').forEach(c => c.checked = true); applyHiddenTools(); };
+        $('.st-all').onclick = () => { myOff.clear(); keep('my-off', []); keep('hidden-tools', []); bd.querySelectorAll('.st-tools input').forEach(c => c.checked = true); applyHiddenTools(); applyFeatures(); toast('Everything is back. Saved'); };
       }
       if (page === 'ai') {
         const dl = $('.st-ai-dl'); if (dl) dl.onclick = thenMain(() => offerLocalAi(() => openSettings('ai')));
@@ -7147,12 +7165,63 @@
 
     // ---------- side by side ----------
     let side = null;   // { col, doc, path, name }
-    async function openSideBySide() {
-      if (!await needDoc()) return;
-      const pick = await pickSourceFile('Show next to this file', 'Show', [['self', 'This same file (to see two places at once)']]);
-      if (!pick) return;
-      const self = pick.choice === 'self';
-      showSide(self ? currentTempPdf : pick.path, self ? (fileQueue.find(f => f.originalPath === currentActiveFile) || {}).name : pick.name);
+    // Click Side by side, drop two files (or click each box to choose one): they open next to each other.
+    // The file already open fills the left box; dropping two files at once fills both.
+    function openSideBySide() {
+      document.getElementById('sbs-pick')?.remove();
+      const slots = [currentActiveFile && currentTempPdf ? currentActiveFile : null, null];
+      const bd = document.createElement('div'); bd.className = 'backdrop'; bd.id = 'sbs-pick';
+      bd.innerHTML = `<div class="dialog sbs"><h3>Side by side</h3>
+        <p class="sbs-sub">Drop two files here, or click a box to choose one. They open next to each other.</p>
+        <div class="sbs-slots">${['Left', 'Right'].map((n, i) => `<div class="sbs-slot" data-i="${i}"><svg class="ico"><use href="#i-pdf"/></svg><b>${n}</b><span class="sbs-name"></span></div>`).join('')}</div>
+        <div class="dialog-actions"><a href="#" class="sbs-self">Show this file twice</a><span class="spacer"></span><button class="btn quiet sbs-cancel">Cancel</button></div></div>`;
+      document.body.append(bd);
+      const $ = s => bd.querySelector(s), name = p => p.split(/[\\/]/).pop();
+      const draw = () => bd.querySelectorAll('.sbs-slot').forEach((el, i) => {
+        el.classList.toggle('full', !!slots[i]);
+        el.querySelector('.sbs-name').textContent = slots[i] ? name(slots[i]) : 'Drop a file here or click';
+        el.title = slots[i] ? 'Click to pick another file' : '';
+      });
+      const close = () => bd.remove();
+      const go = async (left, right) => {
+        close();
+        // the left file opens in the main view (in this tab, like opening any file); the right one goes in the side panel
+        if (left !== currentActiveFile) {
+          if (!fileQueue.find(f => f.originalPath === left)) fileQueue.push({ name: name(left), originalPath: left, pdfPath: null, status: 'pending' });
+          renderQueueUI(); backgroundProcessQueue(); processAndLoad(left);
+        }
+        const rightPdf = right === left && currentTempPdf && left === currentActiveFile ? currentTempPdf : await pdfPathFor(right);
+        if (!rightPdf) return;
+        for (let t = 0; t < 600 && !(currentActiveFile === left && currentTempPdf && currentPdfDoc); t++) await new Promise(r => setTimeout(r, 100));
+        if (currentActiveFile !== left || !currentTempPdf) return showToast("Couldn't open the left file", true);
+        showSide(rightPdf, name(right));
+      };
+      const fill = (paths, at) => {
+        paths = paths.filter(Boolean); if (!paths.length) return;
+        if (paths.length >= 2) { slots[0] = paths[0]; slots[1] = paths[1]; }
+        else if (at !== undefined) slots[at] = paths[0];
+        else slots[slots[0] ? 1 : 0] = paths[0];
+        draw();
+        if (slots[0] && slots[1]) setTimeout(() => go(slots[0], slots[1]), 250);   // both there: show them
+      };
+      bd.querySelectorAll('.sbs-slot').forEach((el, i) => {
+        el.onclick = async () => { const p = await pickFile(); if (p) fill([p], i); };
+        el.addEventListener('dragenter', () => el.classList.add('over'));
+        el.addEventListener('dragleave', () => el.classList.remove('over'));
+      });
+      bd.addEventListener('dragover', e => { e.preventDefault(); e.stopPropagation(); });
+      bd.addEventListener('drop', e => {
+        e.preventDefault(); e.stopPropagation();
+        bd.querySelectorAll('.sbs-slot').forEach(x => x.classList.remove('over'));
+        const slot = e.target.closest('.sbs-slot'), paths = [...e.dataTransfer.files].map(f => webUtils.getPathForFile(f));
+        fill(paths, paths.length === 1 && slot ? +slot.dataset.i : undefined);
+      });
+      $('.sbs-self').style.display = slots[0] ? '' : 'none';
+      $('.sbs-self').onclick = e => { e.preventDefault(); go(slots[0], slots[0]); };
+      $('.sbs-cancel').onclick = close;
+      bd.addEventListener('mousedown', e => { if (e.target === bd) close(); });
+      bd.tabIndex = -1; bd.addEventListener('keydown', e => { if (e.key === 'Escape') close(); }); bd.focus();
+      draw();
     }
     async function showSide(path, name) {
       closeSide(true);
@@ -8065,16 +8134,20 @@
     let previewOff = null;      // while previewing: the list being edited, even before it's published
     let ownerThisTime = false;   // unlocked without keeping it: until the app closes
     const isOwner = () => ownerThisTime || store('owner-mode', false) === true;
-    const featureOff = k => (ownerPreview && previewOff ? previewOff : featuresOff).has(k) && (!isOwner() || ownerPreview);
+    // tools this person switched off for themselves (Settings > Tools I use): hidden even in owner mode
+    let myOff = new Set(store('my-off', []));
+    const featureOff = k => myOff.has(k) || (ownerPreview && previewOff ? previewOff : featuresOff).has(k) && (!isOwner() || ownerPreview);
+    // what's hidden: the owner's list for everyone (not for the owner), plus this person's own
+    const offNow = () => new Set([...(isOwner() && !ownerPreview ? [] : (ownerPreview && previewOff ? previewOff : featuresOff)), ...myOff]);
     function applyFeatures(doc = document) {   // doc: the Settings window too
       if (doc !== document) {
+        // a Settings part is only hidden by the owner's list (switching off your own can't lock you out of Settings)
         if (!(isOwner() && !ownerPreview)) (ownerPreview && previewOff ? previewOff : featuresOff).forEach(k => doc.querySelectorAll(`[data-feat="${k}"]`).forEach(el => el.classList.add('feat-off')));
         return;
       }
       document.querySelectorAll('.feat-off').forEach(el => el.classList.remove('feat-off'));
       document.body.classList.toggle('owner-on', isOwner() && !ownerPreview);
-      if (isOwner() && !ownerPreview) return;
-      (ownerPreview && previewOff ? previewOff : featuresOff).forEach(k => [`.tool-card[data-tool="${k}"]`, `[data-feat="${k}"]`].concat(FEATURE_EL[k] || [])
+      offNow().forEach(k => [`.tool-card[data-tool="${k}"]`, `[data-feat="${k}"]`].concat(FEATURE_EL[k] || [])
         .forEach(s => { try { document.querySelectorAll(s).forEach(el => el.classList.add('feat-off')); } catch (e) {} }));
     }
     async function loadFeatures() {
@@ -8107,7 +8180,8 @@
       bd.innerHTML = `<div class="dialog op">
         <div class="op-head">
           <div class="op-title">What others see <span class="op-badge">Owner</span></div>
-          <div class="op-sub">Switch a tool off to hide it for everyone else. You always see everything. Changes reach people the next time they open Toast Docs.</div>
+          <div class="op-sub">Switch a tool off to hide it for <b>everyone else</b>, then press <b>Publish to everyone</b>. You still see everything here.
+            To hide tools just for yourself, use <a href="#" class="op-mine">Settings &gt; Tools I use</a>.</div>
           <div class="op-bar"><input class="op-search" placeholder="Search tools" spellcheck="false"><span class="op-stat"></span></div>
         </div>
         <div class="op-body"></div>
@@ -8171,8 +8245,16 @@
           pub.disabled = false;
         }
       };
-      // closing the panel ends the preview, so the app never keeps showing changes that weren't published
-      const close = () => { bd.remove(); if (ownerPreview) { ownerPreview = false; previewOff = null; applyFeatures(); } };
+      // closing the panel ends the preview, so the app never keeps showing changes that weren't published;
+      // switches changed but not published get a last chance first
+      const close = async () => {
+        if (!same() && !pub.disabled) {
+          const v = await askDialog('Publish your changes?', [{ key: 'h', label: `You switched tools on or off but didn't publish, so nobody sees the change yet. Publish now, or Cancel to close without publishing.`, type: 'hidden' }], 'Publish to everyone');
+          if (v) { await pub.onclick(); if (!same()) return; }
+        }
+        bd.remove(); if (ownerPreview) { ownerPreview = false; previewOff = null; applyFeatures(); }
+      };
+      $('.op-mine').onclick = e => { e.preventDefault(); bd.remove(); if (ownerPreview) { ownerPreview = false; previewOff = null; applyFeatures(); } openSettings('tools'); };
       bd.closeOwner = close;
       bd.addEventListener('mousedown', e => { if (e.target === bd) close(); });
       bd.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });

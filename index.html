@@ -3095,7 +3095,7 @@
         w('show').checked = W.show; w('startWithWindows').checked = W.startWithWindows; w('onTop').checked = W.onTop;
         const preset = W.w === W.h && [2, 3, 4].includes(W.w) ? String(W.w) : 'custom';
         w('size').value = preset; q('.st-w-custom').style.display = preset === 'custom' ? '' : 'none';
-        w('w').value = W.w; w('h').value = W.h; q('.st-w-px').textContent = `(${Math.round(W.w * 96)} × ${Math.round(W.h * 96)} px)`;
+        w('w').value = W.w; w('h').value = W.h; q('.st-w-px').textContent = `${W.w} × ${W.h} inches`;
         box.querySelectorAll('[data-a]').forEach(c => c.checked = !!W.actions[c.dataset.a]);
         w('printer').value = W.printer || ''; w('copies').value = W.copies || 1;
         q('.st-w-print').style.display = W.actions.print ? '' : 'none';
@@ -3126,92 +3126,228 @@
       ipcRenderer.removeAllListeners('widget-size');
       ipcRenderer.on('widget-size', (_e, ww, hh) => { W.w = ww; W.h = hh; if (box.isConnected) fill(); });
     }
-    ipcRenderer.on('open-widget-settings', async () => { await openSettings(); document.querySelector('.st-widget')?.scrollIntoView({ block: 'start' }); });
-    async function openSettings() {
-      document.getElementById('settings-panel')?.remove();
-      await checkLocalAi();
-      const hidden = new Set(store('hidden-tools', []));
-      const panes = [...document.querySelectorAll('.pane[data-pane]')].map(p => ({ name: { edit: 'Edit', convert: 'Convert', sign: 'E-Sign' }[p.dataset.pane] || p.dataset.pane,
-        tools: [...p.querySelectorAll('.side-btn[id]:not(.feat-off)')].map(b => ({ id: b.id, label: (b.dataset.enlabel || b.textContent).trim() })) })).filter(p => p.tools.length);
-      const bd = showPanel('Settings', `
-        <div data-feat="language"><h4>Language</h4><select class="st-lang">${Object.entries(I18N_NAMES).map(([v, n]) => `<option value="${v}">${n}</option>`).join('')}</select></div>
-        <div data-feat="sidetools"><h4>Tools shown in the side panel</h4><p class="ai-meta">Uncheck what you never use: it disappears from the side panel (it stays in All tools).</p>
-        <div class="st-tools">${panes.map(p => `<div class="st-group"><b>${esc(p.name)}</b>${p.tools.map(t => `<label><input type="checkbox" data-id="${t.id}" ${hidden.has(t.id) ? '' : 'checked'}> ${esc(t.label)}</label>`).join('')}</div>`).join('')}</div>
-        <button class="lb-btn st-all">Show all</button></div>
-        <h4>AI</h4><p class="ai-meta">${localAi.ready ? 'The built-in AI is ready. It runs on this computer: no account, no internet, nothing sent anywhere.' : 'The built-in AI isn\'t downloaded yet (one time, about 1.3 GB).'}</p>
-        ${localAi.ready ? '' : '<button class="lb-btn st-ai-dl">Download the built-in AI</button>'}
-        <details class="st-adv" data-feat="onlineai"><summary>Advanced: use an online AI instead</summary>
-        <p class="ai-meta">For very long files, an online AI can be smarter. Each needs its own key from its website. Google Gemini's key is free; the paid ones bill your account with that company for each question, and Toast Docs only uses them when you press Ask. The AI you save last is the one used; choose Built-in in the AI window to go back.</p>
-        ${ONLINE.map(p => { const k = aiKey(p); return `<div class="st-key" data-p="${p}"><span class="st-key-name">${AI[p].name}${p === 'gemini' ? ' (free)' : ' (paid)'}</span><input type="password" class="st-key-in" placeholder="${k ? '••••••••••' : AI[p].hint}" spellcheck="false"><button class="lb-btn st-key-save">Save key</button>${k ? '<button class="lb-btn st-key-del">Remove my key</button>' : `<button class="lb-btn st-key-get">Get a key</button>`}</div>`; }).join('')}
-        </details>
-        <div data-feat="shortcuts"><h4>Keyboard shortcuts</h4><input class="st-key-find" placeholder="Search shortcuts" spellcheck="false">
-        <div class="st-shortcuts"></div><div class="st-sc-msg ai-meta"></div><button class="lb-btn st-sc-reset">Reset to defaults</button></div>
-        <div data-feat="widget" class="st-widget"><h4>Desktop widget</h4><p class="ai-meta">A drop box on your desktop: drop files on it and it does what you pick here, every time.</p>
-          <label class="field-check"><input type="checkbox" data-w="show"> Show the widget on the desktop</label>
-          <div class="st-w-row"><label>Size</label><select data-w="size"><option value="2">Small (2 × 2 in)</option><option value="3">Medium (3 × 3 in)</option><option value="4">Large (4 × 4 in)</option><option value="custom">My own size</option></select>
-            <span class="st-w-custom"><input data-w="w" type="number" min="1.3" max="8" step="0.1"> × <input data-w="h" type="number" min="1.3" max="8" step="0.1"> in <span class="st-w-px ai-meta"></span></span></div>
-          <p class="ai-meta">When I drop files (in this order):</p>
-          <label class="field-check"><input type="checkbox" data-a="convert"> Convert to PDF (pictures, Word, Excel, PowerPoint...)</label>
-          <label class="field-check"><input type="checkbox" data-a="merge"> Merge into one PDF</label>
-          <label class="field-check"><input type="checkbox" data-a="split"> Split into separate pages</label>
-          <label class="field-check"><input type="checkbox" data-a="print"> Print</label>
-          <div class="st-w-row st-w-print"><label>Printer</label><select data-w="printer"></select><label>Copies</label><input data-w="copies" type="number" min="1" max="99" style="width:56px"></div>
-          <label class="field-check"><input type="checkbox" data-a="open"> Open in Toast Docs</label>
-          <div class="st-w-note ai-meta"></div>
-          <div class="st-w-row"><label>Save results to</label><select data-w="saveTo"><option value="next">Next to the original files</option><option value="folder">A folder I choose</option></select><button class="lb-btn st-w-folder">Choose folder...</button><span class="st-w-fname ai-meta"></span></div>
-          <label class="field-check"><input type="checkbox" data-w="startWithWindows"> Start with Windows</label>
-          <label class="field-check"><input type="checkbox" data-w="onTop"> Always on top of other windows <span style="opacity:.6">(Ctrl+Alt+W)</span></label></div>
-        <div data-feat="defaultapp"><h4>PDF app</h4><button class="lb-btn st-default">Make it my PDF app</button></div>
-        <h4>Help</h4><button class="lb-btn st-report" data-feat="report">Send a problem report</button> <button class="lb-btn op-open st-owner">What others see</button><p class="ai-meta">Version ${esc(window.appVersion || '')}. Free software under the GNU AGPL 3.0: <a href="#" class="st-source">source code and license</a></p>`, []);
-        applyFeatures(); bd.querySelector('.st-owner').onclick = () => { bd.remove(); openOwnerPanelChecked(); };
-        bd.querySelector('.st-source').onclick = e => { e.preventDefault(); require('electron').shell.openExternal('https://github.com/usernam8/MyPDFKit'); };
-      const lang = bd.querySelector('.st-lang'); lang.value = store('ui-lang', 'en');
-      lang.onchange = () => { keep('ui-lang', lang.value); setUiLanguage(lang.value); };
-      bd.querySelectorAll('.st-tools input').forEach(c => c.onchange = () => {
-        const h = new Set(store('hidden-tools', [])); c.checked ? h.delete(c.dataset.id) : h.add(c.dataset.id); keep('hidden-tools', [...h]); applyHiddenTools();
-      });
-      bd.querySelector('.st-all').onclick = () => { keep('hidden-tools', []); bd.querySelectorAll('.st-tools input').forEach(c => c.checked = true); applyHiddenTools(); };
-      const dl = bd.querySelector('.st-ai-dl'); if (dl) dl.onclick = () => { bd.remove(); offerLocalAi(() => openSettings()); };
-      bd.querySelectorAll('.st-key[data-p]').forEach(row => {
-        const p = row.dataset.p, $r = c => row.querySelector(c);
-        $r('.st-key-save').onclick = () => { const v = $r('.st-key-in').value.trim(); if (!v) return $r('.st-key-in').focus(); try { fs.writeFileSync(aiKeyFile(p), v); } catch (e) {} keep('ai-provider', p); showToast(`Saved your ${AI[p].name} key`); openSettings(); };
-        if ($r('.st-key-del')) $r('.st-key-del').onclick = () => { try { fs.unlinkSync(aiKeyFile(p)); } catch (e) {} if (store('ai-provider', '') === p) keep('ai-provider', 'local'); showToast(`Removed your ${AI[p].name} key`); openSettings(); };
-        if ($r('.st-key-get')) $r('.st-key-get').onclick = () => require('electron').shell.openExternal(AI[p].get);
-      });
-      bd.querySelector('.st-default').onclick = () => makeDefaultPdfApp();
-      setupWidgetSettings(bd);
-      // shortcuts: click one, press the new keys; a key already in use offers to swap
-      const scList = bd.querySelector('.st-shortcuts'), scMsg = bd.querySelector('.st-sc-msg');
-      const drawShortcuts = () => {
-        const q = bd.querySelector('.st-key-find').value.trim().toLowerCase();
-        scList.innerHTML = SHORTCUTS.filter(x => !q || x[1].toLowerCase().includes(q) || keysOf(x[0]).join(' ').toLowerCase().includes(q))
-          .map(([id, name]) => `<div class="st-sc"><span>${esc(name)}</span><button class="lb-btn st-sc-key" data-id="${id}">${keysOf(id).map(k => esc(keyText(k))).join(' or ') || 'Add'}</button></div>`).join('');
-        scList.querySelectorAll('.st-sc-key').forEach(b => b.onclick = () => {
-          b.textContent = 'Press keys…'; document.body.classList.add('capturing-keys'); scMsg.textContent = 'Press the new keys (Esc to cancel, Backspace to remove).';
-          const take = e => {
-            e.preventDefault(); e.stopImmediatePropagation();
-            const combo = comboOf(e); if (!combo) return;
-            window.removeEventListener('keydown', take, true); document.body.classList.remove('capturing-keys');
-            const own = store('shortcuts', {}), id = b.dataset.id;
-            if (combo === 'Escape') { scMsg.textContent = ''; return drawShortcuts(); }
-            if (combo === 'Backspace' || combo === 'Delete') { own[id] = []; keep('shortcuts', own); scMsg.textContent = ''; showShortcutTips(); return drawShortcuts(); }
-            const other = SHORTCUTS.find(x => x[0] !== id && keysOf(x[0]).includes(combo));
-            const set = () => {
-              if (other) { own[other[0]] = keysOf(other[0]).filter(k => k !== combo).concat(keysOf(id).slice(0, 1)); }
-              own[id] = [combo]; keep('shortcuts', own); scMsg.textContent = ''; showShortcutTips(); drawShortcuts();
-            };
-            if (!other) return set();
-            scMsg.innerHTML = `${esc(keyText(combo))} is already ${esc(other[1])}. <a href="#" class="sc-swap">Swap</a> · <a href="#" class="sc-no">Cancel</a>`;
-            scMsg.querySelector('.sc-swap').onclick = ev => { ev.preventDefault(); set(); };
-            scMsg.querySelector('.sc-no').onclick = ev => { ev.preventDefault(); scMsg.textContent = ''; drawShortcuts(); };
-          };
-          window.addEventListener('keydown', take, true);
+    // ---------- Settings: a window of its own, like other Windows apps ----------
+    // It's an empty window this page draws into (so every setting keeps working from here); main.js gives it its size.
+    ipcRenderer.on('open-settings', (_e, page) => openSettings(page));
+    ipcRenderer.on('open-widget-settings', () => openSettings('widget'));
+    let settingsWin = null;
+    const ST_PAGES = [   // [id, icon (Segoe Fluent Icons), name, what it's for]
+      ['general', '', 'General', 'Language, and opening PDFs with Toast Docs.'],
+      ['widget', '', 'Desktop widget', 'The little drop box on your desktop.'],
+      ['tools', '', 'Side panel', 'Choose which tools show in the side panel.'],
+      ['ai', '', 'AI helper', 'Summaries and answers about your files.'],
+      ['keys', '', 'Keyboard shortcuts', 'Keys that do things quickly.'],
+      ['help', '', 'Help', 'Report a problem, version and license.'],
+    ];
+    const ST_CSS = `
+      body.stw { display:flex; flex-direction:row; height:100vh; overflow:hidden; background:var(--canvas); color:var(--text); font:14px/1.45 var(--font); user-select:none; }
+      .stw-nav { width:236px; flex:none; background:var(--panel); border-right:1px solid var(--line); padding:18px 10px; display:flex; flex-direction:column; gap:2px; overflow:auto; }
+      .stw-brand { font-size:20px; font-weight:600; padding:4px 12px 16px; }
+      .stw-nav button { display:flex; align-items:center; gap:12px; text-align:left; border:0; background:transparent; color:var(--text); font:inherit; padding:9px 12px; border-radius:8px; cursor:pointer; position:relative; }
+      .stw-nav button:hover { background:var(--raised); }
+      .stw-nav button.on { background:var(--accent-soft); }
+      .stw-nav button.on::before { content:''; position:absolute; left:0; top:10px; bottom:10px; width:3px; border-radius:3px; background:var(--accent); }
+      .stw-ico { font-family:'Segoe Fluent Icons','Segoe MDL2 Assets'; font-size:16px; width:18px; text-align:center; color:var(--dim); }
+      .stw-nav button.on .stw-ico { color:var(--accent); }
+      .stw-main { flex:1; overflow:auto; padding:28px 36px 48px; }
+      .stw-main > * { max-width:760px; }
+      .stw-main h1 { font-size:26px; font-weight:600; margin:0 0 2px; }
+      .stw-sub { color:var(--dim); margin:0 0 22px; }
+      .stw-main h3 { font-size:14px; font-weight:600; margin:26px 0 8px; }
+      .stw-card { display:flex; align-items:center; gap:16px; background:var(--raised); border:1px solid var(--line); border-radius:10px; padding:14px 16px; margin-bottom:6px; }
+      .stw-card.compact { padding:9px 16px; margin-bottom:4px; }
+      .stw-card.indent { margin-left:28px; }
+      .stw-text { flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
+      .stw-text b { font-weight:500; }
+      .stw-text span { color:var(--dim); font-size:12.5px; }
+      .stw-ctl { display:flex; align-items:center; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
+      .stw-main select, .stw-main input[type=number], .stw-main input[type=password], .stw-main input.st-key-find { height:32px; border-radius:6px; border:1px solid var(--line); background:var(--panel); color:var(--text); font:inherit; padding:0 8px; box-sizing:border-box; }
+      .stw-main input[type=number] { width:64px; }
+      .stw-btn, .stw-main .lb-btn { height:32px; padding:0 14px; border-radius:6px; border:1px solid var(--line); background:var(--panel); color:var(--text); font:inherit; cursor:pointer; white-space:nowrap; }
+      .stw-btn:hover, .stw-main .lb-btn:hover { border-color:var(--dim); }
+      .stw-btn.primary { background:var(--accent); border-color:var(--accent); color:var(--accent-ink); font-weight:600; }
+      .stw-switch { position:relative; width:44px; height:22px; flex:none; cursor:pointer; display:inline-block; }
+      .stw-switch input { position:absolute; opacity:0; inset:0; width:100%; height:100%; margin:0; cursor:pointer; z-index:1; }
+      .stw-switch span { position:absolute; inset:0; border-radius:99px; border:1px solid var(--dim); transition:.15s; box-sizing:border-box; }
+      .stw-switch span::after { content:''; position:absolute; top:4px; left:4px; width:12px; height:12px; border-radius:50%; background:var(--dim); transition:.15s; }
+      .stw-switch input:checked + span { background:var(--accent); border-color:var(--accent); }
+      .stw-switch input:checked + span::after { left:26px; background:var(--accent-ink); }
+      .stw-switch input:focus-visible + span { outline:2px solid var(--accent); outline-offset:2px; }
+      .stw-note { color:var(--accent); font-size:12.5px; margin:4px 0 8px; }
+      .stw-note:empty { display:none; }
+      .stw-tip { background:var(--accent-soft); border-radius:10px; padding:12px 16px; margin-bottom:14px; }
+      .stw-hero { display:flex; gap:18px; align-items:center; background:var(--raised); border:1px solid var(--line); border-radius:12px; padding:16px 18px; margin-bottom:18px; }
+      .stw-hero svg { width:68px; height:68px; flex:none; }
+      .stw-hero b { display:block; font-size:16px; font-weight:600; margin-bottom:3px; }
+      .stw-hero span { color:var(--dim); }
+      .stw-ok { color:var(--ok); font-weight:600; }
+      .stw-adv { margin-top:22px; } .stw-adv summary { cursor:pointer; color:var(--dim); padding:6px 0; }
+      .stw-adv p { color:var(--dim); font-size:12.5px; }
+      .stw-main .st-key { display:flex; gap:8px; align-items:center; flex-wrap:wrap; background:var(--raised); border:1px solid var(--line); border-radius:10px; padding:10px 16px; margin:6px 0; }
+      .stw-main .st-key-name { width:170px; }
+      .stw-main .st-tools { display:block; columns:auto; max-height:none; overflow:visible; }
+      .stw-main .st-shortcuts { display:block; columns:auto; background:var(--raised); border:1px solid var(--line); border-radius:10px; margin:10px 0; max-height:none; overflow:visible; }
+      .stw-main .st-sc { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:7px 16px; border-bottom:1px solid var(--line); }
+      .stw-main .st-sc:last-child { border-bottom:0; }
+      .stw-main .st-key-find { width:100%; }
+      .st-sc-msg { color:var(--accent); font-size:12.5px; } .st-sc-msg a { color:var(--accent); }
+      .st-w-fname { color:var(--dim); font-size:12.5px; }
+      .stw-main a { color:var(--accent); }
+      .feat-off { display:none !important; }`;
+    const BEAR_HEAD = `<svg viewBox="0 0 100 100"><circle cx="24" cy="26" r="13" fill="#b8763e"/><circle cx="24" cy="26" r="7" fill="#e9b98a"/><circle cx="76" cy="26" r="13" fill="#b8763e"/><circle cx="76" cy="26" r="7" fill="#e9b98a"/>
+      <ellipse cx="50" cy="56" rx="38" ry="35" fill="#c8864a"/><ellipse cx="50" cy="68" rx="18" ry="14" fill="#f1d2ac"/><circle cx="36" cy="52" r="4.6" fill="#2b1a0e"/><circle cx="64" cy="52" r="4.6" fill="#2b1a0e"/>
+      <ellipse cx="50" cy="62" rx="6" ry="4.4" fill="#2b1a0e"/><path d="M44 70 Q50 75 56 70" fill="none" stroke="#2b1a0e" stroke-width="2.4" stroke-linecap="round"/>
+      <ellipse cx="25" cy="65" rx="6.5" ry="4" fill="#f08f8f" opacity=".55"/><ellipse cx="75" cy="65" rx="6.5" ry="4" fill="#f08f8f" opacity=".55"/></svg>`;
+    const stCard = (title, desc, ctl, cls = '', attrs = '') => `<div class="stw-card ${cls}" ${attrs}><div class="stw-text"><b>${title}</b>${desc ? `<span>${desc}</span>` : ''}</div><div class="stw-ctl">${ctl}</div></div>`;
+    const stSwitch = attrs => `<label class="stw-switch"><input type="checkbox" ${attrs}><span></span></label>`;
+
+    async function openSettings(page) {
+      page = page || store('settings-page', 'general');
+      if (settingsWin && !settingsWin.closed) { settingsWin.focus(); return showSettingsPage(page); }
+      settingsWin = window.open('', 'toast-settings');
+      if (!settingsWin) return;
+      const d = settingsWin.document;
+      d.open(); d.write('<!doctype html><html><head><meta charset="utf-8"><title>Settings - Toast Docs</title></head><body></body></html>'); d.close();
+      d.documentElement.lang = document.documentElement.lang;
+      d.head.appendChild(document.querySelector('style').cloneNode(true));   // the app's colors
+      const css = d.createElement('style'); css.textContent = ST_CSS; d.head.appendChild(css);
+      d.body.className = 'stw' + (document.body.classList.contains('owner-on') ? ' owner-on' : '');
+      d.body.innerHTML = `<nav class="stw-nav"><div class="stw-brand">Settings</div>${ST_PAGES.map(([id, ico, name]) =>
+        `<button data-page="${id}"><span class="stw-ico">${ico}</span>${name}</button>`).join('')}</nav><main class="stw-main"></main>`;
+      d.querySelectorAll('.stw-nav button').forEach(b => b.onclick = () => showSettingsPage(b.dataset.page));
+      settingsWin.addEventListener('keydown', e => { if (e.key === 'Escape') settingsWin.close(); });
+      await showSettingsPage(page);
+    }
+
+    async function showSettingsPage(page) {
+      const sw = settingsWin; if (!sw || sw.closed) return;
+      if (!ST_PAGES.some(p => p[0] === page)) page = 'general';
+      keep('settings-page', page);
+      const d = sw.document, bd = d.querySelector('.stw-main'), p = ST_PAGES.find(x => x[0] === page);
+      d.querySelectorAll('.stw-nav button').forEach(b => b.classList.toggle('on', b.dataset.page === page));
+      d.body.classList.remove('capturing-keys');
+      bd.innerHTML = `<h1>${p[2]}</h1><p class="stw-sub">${p[3]}</p>` + await settingsPageHtml(page);
+      bd.scrollTop = 0;
+      wireSettingsPage(page, bd, sw);
+      applyFeatures(d);
+      translateNode(d.body);
+    }
+
+    async function settingsPageHtml(page) {
+      if (page === 'general') return `
+        <div data-feat="language">${stCard('Language', 'The language of the menus and buttons.',
+          `<select class="st-lang">${Object.entries(I18N_NAMES).map(([v, n]) => `<option value="${v}">${n}</option>`).join('')}</select>`)}</div>
+        <div data-feat="defaultapp">${stCard('Open my PDFs with Toast Docs', 'Then double-clicking a PDF anywhere on your computer opens it here.',
+          '<button class="stw-btn primary st-default">Make it my PDF app</button>')}</div>`;
+      if (page === 'widget') return `<div class="st-widget" data-feat="widget">
+        <div class="stw-hero">${BEAR_HEAD}<div><b>A drop box on your desktop</b><span>Drag files onto it and it does what you pick below, every time. Drag it to move it; right-click it for quick options.</span></div></div>
+        ${stCard('Show the widget', 'Put the drop box on your desktop.', stSwitch('data-w="show"'))}
+        <h3>When I drop files on it</h3>
+        ${stCard('Convert to PDF', 'Pictures, Word, Excel and PowerPoint files become PDFs.', stSwitch('data-a="convert"'))}
+        ${stCard('Merge into one PDF', 'All the files you drop together become one PDF.', stSwitch('data-a="merge"'))}
+        ${stCard('Split into pages', 'Every page becomes its own PDF file.', stSwitch('data-a="split"'))}
+        ${stCard('Print', 'Prints them. You get 5 seconds to cancel.', stSwitch('data-a="print"'))}
+        ${stCard('Printer', '', '<select data-w="printer"></select><span>Copies</span><input data-w="copies" type="number" min="1" max="99">', 'indent st-w-print')}
+        ${stCard('Open in Toast Docs', 'Shows you the result here.', stSwitch('data-a="open"'))}
+        <div class="st-w-note stw-note"></div>
+        <h3>Where and how</h3>
+        ${stCard('Save the new files', '<span class="st-w-fname"></span>', '<select data-w="saveTo"><option value="next">Next to the original files</option><option value="folder">In a folder I choose</option></select><button class="stw-btn st-w-folder">Choose folder…</button>')}
+        ${stCard('Size', '<span class="st-w-px"></span>', '<select data-w="size"><option value="2">Small</option><option value="3">Medium</option><option value="4">Large</option><option value="custom">My own size</option></select><span class="st-w-custom"><input data-w="w" type="number" min="1.3" max="8" step="0.1"> × <input data-w="h" type="number" min="1.3" max="8" step="0.1"> inches</span>')}
+        ${stCard('Start with Windows', 'The widget is there as soon as you turn on your computer.', stSwitch('data-w="startWithWindows"'))}
+        ${stCard('Always on top', 'Keeps it above your other windows. Shortcut: Ctrl+Alt+W.', stSwitch('data-w="onTop"'))}
+      </div>`;
+      if (page === 'tools') {
+        const hidden = new Set(store('hidden-tools', []));
+        const panes = [...document.querySelectorAll('.pane[data-pane]')].map(p => ({ name: { edit: 'Edit', convert: 'Convert', sign: 'E-Sign' }[p.dataset.pane] || p.dataset.pane,
+          tools: [...p.querySelectorAll('.side-btn[id]:not(.feat-off)')].map(b => ({ id: b.id, label: (b.dataset.enlabel || b.textContent).trim() })) })).filter(p => p.tools.length);
+        return `<div data-feat="sidetools"><div class="stw-tip">Turn off the tools you never use. They leave the side panel, but you can still find them in <b>All tools</b>.</div>
+          <div class="st-tools">${panes.map(p => `<h3>${esc(p.name)}</h3>${p.tools.map(t => stCard(esc(t.label), '', stSwitch(`data-id="${t.id}" ${hidden.has(t.id) ? '' : 'checked'}`), 'compact')).join('')}`).join('')}</div>
+          <p><button class="stw-btn st-all">Turn them all back on</button></p></div>`;
+      }
+      if (page === 'ai') {
+        await checkLocalAi();
+        return `${stCard('Built-in AI', localAi.ready ? 'Ready to use. It runs on this computer: no account, no internet, nothing sent anywhere.' : 'Not downloaded yet. It is a one-time download of about 1.3 GB.',
+            localAi.ready ? '<span class="stw-ok">Ready</span>' : '<button class="stw-btn primary st-ai-dl">Download it</button>')}
+          <details class="st-adv stw-adv" data-feat="onlineai"><summary>Advanced: use an online AI instead</summary>
+          <p>For very long files, an online AI can be smarter. Each needs its own key from its website. Google Gemini's key is free; the paid ones bill your account with that company for each question, and Toast Docs only uses them when you press Ask. The AI you save last is the one used; choose Built-in in the AI window to go back.</p>
+          ${ONLINE.map(p => { const k = aiKey(p); return `<div class="st-key" data-p="${p}"><span class="st-key-name">${AI[p].name}${p === 'gemini' ? ' (free)' : ' (paid)'}</span><input type="password" class="st-key-in" placeholder="${k ? '••••••••••' : AI[p].hint}" spellcheck="false"><button class="lb-btn st-key-save">Save key</button>${k ? '<button class="lb-btn st-key-del">Remove my key</button>' : '<button class="lb-btn st-key-get">Get a key</button>'}</div>`; }).join('')}
+          </details>`;
+      }
+      if (page === 'keys') return `<div data-feat="shortcuts"><div class="stw-tip">Click a shortcut, then press the new keys. Press Backspace to remove one.</div>
+        <input class="st-key-find" placeholder="Search shortcuts" spellcheck="false"><div class="st-sc-msg"></div><div class="st-shortcuts"></div>
+        <button class="stw-btn st-sc-reset">Put back the standard shortcuts</button></div>`;
+      return `<div data-feat="report">${stCard('Something not working?', 'Send a short report about what went wrong.', '<button class="stw-btn primary st-report">Send a problem report</button>')}</div>
+        <p><button class="stw-btn op-open st-owner">What others see</button></p>
+        ${stCard('Version', 'Toast Docs ' + esc(window.appVersion || ''), '')}
+        ${stCard('License', 'Free software under the GNU AGPL 3.0.', '<button class="stw-btn st-source">Source code</button>')}`;
+    }
+
+    function wireSettingsPage(page, bd, sw) {
+      const $ = s => bd.querySelector(s);
+      const thenMain = fn => () => { sw.close(); fn(); };   // things that happen in the main window
+      const toast = msg => { const n = sw.document.createElement('div'); n.textContent = msg;
+        n.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--raised);border:1px solid var(--line);padding:9px 16px;border-radius:8px;';
+        sw.document.body.appendChild(n); setTimeout(() => n.remove(), 2200); };
+      if (page === 'general') {
+        const lang = $('.st-lang'); lang.value = store('ui-lang', 'en');
+        lang.onchange = () => { keep('ui-lang', lang.value); setUiLanguage(lang.value); showSettingsPage('general'); };
+        $('.st-default').onclick = () => makeDefaultPdfApp();
+      }
+      if (page === 'widget') setupWidgetSettings(bd);
+      if (page === 'tools') {
+        bd.querySelectorAll('.st-tools input').forEach(c => c.onchange = () => {
+          const h = new Set(store('hidden-tools', [])); c.checked ? h.delete(c.dataset.id) : h.add(c.dataset.id); keep('hidden-tools', [...h]); applyHiddenTools();
         });
-      };
-      bd.querySelector('.st-key-find').oninput = drawShortcuts;
-      bd.querySelector('.st-sc-reset').onclick = () => { keep('shortcuts', {}); showShortcutTips(); drawShortcuts(); scMsg.textContent = 'Back to the standard shortcuts.'; };
-      drawShortcuts();
-      bd.querySelector('.st-report').onclick = () => { bd.remove(); sendProblemReport(); };
+        $('.st-all').onclick = () => { keep('hidden-tools', []); bd.querySelectorAll('.st-tools input').forEach(c => c.checked = true); applyHiddenTools(); };
+      }
+      if (page === 'ai') {
+        const dl = $('.st-ai-dl'); if (dl) dl.onclick = thenMain(() => offerLocalAi(() => openSettings('ai')));
+        bd.querySelectorAll('.st-key[data-p]').forEach(row => {
+          const p = row.dataset.p, $r = c => row.querySelector(c);
+          $r('.st-key-save').onclick = async () => { const v = $r('.st-key-in').value.trim(); if (!v) return $r('.st-key-in').focus(); try { fs.writeFileSync(aiKeyFile(p), v); } catch (e) {} keep('ai-provider', p); await showSettingsPage('ai'); toast(`Saved your ${AI[p].name} key`); };
+          if ($r('.st-key-del')) $r('.st-key-del').onclick = async () => { try { fs.unlinkSync(aiKeyFile(p)); } catch (e) {} if (store('ai-provider', '') === p) keep('ai-provider', 'local'); await showSettingsPage('ai'); toast(`Removed your ${AI[p].name} key`); };
+          if ($r('.st-key-get')) $r('.st-key-get').onclick = () => require('electron').shell.openExternal(AI[p].get);
+        });
+        if (bd.querySelector('.st-key-in')) bd.querySelector('.stw-adv').open = ONLINE.some(p => aiKey(p));
+      }
+      if (page === 'keys') {
+        // click one, press the new keys; a key already in use offers to swap
+        const scList = $('.st-shortcuts'), scMsg = $('.st-sc-msg');
+        const drawShortcuts = () => {
+          const q = $('.st-key-find').value.trim().toLowerCase();
+          scList.innerHTML = SHORTCUTS.filter(x => !q || x[1].toLowerCase().includes(q) || keysOf(x[0]).join(' ').toLowerCase().includes(q))
+            .map(([id, name]) => `<div class="st-sc"><span>${esc(name)}</span><button class="lb-btn st-sc-key" data-id="${id}">${keysOf(id).map(k => esc(keyText(k))).join(' or ') || 'Add'}</button></div>`).join('');
+          scList.querySelectorAll('.st-sc-key').forEach(b => b.onclick = () => {
+            b.textContent = 'Press keys…'; sw.document.body.classList.add('capturing-keys'); scMsg.textContent = 'Press the new keys (Esc to cancel, Backspace to remove).';
+            const take = e => {
+              e.preventDefault(); e.stopImmediatePropagation();
+              const combo = comboOf(e); if (!combo) return;
+              sw.removeEventListener('keydown', take, true); sw.document.body.classList.remove('capturing-keys');
+              const own = store('shortcuts', {}), id = b.dataset.id;
+              if (combo === 'Escape') { scMsg.textContent = ''; return drawShortcuts(); }
+              if (combo === 'Backspace' || combo === 'Delete') { own[id] = []; keep('shortcuts', own); scMsg.textContent = ''; showShortcutTips(); return drawShortcuts(); }
+              const other = SHORTCUTS.find(x => x[0] !== id && keysOf(x[0]).includes(combo));
+              const set = () => {
+                if (other) { own[other[0]] = keysOf(other[0]).filter(k => k !== combo).concat(keysOf(id).slice(0, 1)); }
+                own[id] = [combo]; keep('shortcuts', own); scMsg.textContent = ''; showShortcutTips(); drawShortcuts();
+              };
+              if (!other) return set();
+              scMsg.innerHTML = `${esc(keyText(combo))} is already ${esc(other[1])}. <a href="#" class="sc-swap">Swap</a> · <a href="#" class="sc-no">Cancel</a>`;
+              scMsg.querySelector('.sc-swap').onclick = ev => { ev.preventDefault(); set(); };
+              scMsg.querySelector('.sc-no').onclick = ev => { ev.preventDefault(); scMsg.textContent = ''; drawShortcuts(); };
+            };
+            sw.addEventListener('keydown', take, true);
+          });
+        };
+        $('.st-key-find').oninput = drawShortcuts;
+        $('.st-sc-reset').onclick = () => { keep('shortcuts', {}); showShortcutTips(); drawShortcuts(); scMsg.textContent = 'Back to the standard shortcuts.'; };
+        drawShortcuts();
+      }
+      if (page === 'help') {
+        $('.st-report').onclick = thenMain(sendProblemReport);
+        $('.st-owner').onclick = thenMain(openOwnerPanelChecked);
+        $('.st-source').onclick = () => require('electron').shell.openExternal('https://github.com/usernam8/MyPDFKit');
+      }
     }
 
     // ---------- keyboard shortcuts: the ones people know from Chrome, Edge, Adobe and Windows ----------
@@ -7930,7 +8066,11 @@
     let ownerThisTime = false;   // unlocked without keeping it: until the app closes
     const isOwner = () => ownerThisTime || store('owner-mode', false) === true;
     const featureOff = k => (ownerPreview && previewOff ? previewOff : featuresOff).has(k) && (!isOwner() || ownerPreview);
-    function applyFeatures() {
+    function applyFeatures(doc = document) {   // doc: the Settings window too
+      if (doc !== document) {
+        if (!(isOwner() && !ownerPreview)) (ownerPreview && previewOff ? previewOff : featuresOff).forEach(k => doc.querySelectorAll(`[data-feat="${k}"]`).forEach(el => el.classList.add('feat-off')));
+        return;
+      }
       document.querySelectorAll('.feat-off').forEach(el => el.classList.remove('feat-off'));
       document.body.classList.toggle('owner-on', isOwner() && !ownerPreview);
       if (isOwner() && !ownerPreview) return;

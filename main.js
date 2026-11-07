@@ -20,6 +20,9 @@ function pickPort() {
 let serverProc = null;
 let win = null;
 const WIDGET_ONLY = process.argv.includes('--widget');   // started with Windows for the desktop widget only
+// The widget alone is kept light: no graphics process (about 110 MB saved) and a small script memory. Opening the
+// main window restarts the app normally (see restartApp), and closing it comes back to this light mode.
+if (WIDGET_ONLY) { app.disableHardwareAcceleration(); app.commandLine.appendSwitch('js-flags', '--max-old-space-size=96'); }
 
 // The app is called Toast Docs now, but its settings, recent files and owner mode stay in the folder it always used
 // (%APPDATA%\MyPDFKit), so nothing is lost when an older MyPDFKit updates itself. A test copy can still pass --user-data-dir.
@@ -170,13 +173,22 @@ function createWindow() {
     },
   });
   if (app.isPackaged) Menu.setApplicationMenu(null);
+  // Settings opens in a window of its own (the page draws into it), in front of the main window, with a dark title bar
+  win.webContents.setWindowOpenHandler(({ frameName }) => {
+    if (frameName !== 'toast-settings') return { action: 'allow' };
+
+    return { action: 'allow', overrideBrowserWindowOptions: { parent: win, width: 940, height: 700, minWidth: 660, minHeight: 480,
+      backgroundColor: '#25262a', autoHideMenuBar: true, minimizable: false, title: 'Settings',
+      webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true } } };
+  });
   win.once('ready-to-show', () => { if (place.maximized) win.maximize(); win.show(); });
   let saveTimer = null;
   const remember = () => { clearTimeout(saveTimer); saveTimer = setTimeout(rememberWindow, 400); };
   for (const ev of ['resize', 'move', 'maximize', 'unmaximize']) win.on(ev, remember);
   win.on('close', rememberWindow);
   // closing the main window ends the app, even if a hidden helper window (printing) is still open
-  win.on('closed', () => { win = null; if (!(widgetWin && !widgetWin.isDestroyed())) quitCleanly(); else scheduleEngineIdle(); });
+  // with the widget showing, the app comes back in its light widget-only mode
+  win.on('closed', () => { win = null; if (!(widgetWin && !widgetWin.isDestroyed())) quitCleanly(); else restartApp(['--widget']); });
   // Safety net: never leave the window hidden if the first paint is delayed or fails
   setTimeout(() => { if (win && !win.isDestroyed() && !win.isVisible()) win.show(); }, 2500);
 
@@ -191,7 +203,11 @@ function createWindow() {
     if ((level === 'error' || level === 3 || level === 'warning' || level === 2) && !/Electron Security Warning/.test(msg)) logLine('page', msg);
   });
   win.loadFile('index.html', { query: { port: String(SERVER_PORT) } });
-  win.webContents.on('did-finish-load', () => { pageLoaded = true; flushOpenFiles(); });
+  win.webContents.on('did-finish-load', () => {
+    pageLoaded = true; flushOpenFiles();
+    const st = process.argv.find(a => a.startsWith('--open-settings='));   // "Widget settings" from the light widget
+    if (st) { process.argv = process.argv.filter(a => a !== st); setTimeout(() => win && win.webContents.send('open-settings', st.split('=')[1]), 600); }
+  });
 }
 
 app.on('second-instance', (_e, argv) => {
@@ -244,9 +260,11 @@ ipcMain.handle('owner-publish', async (e, data) => {
 
 if (gotLock) app.whenReady().then(async () => {
   await pickPort();
+  require('electron').nativeTheme.themeSource = 'dark';   // the app is dark: title bars (Settings) and menus too
   const ws = widgetSettings();
   if (ws.show) createWidget();
-  if (WIDGET_ONLY && ws.show) { setupAutoUpdate(); return; }   // the engine starts when files are dropped
+  if (WIDGET_ONLY && !ws.show) { app.exit(0); return; }        // widget closed with the X: nothing to start with Windows
+  if (WIDGET_ONLY) { setupAutoUpdate(); return; }              // the engine starts when files are dropped
   startServer();
   createWindow();   // show the window immediately; the backend finishes starting in parallel
   try { await waitForServer(); serverReady = serverUp = true; flushOpenFiles(); }
@@ -338,12 +356,23 @@ function applyWidgetSettings(s) {
   w.setAlwaysOnTop(!!s.onTop);
   w.webContents.send('widget-settings', s);
 }
-function openMainWindow(files = []) {
+// Starts the app again with these arguments (files to open, --widget, --open-settings=...), keeping a test copy's
+// own settings folder. The engine and the windows close first, like any quit.
+function restartApp(args) {
+  if (closing) return;
+  const keep = [...(app.isPackaged ? [] : [process.argv[1]]), ...process.argv.filter(a => /^--user-data-dir=/.test(a))];
+  app.relaunch({ args: [...keep, ...args] });
+  quitCleanly();
+}
+function openMainWindow(files = [], settingsPage = '') {
   if (win && !win.isDestroyed()) {
     if (win.isMinimized()) win.restore(); win.focus();
     if (files.length) win.webContents.send('open-files', files);
+    if (settingsPage) win.webContents.send('open-settings', settingsPage);
     return;
   }
+  // the light widget-only mode has no graphics acceleration: the main window gets a normal start instead
+  if (WIDGET_ONLY) return restartApp([...files, ...(settingsPage ? ['--open-settings=' + settingsPage] : [])]);
   process.argv = [process.argv[0], ...(app.isPackaged ? [] : [process.argv[1]]), ...files];   // flushOpenFiles reads these
   pageLoaded = false;
   createWindow();
@@ -359,13 +388,15 @@ async function ensureEngine() {
 }
 function scheduleEngineIdle() {
   clearTimeout(engineIdleTimer);
-  engineIdleTimer = setTimeout(() => { if (!win && serverProc && !serverProc.killed) { closeBackend(); serverProc = null; serverReady = false; } }, 10 * 60 * 1000);
+  // the engine takes far more memory than the widget: let it go 3 minutes after the last drop
+  engineIdleTimer = setTimeout(() => { if (!win && serverProc && !serverProc.killed) { closeBackend(); serverProc = null; serverReady = false; } }, 3 * 60 * 1000);
 }
 ipcMain.handle('widget-settings-get', () => widgetSettings());
 ipcMain.handle('widget-settings-set', (_e, s) => { applyWidgetSettings({ ...widgetSettings(), ...s }); return widgetSettings(); });
 ipcMain.handle('engine-port', async () => ensureEngine());
 ipcMain.on('engine-done', () => scheduleEngineIdle());
 ipcMain.on('widget-open', (_e, files) => openMainWindow(files || []));
+ipcMain.on('widget-close', () => applyWidgetSettings({ ...widgetSettings(), show: false }));   // the X; Settings turns it back on
 ipcMain.on('widget-show-folder', (_e, file) => shell.showItemInFolder(file));
 ipcMain.handle('widget-bounds', () => widgetWin && !widgetWin.isDestroyed() ? widgetWin.getBounds() : null);
 ipcMain.on('widget-move', (_e, x, y) => {
@@ -400,7 +431,7 @@ ipcMain.on('widget-menu', async e => {
     { label: 'Always on top', accelerator: WIDGET_HOTKEY, type: 'checkbox', checked: !!s.onTop, click: () => set({ onTop: !s.onTop }) },
     { type: 'separator' },
     { label: 'Open Toast Docs', click: () => openMainWindow() },
-    { label: 'Widget settings', click: () => { openMainWindow(); setTimeout(() => win && win.webContents.send('open-widget-settings'), 800); } },
+    { label: 'Widget settings', click: () => openMainWindow([], 'widget') },
     { label: 'Hide widget', click: () => set({ show: false }) },
   ]).popup({ window: BrowserWindow.fromWebContents(e.sender) });
 });

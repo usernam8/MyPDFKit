@@ -21,6 +21,10 @@
   #grip { position: absolute; right: 6px; bottom: 6px; width: 14px; height: 14px; cursor: nwse-resize; opacity: .5;
           background: linear-gradient(135deg, transparent 50%, #a09f9b 50%, transparent 62%, transparent 70%, #a09f9b 70%, transparent 82%); }
   body.small .acts, body.small .title { display: none; }
+  #close { position: absolute; top: 10px; right: 10px; width: 22px; height: 22px; border: 0; border-radius: 50%; padding: 0;
+           background: rgba(255,255,255,.08); color: #c9c8c4; font: 15px/22px 'Segoe UI', sans-serif; cursor: pointer; opacity: 0; transition: opacity .15s, background .12s; }
+  body:hover #close { opacity: 1; }
+  #close:hover { background: #e05656; color: #fff; }
 </style></head>
 <body>
 <div id="box">
@@ -47,6 +51,7 @@
   <button id="cancel">Cancel</button>
 </div>
 <div id="grip" title="Drag to resize"></div>
+<button id="close" title="Close the widget (Settings > Desktop widget brings it back)">×</button>
 <script>
 const { ipcRenderer, webUtils } = require('electron');
 const fs = require('fs'), path = require('path');
@@ -88,6 +93,8 @@ $('grip').addEventListener('mousedown', async e => {
   const up = () => { removeEventListener('mousemove', move); removeEventListener('mouseup', up); };
   addEventListener('mousemove', move); addEventListener('mouseup', up);
 });
+$('close').addEventListener('mousedown', e => e.stopPropagation());
+$('close').addEventListener('click', () => ipcRenderer.send('widget-close'));
 addEventListener('contextmenu', e => { e.preventDefault(); ipcRenderer.send('widget-menu'); });
 $('status').addEventListener('click', () => { if ($('status').classList.contains('done') && lastOut) ipcRenderer.send('widget-show-folder', lastOut); });
 

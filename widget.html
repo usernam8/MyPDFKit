@@ -59,8 +59,10 @@ const $ = id => document.getElementById(id);
 let S = null, busy = false, lastOut = null;
 const NAMES = { convert: 'Convert', merge: 'Merge', split: 'Split', print: 'Print', open: 'Open' };
 
-async function load() { S = await ipcRenderer.invoke('widget-settings-get'); paint(); }
-ipcRenderer.on('widget-settings', (_e, s) => { S = s; paint(); });
+const LITE = ipcRenderer.sendSync('edition') === 'lite';   // Toast Docs Lite doesn't print
+const fix = s => { if (LITE) s.actions.print = false; return s; };
+async function load() { S = fix(await ipcRenderer.invoke('widget-settings-get')); paint(); }
+ipcRenderer.on('widget-settings', (_e, s) => { S = fix(s); paint(); });
 function paint() {
   const on = Object.keys(NAMES).filter(k => S.actions[k]);
   document.querySelector('.acts').innerHTML = on.map(k => `<span>${NAMES[k]}${k === 'print' && S.printer ? ': ' + esc(S.printer.split('\\').pop()) : ''}</span>`).join('') || '<span>Nothing picked: right-click</span>';

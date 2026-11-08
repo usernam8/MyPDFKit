@@ -20,6 +20,11 @@ function pickPort() {
 let serverProc = null;
 let win = null;
 const WIDGET_ONLY = process.argv.includes('--widget');   // started with Windows for the desktop widget only
+// Toast Docs Lite (its own Store app): viewing, converting, merging, splitting and the widget. The Store build sets
+// "edition" in the packaged package.json; TOAST_EDITION=lite tries it in a dev copy.
+const EDITION = process.env.TOAST_EDITION || require('./package.json').edition || 'pro';
+const LITE = EDITION === 'lite';
+ipcMain.on('edition', e => { e.returnValue = EDITION; });
 // The widget alone is kept light: no graphics process (about 110 MB saved) and a small script memory. Opening the
 // main window restarts the app normally (see restartApp), and closing it comes back to this light mode.
 if (WIDGET_ONLY) { app.disableHardwareAcceleration(); app.commandLine.appendSwitch('js-flags', '--max-old-space-size=96'); }
@@ -417,17 +422,17 @@ ipcMain.handle('widget-printers', async () => {
   return w ? w.webContents.getPrintersAsync() : [];
 });
 ipcMain.on('widget-menu', async e => {
-  const s = widgetSettings(), printers = await (widgetWin ? widgetWin.webContents.getPrintersAsync() : []);
+  const s = widgetSettings(), printers = LITE ? [] : await (widgetWin ? widgetWin.webContents.getPrintersAsync() : []);
   const set = patch => { const n = { ...widgetSettings(), ...patch }; applyWidgetSettings(n); };
   const act = (k, label) => ({ label, type: 'checkbox', checked: !!s.actions[k], click: () => {
     const a = { ...s.actions, [k]: !s.actions[k] };
     if (k === 'merge' && a.merge) a.split = false; if (k === 'split' && a.split) a.merge = false;   // opposites
     set({ actions: a });
   } });
-  Menu.buildFromTemplate([
-    act('convert', 'Convert to PDF'), act('merge', 'Merge into one PDF'), act('split', 'Split into pages'), act('print', 'Print'), act('open', 'Open in Toast Docs'),
+  Menu.buildFromTemplate([   // Lite: no printing
+    act('convert', 'Convert to PDF'), act('merge', 'Merge into one PDF'), act('split', 'Split into pages'), ...(LITE ? [] : [act('print', 'Print')]), act('open', 'Open in Toast Docs'),
     { type: 'separator' },
-    { label: 'Printer', submenu: printers.length ? printers.map(p => ({ label: p.displayName || p.name, type: 'radio', checked: (s.printer || '') === p.name, click: () => set({ printer: p.name }) })) : [{ label: 'No printers', enabled: false }] },
+    ...(LITE ? [] : [{ label: 'Printer', submenu: printers.length ? printers.map(p => ({ label: p.displayName || p.name, type: 'radio', checked: (s.printer || '') === p.name, click: () => set({ printer: p.name }) })) : [{ label: 'No printers', enabled: false }] }]),
     { label: 'Always on top', accelerator: WIDGET_HOTKEY, type: 'checkbox', checked: !!s.onTop, click: () => set({ onTop: !s.onTop }) },
     { type: 'separator' },
     { label: 'Open Toast Docs', click: () => openMainWindow() },

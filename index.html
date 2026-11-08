@@ -432,6 +432,8 @@
     .tool-card { display:flex; flex-direction:column; align-items:center; gap:12px; padding:24px 10px 20px; background:var(--panel); border:1px solid var(--line); border-radius:8px; color:var(--text); font-size:13px; cursor:pointer; }
     .tool-card:hover { background:var(--raised); border-color:#4a4b52; }
     .tc-ico .ico { width:30px; height:30px; stroke-width:1.4; color:var(--accent); }
+    /* Toast Docs Lite: a viewer that converts, merges and splits */
+    body.lite #tool-palette, body.lite .tab-btn[data-tab="edit"], body.lite .tab-btn[data-tab="sign"], body.lite #btn-save-modified { display:none !important; }
     .sbs { width:560px; }
     .sbs h3 { margin:0 0 4px; font-size:17px; } .sbs-sub { color:var(--dim); margin:0 0 16px; }
     .sbs-slots { display:flex; gap:12px; margin-bottom:14px; }
@@ -1336,6 +1338,7 @@
     const BACKEND = 'http://127.0.0.1:' + (new URLSearchParams(location.search).get('port') || 5000);
     const { webUtils } = require('electron'); 
     const { ipcRenderer } = require('electron');
+    const LITE = ipcRenderer.sendSync('edition') === 'lite';   // Toast Docs Lite: see LITE_KEEP
 
     // Files opened via double-click / "Open with" / command line (sent by main.js)
     ipcRenderer.on('open-files', async (_e, paths) => {
@@ -3202,7 +3205,7 @@
       .st-sc-msg { color:var(--accent); font-size:12.5px; } .st-sc-msg a { color:var(--accent); }
       .st-w-fname { color:var(--dim); font-size:12.5px; }
       .stw-main a { color:var(--accent); }
-      .feat-off { display:none !important; }`;
+      .feat-off, .lite .lite-hide { display:none !important; }`;
     const BEAR_HEAD = `<svg viewBox="0 0 100 100"><circle cx="24" cy="26" r="13" fill="#b8763e"/><circle cx="24" cy="26" r="7" fill="#e9b98a"/><circle cx="76" cy="26" r="13" fill="#b8763e"/><circle cx="76" cy="26" r="7" fill="#e9b98a"/>
       <ellipse cx="50" cy="56" rx="38" ry="35" fill="#c8864a"/><ellipse cx="50" cy="68" rx="18" ry="14" fill="#f1d2ac"/><circle cx="36" cy="52" r="4.6" fill="#2b1a0e"/><circle cx="64" cy="52" r="4.6" fill="#2b1a0e"/>
       <ellipse cx="50" cy="62" rx="6" ry="4.4" fill="#2b1a0e"/><path d="M44 70 Q50 75 56 70" fill="none" stroke="#2b1a0e" stroke-width="2.4" stroke-linecap="round"/>
@@ -3220,9 +3223,9 @@
       d.documentElement.lang = document.documentElement.lang;
       d.head.appendChild(document.querySelector('style').cloneNode(true));   // the app's colors
       const css = d.createElement('style'); css.textContent = ST_CSS; d.head.appendChild(css);
-      d.body.className = 'stw' + (document.body.classList.contains('owner-on') ? ' owner-on' : '');
+      d.body.className = 'stw' + (document.body.classList.contains('owner-on') ? ' owner-on' : '') + (LITE ? ' lite' : '');
       d.body.innerHTML = `<nav class="stw-nav"><div class="stw-brand">Settings</div>${ST_PAGES.map(([id, ico, name]) =>
-        `<button data-page="${id}" ${{ widget: 'data-feat="widget"', tools: 'data-feat="sidetools"', keys: 'data-feat="shortcuts"' }[id] || ''}><span class="stw-ico">${ico}</span>${name}</button>`).join('')}</nav><main class="stw-main"></main>`;
+        `<button data-page="${id}" ${{ widget: 'data-feat="widget"', tools: 'data-feat="sidetools"', keys: 'data-feat="shortcuts"', ai: 'data-feat="ai"' }[id] || ''}><span class="stw-ico">${ico}</span>${name}</button>`).join('')}</nav><main class="stw-main"></main>`;
       applyFeatures(d);
       d.querySelectorAll('.stw-nav button').forEach(b => b.onclick = () => showSettingsPage(b.dataset.page));
       settingsWin.addEventListener('keydown', e => { if (e.key === 'Escape') settingsWin.close(); });
@@ -3256,8 +3259,8 @@
         ${stCard('Convert to PDF', 'Pictures, Word, Excel and PowerPoint files become PDFs.', stSwitch('data-a="convert"'))}
         ${stCard('Merge into one PDF', 'All the files you drop together become one PDF.', stSwitch('data-a="merge"'))}
         ${stCard('Split into pages', 'Every page becomes its own PDF file.', stSwitch('data-a="split"'))}
-        ${stCard('Print', 'Prints them. You get 5 seconds to cancel.', stSwitch('data-a="print"'))}
-        ${stCard('Printer', '', '<select data-w="printer"></select><span>Copies</span><input data-w="copies" type="number" min="1" max="99">', 'indent st-w-print')}
+        ${stCard('Print', 'Prints them. You get 5 seconds to cancel.', stSwitch('data-a="print"'), 'lite-hide')}
+        ${stCard('Printer', '', '<select data-w="printer"></select><span>Copies</span><input data-w="copies" type="number" min="1" max="99">', 'indent st-w-print lite-hide')}
         ${stCard('Open in Toast Docs', 'Shows you the result here.', stSwitch('data-a="open"'))}
         <div class="st-w-note stw-note"></div>
         <h3>Where and how</h3>
@@ -3387,7 +3390,7 @@
       if (d.success) { fileQueue.find(f => f.originalPath === currentActiveFile).pdfPath = d.new_file; currentTempPdf = d.new_file; loadPDF(d.new_file, pageNum); }
     }
     const nextTab = dir => { if (tabs.length < 2) return; const i = tabs.indexOf(activeTab), n = tabs.length; switchToTab(tabs[(i + dir + n) % n]); };
-    const click = id => () => document.getElementById(id)?.click();
+    const click = id => () => { const el = document.getElementById(id); if (LITE && el && el.closest('#tool-palette, #btn-save-modified')) return; el?.click(); };   // Lite has no editing tools
     // [id, what it does, standard keys, run it, also while typing in a box?, button whose tooltip shows it]
     const SHORTCUTS = [
       ['print', 'Print', ['Ctrl+P'], () => doPrint(), true, 'btn-print'],
@@ -8130,10 +8133,19 @@
     // a shortcut stops working when its tool is hidden
     const SHORTCUT_FEATURE = { print: 'print', replace: 'replace', ai: 'ai', reading: 'read' };
     let featuresOff = new Set(store('features-off', ['boxlabels']));
+    // Toast Docs Lite (its own Store app): viewing, converting to and from PDF, merging, splitting and the widget.
+    // Everything else is off for good there: no editing toolbar, E-Sign, AI, printing or owner mode.
+    const LITE_KEEP = new Set(['convert', 'export', 'exportall', 'toword', 'toexcel', 'toppt', 'merge', 'split', 'extract', 'defaultpdf', 'report']);
+    if (LITE) {
+      featuresOff = new Set([...document.querySelectorAll('.tool-card[data-tool]')].map(c => c.dataset.tool)
+        .concat(Object.keys(FEATURE_EL), ['ai', 'onlineai']).filter(k => !LITE_KEEP.has(k)));
+      document.body.classList.add('lite');
+      goTab('convert');
+    }
     let ownerPreview = false;   // the owner looking at the app the way everyone else sees it
     let previewOff = null;      // while previewing: the list being edited, even before it's published
     let ownerThisTime = false;   // unlocked without keeping it: until the app closes
-    const isOwner = () => ownerThisTime || store('owner-mode', false) === true;
+    const isOwner = () => !LITE && (ownerThisTime || store('owner-mode', false) === true);
     // tools this person switched off for themselves (Settings > Tools I use): hidden even in owner mode
     let myOff = new Set(store('my-off', []));
     const featureOff = k => myOff.has(k) || (ownerPreview && previewOff ? previewOff : featuresOff).has(k) && (!isOwner() || ownerPreview);
@@ -8151,6 +8163,7 @@
         .forEach(s => { try { document.querySelectorAll(s).forEach(el => el.classList.add('feat-off')); } catch (e) {} }));
     }
     async function loadFeatures() {
+      if (LITE) return;   // Lite's tool list is fixed
       try {
         const r = await fetch(FEATURES_URL + '?t=' + Date.now(), { cache: 'no-store' });
         if (!r.ok) return;
@@ -8288,7 +8301,7 @@
       openOwnerPanel();
     }
     document.addEventListener('keydown', async e => {
-      if (!(e.ctrlKey && e.shiftKey && !e.altKey && e.code === 'KeyD')) return;
+      if (LITE || !(e.ctrlKey && e.shiftKey && !e.altKey && e.code === 'KeyD')) return;
       e.preventDefault(); e.stopPropagation();
       const op = document.getElementById('owner-panel');
       if (op) return op.closeOwner();

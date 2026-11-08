@@ -11,12 +11,18 @@ import os, sys, json, glob, subprocess, shutil
 from PIL import Image
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-out_dir = os.path.join(ROOT, sys.argv[1] if len(sys.argv) > 1 else 'release-store')
+# --lite: Toast Docs Lite, its own Store app (names in store-identity-lite.json; see electron-builder.store-lite.js)
+LITE = '--lite' in sys.argv
+args = [a for a in sys.argv[1:] if not a.startswith('--')]
+out_dir = os.path.join(ROOT, args[0] if args else ('release-store-lite' if LITE else 'release-store'))
 app = os.path.join(out_dir, 'win-unpacked')
 version = json.load(open(os.path.join(ROOT, 'package.json'), encoding='utf-8'))['version']
 ident = {'identityName': 'MyPDFKit.Test', 'publisher': 'CN=MyPDFKitTest', 'publisherDisplayName': 'MyPDFKit', 'displayName': 'MyPDFKit'}
-try: ident.update(json.load(open(os.path.join(ROOT, 'store-identity.json'), encoding='utf-8')))
-except FileNotFoundError: print('store-identity.json not found: using test names (fine for a test, not for the Store)')
+id_file = 'store-identity-lite.json' if LITE else 'store-identity.json'
+if LITE: ident.update({'identityName': 'MyPDFKit.LiteTest', 'displayName': 'Toast Docs Lite'})
+try: ident.update(json.load(open(os.path.join(ROOT, id_file), encoding='utf-8')))
+except FileNotFoundError: print(id_file + ' not found: using test names (fine for a test, not for the Store)')
+description = 'View PDFs, convert files to and from PDF, merge and split' if LITE else 'Edit, sign, convert, print and summarize PDFs'
 
 kits = sorted(glob.glob(r'C:\Program Files (x86)\Windows Kits\10\bin\10.*\x64\makeappx.exe'))
 if not kits: sys.exit('makeappx.exe not found: install the Windows SDK')
@@ -52,7 +58,7 @@ manifest = f'''<?xml version="1.0" encoding="utf-8"?>
   <Capabilities><rescap:Capability Name="runFullTrust"/><Capability Name="internetClient"/></Capabilities>
   <Applications>
     <Application Id="MyPDFKit" Executable="app\\Toast Docs.exe" EntryPoint="Windows.FullTrustApplication">
-      <uap:VisualElements DisplayName="{ident['displayName']}" Description="Edit, sign, convert, print and summarize PDFs"
+      <uap:VisualElements DisplayName="{ident['displayName']}" Description="{description}"
           BackgroundColor="transparent" Square150x150Logo="assets\\Square150x150Logo.png" Square44x44Logo="assets\\Square44x44Logo.png">
         <uap:DefaultTile Wide310x150Logo="assets\\Wide310x150Logo.png"/>
       </uap:VisualElements>
@@ -81,7 +87,7 @@ with open(mapping, 'w', encoding='utf-8') as f:
             # python-docx's unused template source folder (it uses templates\default.docx), so that folder is left out
             if n.lower() == '[content_types].xml' or '_rels' in os.path.relpath(r, app).lower().split(os.sep) or 'default-docx-template' in r: continue
             full = os.path.join(r, n); f.write(f'"{full}" "app\\{os.path.relpath(full, app)}"\n')
-out = os.path.join(out_dir, f'Toast-Docs-Store-{version}.msix')
+out = os.path.join(out_dir, f'Toast-Docs-{"Lite-" if LITE else ""}Store-{version}.msix')
 if os.path.exists(out): os.remove(out)
 r = subprocess.run([makeappx, 'pack', '/f', mapping, '/p', out, '/o'], capture_output=True, text=True)
 print((r.stdout or '')[-600:], (r.stderr or '')[-600:])

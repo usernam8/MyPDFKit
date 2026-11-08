@@ -39,6 +39,8 @@ def tile(name, w, h, pad=0.0):
 tile('StoreLogo.png', 50, 50); tile('Square44x44Logo.png', 44, 44); tile('Square150x150Logo.png', 150, 150, 0.3)
 tile('Wide310x150Logo.png', 310, 150, 0.25)
 
+# Lite has one Store listing (English), so its package declares English only (the app itself still has all 8 languages)
+resources = ''.join(f'<Resource Language="{l}"/>' for l in (['en-US'] if LITE else ['en-US', 'es-ES', 'de-DE', 'fr-FR', 'pt-BR', 'zh-CN', 'ja-JP', 'ko-KR']))
 v4 = '.'.join((version.split('.') + ['0', '0', '0'])[:3]) + '.0'
 manifest = f'''<?xml version="1.0" encoding="utf-8"?>
 <Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
@@ -54,7 +56,7 @@ manifest = f'''<?xml version="1.0" encoding="utf-8"?>
     <Logo>assets\\StoreLogo.png</Logo>
   </Properties>
   <Dependencies><TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.17763.0" MaxVersionTested="10.0.26100.0"/></Dependencies>
-  <Resources><Resource Language="en-US"/><Resource Language="es-ES"/><Resource Language="de-DE"/><Resource Language="fr-FR"/><Resource Language="pt-BR"/><Resource Language="zh-CN"/><Resource Language="ja-JP"/><Resource Language="ko-KR"/></Resources>
+  <Resources>{resources}</Resources>
   <Capabilities><rescap:Capability Name="runFullTrust"/><Capability Name="internetClient"/></Capabilities>
   <Applications>
     <Application Id="MyPDFKit" Executable="app\\Toast Docs.exe" EntryPoint="Windows.FullTrustApplication">

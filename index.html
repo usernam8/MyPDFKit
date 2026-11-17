@@ -3921,8 +3921,9 @@
           }
           const order = passes[pass];
           // in parts: a small first one so the printer starts at once, and each next part made while this one prints
+          // (an even number of sheets each, so two-sided printing never splits a front from its back)
           const parts = [];
-          for (let k = 0; k < order.length; ) { const n = testing || system ? order.length : parts.length ? CH : 5; parts.push([k, order.slice(k, k + n)]); k += n; }
+          for (let k = 0; k < order.length; ) { const n = testing || system ? order.length : parts.length ? CH : 6; parts.push([k, order.slice(k, k + n)]); k += n; }
           const render = part => api('print_render', { path: prepared.path, dpi, bw: $('color').value === 'bw', toner: $('color').value === 'toner', flip: $('flip').checked !== printerTurns(), indices: part[1] });
           let next = parts.length ? render(parts[0]) : null;
           for (let pi = 0; pi < parts.length && !bar.cancelled; pi++) {

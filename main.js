@@ -549,13 +549,28 @@ ipcMain.handle('print-pages', async (_e, pages, opt = {}) => {
   const sw = pages[0].w, sh = pages[0].h;
   const landscape = sw > sh;
   const [nw, nh] = [Math.min(sw, sh), Math.max(sw, sh)];   // the paper, narrow side first
+  // Copies come out page by page (1, 1, 2, 2, 3, 3...), not the whole set again and again: each sheet is
+  // repeated right here, since the printer's own copies count repeats the whole set and many printers ignore
+  // "don't collate". Two-sided, each front-and-back pair is repeated (a lone last page gets a blank back).
+  // One sheet, or the Windows print box (where people set copies themselves), keeps the printer's copies.
+  const copies = Math.max(1, opt.copies || 1), twoSided = opt.duplex && opt.duplex !== 'simplex', group = twoSided ? 2 : 1;
+  const repeat = !opt.system && copies > 1 && pages.length > group;
+  let sheets = pages;
+  if (repeat) {
+    sheets = [];
+    for (let i = 0; i < pages.length; i += group) {
+      const set = pages.slice(i, i + group);
+      if (set.length < group) set.push(null);   // blank back, so the next copy starts on its own sheet
+      for (let c = 0; c < copies; c++) sheets.push(...set);
+    }
+  }
   const html = `<!doctype html><meta charset="utf-8"><title>Toast Docs</title><style>
     @page { size: ${sw}pt ${sh}pt; margin: 0; }
     html, body { margin: 0; background: #fff; }
     .pg { width: ${sw}pt; height: ${sh}pt; page-break-after: always; break-after: page; overflow: hidden; }
     .pg:last-child { page-break-after: auto; break-after: auto; }
     img { display: block; width: ${sw}pt; height: ${sh}pt; }
-  </style>` + pages.map(p => `<div class="pg"><img src="${require('url').pathToFileURL(p.path).href}"></div>`).join('');
+  </style>` + sheets.map(p => p ? `<div class="pg"><img src="${require('url').pathToFileURL(p.path).href}"></div>` : '<div class="pg"></div>').join('');
   const file = path.join(path.dirname(pages[0].path), 'print.html');
   fs.writeFileSync(file, html);
   const pw = new BrowserWindow({ show: false, ...(win && !win.isDestroyed() ? { parent: win } : {}), webPreferences: { sandbox: true } });
@@ -568,13 +583,13 @@ ipcMain.handle('print-pages', async (_e, pages, opt = {}) => {
     const name = Object.keys(NAMED).find(k => Math.abs(NAMED[k][0] - nw) < 2 && Math.abs(NAMED[k][1] - nh) < 2);
     const pageSize = name || { width: Math.round(nw / 72 * 25400), height: Math.round(nh / 72 * 25400) };
     const settings = { silent: !opt.system, printBackground: true, landscape, pageSize, margins: { marginType: 'none' },
-      copies: opt.copies || 1, color: opt.color !== false, duplexMode: opt.duplex || 'simplex' };
+      copies: repeat ? 1 : copies, collate: false, color: opt.color !== false, duplexMode: opt.duplex || 'simplex' };
     if (opt.deviceName) settings.deviceName = opt.deviceName;
     if (opt.dryRun) {
       const pdf = await pw.webContents.printToPDF({ landscape, printBackground: true, preferCSSPageSize: true,
         pageSize: name || { width: nw / 72, height: nh / 72 }, margins: { top: 0, bottom: 0, left: 0, right: 0 } });
       fs.writeFileSync(opt.dryRun, pdf);
-      fs.writeFileSync(opt.dryRun.replace(/\.pdf$/i, '') + '.json', JSON.stringify({ settings, sheets: pages.length, sheetPt: [sw, sh] }, null, 1));
+      fs.writeFileSync(opt.dryRun.replace(/\.pdf$/i, '') + '.json', JSON.stringify({ settings, sheets: pages.length, printed: sheets.length, sheetPt: [sw, sh] }, null, 1));
       return { ok: true, dryRun: opt.dryRun, settings };
     }
     return await new Promise(resolve => pw.webContents.print(settings,

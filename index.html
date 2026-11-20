@@ -3575,6 +3575,7 @@
           <div class="field pp-opt" data-for="sheet"><label>Sticker sheet</label><select data-k="sheet"></select></div>
           <div class="field pp-opt" data-for="sheet"><label>Start at sticker</label><input data-k="start" type="number" min="1" max="80" value="1" title="On a sheet that's partly used, the first empty sticker (counting across, then down)"></div>
           <div class="field"><label>Copies</label><input data-k="copies" type="number" min="1" max="999" value="1"></div>
+          <div class="field"><label>Copies order</label><select data-k="collate"><option value="no">Uncollated: 1,1,1 2,2,2 3,3,3</option><option value="yes">Collated: 1,2,3 1,2,3 1,2,3</option></select></div>
           <div class="field"><label>Orientation</label><select data-k="orient"><option value="auto">Automatic</option><option value="portrait">Portrait</option><option value="landscape">Landscape</option></select></div>
           <div class="field"><label>Size on paper</label><select data-k="scale"><option value="fit">Fit to paper</option><option value="shrink">Shrink large pages only</option><option value="actual">Actual size</option><option value="pct">Exact percent...</option></select>
             <input data-k="percent" type="number" min="5" max="400" value="100" style="display:none" title="Percent of the actual size"></div>
@@ -3597,7 +3598,7 @@
         const more = document.createElement('details'); more.className = 'pp-more';
         more.innerHTML = '<summary>More settings</summary>';
         let at = count;
-        for (const k of ['printer', 'range', 'copies', 'orient']) { const r = row(k); at.after(r); at = r; }
+        for (const k of ['printer', 'range', 'copies', 'collate', 'orient']) { const r = row(k); at.after(r); at = r; }
         at.after(more);
         for (const k of ['paper', 'mode', 'layout']) more.append(row(k));
         bd.querySelectorAll('.pp-opt').forEach(el => more.append(el));
@@ -3618,11 +3619,12 @@
       const def = printers.find(isDef);
       sel.value = printers.some(p => p.name === saved.printer) || saved.printer === '__test__' ? saved.printer : def ? def.name : sel.options[0].value;
       for (const [k, name] of sheetKinds) $('sheet').add(new Option(name, k));
-      for (const k of ['orient', 'scale', 'color', 'duplex', 'sheet', 'poster', 'percent']) if (saved[k]) $(k).value = saved[k];
+      for (const k of ['orient', 'scale', 'color', 'duplex', 'sheet', 'poster', 'percent']) if (saved[k]) $(k).value = saved[k];   // copies order always starts uncollated (1,1,2,2...)
       if (saved.comments === false) $('comments').checked = false;
       const showOptions = () => {
         bd.querySelectorAll('.pp-opt').forEach(el => el.style.display = el.dataset.for === $('layout').value ? '' : 'none');
         $('percent').style.display = $('scale').value === 'pct' ? '' : 'none';
+        $('collate').closest('.field').style.display = (parseInt($('copies').value) || 1) > 1 ? '' : 'none';   // only matters with 2 or more copies
         $('layout').parentElement.style.display = isReceipt($('paper').value) ? 'none' : '';
       };
       if (opts.pages) { $('range').value = 'custom'; $('custom').style.display = ''; $('custom').value = opts.pages; }
@@ -3835,6 +3837,7 @@
         if (el === $('paper') && !opts.mode && !isReceipt(el.value)) { const label = isLabelPaper(paperOf().paper); $('mode').value = label ? 'label' : 'page'; $('skip').checked = label; }
         if (el === $('layout') && el.value === 'booklet' && $('duplex').value === 'simplex') $('duplex').value = 'shortEdge';   // booklets are printed two-sided
         showOptions();
+        if (el === $('collate')) return;   // the preview doesn't change
         if (el === $('color') || el === $('flip')) { if (el === $('flip')) remember(); return tint(); }
         prepare();
       }));
@@ -3907,11 +3910,16 @@
         const all = Array.from({ length: totalSheets }, (_, i) => i);
         const passes = manual ? [all.filter(i => i % 2 === 0), all.filter(i => i % 2 === 1).reverse()] : [all];
         const CH = testing || system ? totalSheets : 20;
+        // copies: uncollated (1,1,2,2...) is put in order by the main process, so it works on every printer;
+        // collated (1,2,3 1,2,3) sends the whole set once per copy. By hand two-sided always goes page by page.
+        const copies = Math.max(1, Math.min(999, parseInt($('copies').value) || 1));
+        const collated = $('collate').value === 'yes' && copies > 1 && !manual && !system;
         close();
         let sent = 0, result = null;
-        const bar = printProgress(totalSheets);
-        const job = { system, deviceName: testing ? '' : sel.value, copies: Math.max(1, Math.min(999, parseInt($('copies').value) || 1)),
+        const bar = printProgress(totalSheets * (collated ? copies : 1));
+        const job = { system, deviceName: testing ? '' : sel.value, copies: collated ? 1 : copies, collate: $('collate').value === 'yes',
                       color: $('color').value === 'color', duplex: manual ? 'simplex' : $('duplex').value };
+        for (let copy = 0; copy < (collated ? copies : 1) && !bar.cancelled; copy++) {
         for (let pass = 0; pass < passes.length && !bar.cancelled; pass++) {
           if (pass === 1) {
             bar.el.style.display = 'none';
@@ -3935,7 +3943,7 @@
             for (let a = 0; a < d.pages.length && !bar.cancelled; ) {
               let b = a + 1;
               while (b < d.pages.length && Math.abs(d.pages[b].w - d.pages[a].w) < 1 && Math.abs(d.pages[b].h - d.pages[a].h) < 1) b++;
-              const out = dryRun && (passes.length > 1 || a > 0 || k > 0) ? dryRun.replace(/\.pdf$/i, '') + ` (${pass + 1}-${k + a + 1}).pdf` : dryRun;
+              const out = dryRun && (passes.length > 1 || a > 0 || k > 0 || copy > 0) ? dryRun.replace(/\.pdf$/i, '') + ` (${collated ? `copy ${copy + 1} ` : ''}${pass + 1}-${k + a + 1}).pdf` : dryRun;
               result = await ipcRenderer.invoke('print-pages', d.pages.slice(a, b), { ...job, dryRun: out });
               if (!result || result.error || !result.ok) break;
               sent += b - a; bar.update(sent); a = b;
@@ -3943,6 +3951,8 @@
             if (!result || result.error || !result.ok) break;
           }
           if (!result || result.error || !result.ok) break;
+        }
+        if (!result || result.error || !result.ok) break;
         }
         bar.done();
         if (result && result.error) showToast(result.error, true);

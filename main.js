@@ -552,9 +552,10 @@ ipcMain.handle('print-pages', async (_e, pages, opt = {}) => {
   // Copies come out page by page (1, 1, 2, 2, 3, 3...), not the whole set again and again: each sheet is
   // repeated right here, since the printer's own copies count repeats the whole set and many printers ignore
   // "don't collate". Two-sided, each front-and-back pair is repeated (a lone last page gets a blank back).
-  // One sheet, or the Windows print box (where people set copies themselves), keeps the printer's copies.
+  // One sheet, the Windows print box (where people set copies themselves) or collated copies (opt.collate:
+  // the print window then sends the whole set once per copy) keep the printer's copies.
   const copies = Math.max(1, opt.copies || 1), twoSided = opt.duplex && opt.duplex !== 'simplex', group = twoSided ? 2 : 1;
-  const repeat = !opt.system && copies > 1 && pages.length > group;
+  const repeat = !opt.system && !opt.collate && copies > 1 && pages.length > group;
   let sheets = pages;
   if (repeat) {
     sheets = [];
@@ -583,7 +584,7 @@ ipcMain.handle('print-pages', async (_e, pages, opt = {}) => {
     const name = Object.keys(NAMED).find(k => Math.abs(NAMED[k][0] - nw) < 2 && Math.abs(NAMED[k][1] - nh) < 2);
     const pageSize = name || { width: Math.round(nw / 72 * 25400), height: Math.round(nh / 72 * 25400) };
     const settings = { silent: !opt.system, printBackground: true, landscape, pageSize, margins: { marginType: 'none' },
-      copies: repeat ? 1 : copies, collate: false, color: opt.color !== false, duplexMode: opt.duplex || 'simplex' };
+      copies: repeat ? 1 : copies, collate: !!opt.collate, color: opt.color !== false, duplexMode: opt.duplex || 'simplex' };
     if (opt.deviceName) settings.deviceName = opt.deviceName;
     if (opt.dryRun) {
       const pdf = await pw.webContents.printToPDF({ landscape, printBackground: true, preferCSSPageSize: true,
